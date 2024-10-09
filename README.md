@@ -1,2 +1,103 @@
-# fakes3pp
-Fake S3 plus plus is a proxy which enriches S3 compatible API's with additional features (presigned URLs/OIDC integration for authn/authz).
+# fakes3++
+
+The goal of fake S3 plus plus is to enrich S3 compatible API's to close the gap with
+(Amazon's S3 service)[https://aws.amazon.com/pm/serv-s3] which is feature rich compared to alternate implementations.
+
+## Scope
+
+### Goals
+  - Support OIDC authentication
+  - Support presigned URLs
+  - Support authorization for fine-grained access rules based on OIDC subject
+  - Maximise compatibility with original AWS (S3) clients
+
+### Non-Goals
+  - Store Data (a Downstream service is used with an S3 compatible API)
+
+
+### API overview
+
+This section details the actions that can be handled by the proxy
+
+#### S3
+- ListObjectsV2
+- GetObject
+- ListBuckets
+- HeadBucket
+- HeadObject
+- PutObject
+- CreateMultipartUpload
+- CompleteMultipartUpload
+- AbortMultipartUpload
+- UploadPart
+
+#### STS
+ - AssumeRoleWithWebIdentity
+
+
+## Running
+
+### Building the container image
+
+Both the S3 and STS proxy are served by the same container image which can be built using `make build-container` 
+
+## Configuration
+
+See cmd/config.go to see all the configuration parameters and their description. Configuration is set using environment variables.
+
+### Minimal configuration
+To get started quickly there is an example config file under etc/.env.docker.
+
+Create your private configuration copy:
+```sh
+cp -R etc etc.private
+```
+
+Next adapt the config under etc.private. To get a minimal working local proxy you need to change at least:
+ - etc.private/.env.docker
+   - AWS_ACCESS_KEY_ID: The access key id for the object store that you are proxying
+   - AWS_SECRET_ACCESS_KEY: The secret access key for the object store that you are proxying
+   - FAKES3PP_S3_PROXY_TARGET: The hostname of the object store you are proxying (e.g. `s3.waw3-1.cloudferro.com`)
+
+### Production configuration
+
+For a production configuration you MUST stay away from default certificates and keypairs.
+Read `etc/README.md` on how to generate your own secrets and update your .env.docker to point to those.
+
+Also add more restricting policies under `etc/policies` to match your use cases.
+
+### Run the proxy locally using podman
+
+After creating your private env config files the proxies can be started with the following `make` commands:
+ - stsproxy: `make run-container-sts`
+ - s3proxy:  `make run-container-s3`
+
+## Using the proxy
+
+1. Get an access token from your OIDC provider
+2. Perform an AssumeRoleWithWebIdentity call against the sts proxy (e.g. localhost:8444) to get temporary credentials
+  - RoleArn: the arn of a supported policy (e.g. `arn:aws:iam::000000000000:role/S3Access`)
+  - RoleSessionName: can be freely chosen
+  - WebIdentityToken: (The token from step 1)
+3A. Perform a supported (see API overview) AWS S3 API call against the s3 proxy (e.g. localhost:8443)
+  - Specify the credentials from 2
+  - Use a bucket that is available in the object store that is being proxied
+3B. Create a Pre-signed url using the credentials from 2 (e.g. see cmd/s3-presigner_test.py)
+
+
+## Why?
+
+At the time we needed this functionality we couldn't find a product that met our needs. Every product we encountered had a mismatch intrinsic to the design. We mention the following two because if they fit your use case then trying to use fakes3pp probably does not make sense.
+
+### Mismatch UC1: I want to manage my own storage
+
+There is (MinIO)[https://github.com/minio] which would have met our requirements but it runs against local storage rather than against other Object stores. So if you are not targetting Object storage their product might be a good fit as they also offer:
+   - OIDC integration for authn/authz
+   - presigned URLs
+
+Their work was quite a source of inspiration so we decided to base some work on them and therefore publish our code under GNU AFFERO GENERAL PUBLIC LICENSE.
+
+
+### Mismatch UC2: I want a custom REST API
+
+Products that run against S3 object stores often provide an API that is not S3 compatible towards clients (e.g. https://github.com/oxyno-zeta/s3-proxy). It also offers a way of OIDC integration but the frontend interface is not S3 API compatible.

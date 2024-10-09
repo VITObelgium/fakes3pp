@@ -1,0 +1,61 @@
+# This workflow will build a golang project
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-go
+
+name: Go
+
+on:
+  push:
+    branches: [ "*", "**" ]
+  pull_request:
+    branches: [ "*", "**" ]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.22'
+    - name: Golangci-lint
+      uses: golangci/golangci-lint-action@v6.1.1
+      with:
+        # The version of golangci-lint to use.
+        version: v1.61.0
+        # The mode to install golangci-lint. It can be 'binary' or 'goinstall'.
+        install-mode: binary
+        # golangci-lint working directory, default is project root
+        #working-directory: # optional
+        # the token is used for fetching patch of a pull request to show only new issues
+        #github-token: # optional, default is ${{ github.token }}
+        # if set to true and the action runs on a pull request - the action outputs only newly found issues
+        #only-new-issues: # optional, default is false
+        # if set to true then the all caching functionality will be complete disabled, takes precedence over all other caching options.
+        #skip-cache: # optional, default is false
+        # if set to true then the action will not save any caches, but it may still restore existing caches, subject to other options.
+        #skip-save-cache: # optional, default is false
+        # Force the usage of the embedded problem matchers
+        #problem-matchers: # optional, default is false
+        # golangci-lint command line arguments
+        #args: # optional, default is 
+        # Periodically invalidate a cache because a new code being added. (number of days)
+        #cache-invalidation-interval: # optional, default is 7    
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.22'
+
+    - name: Build
+      run: go build -v ./...
+
+    - name: Test
+      # As we use config files from time to time we always want to run without cache
+      run: go clean -testcache && go test -v ./...

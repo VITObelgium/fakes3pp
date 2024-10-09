@@ -1,0 +1,14 @@
+# Example OIDC config you should only add entries of providers you trust.
+# If you only specify the iss URL it is expected it serves a JSON that have the other fields.
+# In that case the information will be fetched during startup.
+providers:
+  CDSE:
+    realm: CDSE
+    public_key: "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAp6LwUL4v3SjzOdBYr4IxRRwsSJQ6lRvwS/7GiO77RO63+73Ne6htXmM6L/iDP1RLKT0N3rVp1oAnX/9HEd+s/xP7rXS6TmDG3mlSwQ/PKlILpqiatesaPo/tp/RUYyREjHeuUj/bzEVJUhC/rsjY5R1jwVlnSRAJ8VYTrwXiV7S87oxH+SL3XtuCpheGIm2QjJrVHGJ9kfanZouqKIk2MF54loCQ8EDxpQCEJFnY8l1+2qh7+6J1rRHromwgx0seUtbi+tQmVANkJrWOaMgJvORd4EDdouDa3nRy0BkLBQTJwZOXKhQKf0w2SchcZx2cy4iaMVa2O8o4lbIvrw++GwIDAQAB"
+    token-service: https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect
+    account-service: https://identity.dataspace.copernicus.eu/auth/realms/CDSE/account
+    tokens-not-before: 0
+    iss: https://identity.dataspace.copernicus.eu/auth/realms/CDSE
+
+  egi:
+    iss: https://aai.egi.eu/auth/realms/egi

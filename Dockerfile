@@ -1,7 +1,10 @@
 # Doing a multi-stage build to make sure to have passing of unittests enforced
 FROM docker.io/golang:1.22 AS base
 
-# Credit check tests
+LABEL org.opencontainers.image.source=https://github.com/VITObelgium/fakes3pp
+LABEL org.opencontainers.image.description="FakeS3++ proxies S3 compatible APIs and augment them with extra functionality."
+LABEL org.opencontainers.image.licenses=AGPL-3.0
+
 COPY go.mod /usr/src/fakes3pp/go.mod
 COPY go.sum /usr/src/fakes3pp/go.sum
 WORKDIR /usr/src/fakes3pp

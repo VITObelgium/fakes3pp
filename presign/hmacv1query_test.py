@@ -1,5 +1,5 @@
 """
-This file was used to generate test content for s3-presigner_test.go
+This file was used to generate test content for query_string_test.go
 """
 from copy import deepcopy
 import boto3

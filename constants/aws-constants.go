@@ -1,4 +1,4 @@
-package cmd
+package constants
 
 //The AWS SDK does not seem to provide packages that export these constants :(
 const (
@@ -28,11 +28,19 @@ const (
 	// AmzSignatureKey is the query parameter to store the SigV4 signature
 	AmzSignatureKey = "X-Amz-Signature"
 
+	// SignatureKey is the query parameter to store a SigV4 signature but used for hmacv1
+	SignatureKey = "Signature"
+
+	// AccessKeyId is the query parameter to store the access key for hmacv1
+	AccessKeyId = "AWSAccessKeyId"
+
+	// ExpiresKey is the query parameter when the url expires (epoch time)
+	ExpiresKey = "Expires"
+
+	// ContentSHAKey is the SHA256 of request body
+	AmzContentSHAKey = "X-Amz-Content-Sha256"
+
 	// TimeFormat is the time format to be used in the X-Amz-Date header or query parameter
 	TimeFormat = "20060102T150405Z"
 )
 
-//General HTTP but used in context of AWS
-const (
-	authorizationHeader = "Authorization"
-)

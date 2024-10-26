@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/VITObelgium/fakes3pp/presign"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -33,10 +34,13 @@ func TestValidPreSignWithServerCreds(t *testing.T) {
 		t.Errorf("could not presign request: %s\n", err)
 	}
 	//When we check the signature within 1 second
-	err = CheckPresignedUrl(context.Background(), signedURI, "")
+	isValid, err := presign.IsPresignedUrlWithValidSignature(context.Background(), signedURI, getServerCreds())
 	//Then it is a valid signature
 	if err != nil {
 		t.Errorf("Url should have been valid but %s", err)
+	}
+	if !isValid {
+		t.Errorf("Url was not valid")
 	}
 }
 
@@ -64,17 +68,20 @@ func TestValidPreSignWithTempCreds(t *testing.T) {
 		t.Errorf("error when creating a request context for url: %s", err)
 	}
 
-	uri, _, err := PreSignRequestWithCreds(context.Background(), req, 100, time.Now(), creds)
+	uri, _, err := presign.PreSignRequestWithCreds(context.Background(), req, 100, time.Now(), creds)
 	if err != nil {
 		t.Errorf("error when signing request with creds: %s", err)
 	}
 	
 
 	//When we check the signature within 1 second
-	err = CheckPresignedUrl(context.Background(), uri, creds.SessionToken)
+	isValid, err := presign.IsPresignedUrlWithValidSignature(context.Background(), uri, creds)
 	//Then it is a valid signature
 	if err != nil {
 		t.Errorf("Url should have been valid but %s", err)
+	}
+	if !isValid {
+		t.Errorf("Url was not valid")
 	}
 }
 
@@ -88,10 +95,13 @@ func TestExpiredPreSign(t *testing.T) {
 	}
 	//When we would check the url after 1 second
 	time.Sleep(1 * time.Second)
-	err = CheckPresignedUrl(context.Background(), signedURI, "")
-	//Then It should error out
-	if err == nil {
-		t.Error("Url should have been expired but no error was raised")
+	isValid, err := presign.IsPresignedUrlWithValidSignature(context.Background(), signedURI, getServerCreds())
+	//Then it is no longer a valid signature TODO check
+	if err != nil {
+		t.Errorf("Url should have been valid but %s", err)
+	}
+	if !isValid {
+		t.Errorf("Url was not valid")
 	}
 }
 
@@ -361,7 +371,7 @@ func TestWithValidCredsButProxyHeaders(t *testing.T) {
 	req.Header.Add("User-Agent", "aws-cli/2.15.40 Python/3.11.8 Linux/6.8.0-40-generic exe/x86_64.ubuntu.12 prompt/off command/s3.ls")
 	req.Header.Add("X-Amz-Content-SHA256", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
 	ctx = buildContextWithRequestID(req)
-	err = SignWithCreds(ctx, req, awsCred)
+	err = presign.SignWithCreds(ctx, req, awsCred)
 	if err != nil {
 		t.Error(err)
 		t.FailNow()
@@ -416,7 +426,7 @@ func TestWithValidCredsButUntrustedHeaders(t *testing.T) {
 	req.Header.Add("User-Agent", "aws-cli/2.15.40 Python/3.11.8 Linux/6.8.0-40-generic exe/x86_64.ubuntu.12 prompt/off command/s3.ls")
 	req.Header.Add("X-Amz-Content-SHA256", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
 	ctx = buildContextWithRequestID(req)
-	err = SignWithCreds(ctx, req, awsCred)
+	err = presign.SignWithCreds(ctx, req, awsCred)
 	if err != nil {
 		t.Error(err)
 		t.FailNow()

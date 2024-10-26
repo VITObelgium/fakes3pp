@@ -1,12 +1,14 @@
-package cmd
+package presign
 
 import (
 	"context"
 	"net/http"
 	"testing"
+
+	"github.com/VITObelgium/fakes3pp/constants"
 )
 
-//Logging of CONTENT GENERATION (see s3-presigner_test.go for origin of these values)
+//Logging of CONTENT GENERATION (see hmacv1query_test.go for origin of these values)
 
 // export AWS_ACCESS_KEY_ID="0123455678910abcdef09459"
 // export AWS_SECRET_ACCESS_KEY="YWUzOTQyM2FlMDMzNDlkNjk0M2FmZDE1OWE1ZGRkMT"
@@ -25,6 +27,7 @@ var testAwsCliPresignedUrlEuc1 = "https://s3.test.com/my-bucket/path/to/my_file?
 var testSigningDateEuc1 = "20241009T115034Z"
 
 //END OF GENERATED CONTENT
+
 
 func TestAwsCliGeneratedURLMustWork(t *testing.T) {
 	var testCases = []struct{
@@ -58,7 +61,7 @@ func TestAwsCliGeneratedURLMustWork(t *testing.T) {
 
 		req, err := http.NewRequest(http.MethodGet, tc.ExpectedUrl, nil)
 		queryP := req.URL.Query()
-		queryP.Del(AmzSignatureKey)
+		queryP.Del(constants.AmzSignatureKey)
 		req.URL.RawQuery = queryP.Encode()
 		if err != nil {
 			t.Errorf("Could not create request: %s", err)
@@ -69,7 +72,7 @@ func TestAwsCliGeneratedURLMustWork(t *testing.T) {
 		if err != nil {
 			t.Errorf("Did not expect error. Got %s", err)
 		}
-		if s, err := haveSameSigv4Signature(signedUri, tc.ExpectedUrl); !s || err != nil {
+		if s, err := haveSameSigv4QuerySignature(signedUri, tc.ExpectedUrl); !s || err != nil {
 			t.Errorf("Mismatch signature:\nGot     :%s\nExpected:%s", signedUri, tc.ExpectedUrl)
 		}
 	}

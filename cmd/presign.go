@@ -5,17 +5,14 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
-	"net/url"
 	"os"
-	"strconv"
 	"time"
 
+	"github.com/VITObelgium/fakes3pp/presign"
 	"github.com/aws/aws-sdk-go-v2/aws"
-	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -64,122 +61,31 @@ func init() {
 	checkPresignRequiredFlags()
 }
 
-//Pre-sign the requests with the credentials that are used by the proxy itself
-func PreSignRequestWithServerCreds(req *http.Request, exiryInSeconds int, signingTime time.Time) (signedURI string, signedHeaders http.Header, err error){
-
+func getServerCreds() aws.Credentials {
 	accessKey := viper.GetString(awsAccessKeyId)
 	secretKey := viper.GetString(awsSecretAccessKey)
 
-	creds := aws.Credentials{
+	return aws.Credentials{
 		AccessKeyID:     accessKey,
 		SecretAccessKey: secretKey,
 	}
+}
+
+//Pre-sign the requests with the credentials that are used by the proxy itself
+func PreSignRequestWithServerCreds(req *http.Request, exiryInSeconds int, signingTime time.Time) (signedURI string, signedHeaders http.Header, err error){
+
+	
 	ctx := context.Background()
 
-	return PreSignRequestWithCreds(
+	return presign.PreSignRequestWithCreds(
 		ctx,
 		req,
 		exiryInSeconds,
 		signingTime,
-		creds,
+		getServerCreds(),
 	)
 }
 
-var signatureQueryParamNames []string = []string{
-	AmzAlgorithmKey,
-	AmzCredentialKey,
-	AmzDateKey,
-	AmzSecurityTokenKey,
-	AmzSignedHeadersKey,
-	AmzSignatureKey,
-}
-
-func getQueryParamsFromUrl(inputUrl string) (url.Values, error) {
-	u, err := url.Parse(inputUrl)
-    if err != nil {
-        return nil, err
-    }
-	q, err := url.ParseQuery(u.RawQuery)
-	if err != nil {
-        return nil, err
-    }
-	return q, nil
-}
-
-func getSignatureFromUrl(inputUrl string) (string, error) {
-	q, err := getQueryParamsFromUrl(inputUrl)
-    if err != nil {
-        return "", err
-    }
-	signature := q.Get(AmzSignatureKey)
-	if signature == "" {
-		return signature, fmt.Errorf("Url got empty signature: %s", inputUrl)
-	}
-	return signature, nil
-}
-
-//Verify if URLs have the same sigv4 signature. If one of the URLs does not have
-//a signature it always returns false.
-func haveSameSigv4Signature(url1, url2 string) (same bool, err error) {
-	s1, err := getSignatureFromUrl(url1)
-    if err != nil {
-        return false, err
-    }
-	
-	s2, err := getSignatureFromUrl(url2)
-    if err != nil {
-        return false, err
-    }
-
-	return s1 == s2, nil
-}
-
-func PreSignRequestWithCreds(ctx context.Context, req *http.Request, expiryInSeconds int, signingTime time.Time, creds aws.Credentials) (signedURI string, signedHeaders http.Header, err error){
-	if expiryInSeconds <= 0 {
-		return "", nil, errors.New("expiryInSeconds must be bigger than 0 for presigned requests")
-	}
-	signer := v4.NewSigner()
-
-	ctx, creds, req, payloadHash, service, region, signingTime := GetSignRequestParams(ctx, req, expiryInSeconds, signingTime, creds)
-	return signer.PresignHTTP(ctx, creds, req, payloadHash, service, region, signingTime)
-}
-
-func SignRequestWithCreds(ctx context.Context, req *http.Request, expiryInSeconds int, signingTime time.Time, creds aws.Credentials) (err error){
-	signer := v4.NewSigner()
-
-	ctx, creds, req, payloadHash, service, region, signingTime := GetSignRequestParams(ctx, req, expiryInSeconds, signingTime, creds)
-	return signer.SignHTTP(ctx, creds, req, payloadHash, service, region, signingTime)
-}
-
-//Sign an HTTP request with a sigv4 signature. If expiry in seconds is bigger than zero then the signature has an explicit limited lifetime
-//use a negative value to not set an explicit expiry time
-func GetSignRequestParams(ctx context.Context, req *http.Request, expiryInSeconds int, signingTime time.Time, creds aws.Credentials) (context.Context, aws.Credentials, *http.Request, string, string, string, time.Time){
-	region := "eu-west-1"
-	regionName, err := getSignatureCredentialPartFromRequest(req, credentialPartRegionName)
-	if err == nil {
-		region = regionName
-	}
-	
-	query := req.URL.Query()
-	for _, paramName := range signatureQueryParamNames {
-		query.Del(paramName)
-	}
-	if expiryInSeconds > 0 {
-		expires := time.Duration(expiryInSeconds) * time.Second
-		query.Set(AmzExpiresKey, strconv.FormatInt(int64(expires/time.Second), 10))
-	}
-
-	req.URL.RawQuery = query.Encode()
-
-	service := "s3"
-
-	payloadHash := req.Header.Get("X-Amz-Content-Sha256")
-	if payloadHash == "" {
-		payloadHash = "UNSIGNED-PAYLOAD"
-	}
-
-	return ctx, creds, req, payloadHash, service, region, signingTime
-}
 
 func PreSignRequestForGet(bucket, key string, signingTime time.Time, expirySeconds int) (string, error) {
 	url := fmt.Sprintf("https://%s:%d/%s/%s", viper.Get(s3ProxyFQDN), viper.GetInt(s3ProxyPort), bucket, key)

@@ -1,10 +1,14 @@
-package cmd
+package presign
 
-import "time"
+import (
+	"time"
+
+	"github.com/VITObelgium/fakes3pp/constants"
+)
 
 //Convert query parameter like X-Amz-Date=20240914T190903Z
 func XAmzDateToTime(XAmzDate string) (time.Time, error) {
-	return time.Parse(TimeFormat, XAmzDate)
+	return time.Parse(constants.TimeFormat, XAmzDate)
 }
 
 func XAmzExpiryToTime(XAmzDate string, expirySeconds uint) (time.Time, error) {

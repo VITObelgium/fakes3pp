@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"net/http"
 	"testing"
 )
 
@@ -42,38 +41,6 @@ func TestCaptilizeFirstLetter(t *testing.T) {
 	}
 }
 
-func buildRequest(url string, t *testing.T) *http.Request {
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	if err != nil {
-		t.Error(err)
-		t.FailNow()
-	}
-	return req
-}
-
-func TestGetUrlFromRequest(t *testing.T) {
-	var testCasesValidUrls = []struct{
-		Description string
-		Url         string
-	}{
-		{
-			"Temporary credentials Url",
-			testExpectedPresignedUrlTemp,
-		},
-		{
-			"Permanent credentials Url",
-			testExpectedPresignedUrlPerm,
- 		},
-	}
-
-	for _, tc := range testCasesValidUrls {
-		req := buildRequest(tc.Url, t)
-		u := fullUrlFromRequest(req)
-		if u != tc.Url {
-			t.Errorf("%s: Got %s, expected %s", tc.Description, u, tc.Url)
-		}
-	}
-}
 
 func TestB32Symmetry(t *testing.T) {
 	testString := "Just for testing"

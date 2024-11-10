@@ -9,13 +9,15 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	jwt "github.com/golang-jwt/jwt/v5"
 
+	"github.com/VITObelgium/fakes3pp/constants"
+	"github.com/VITObelgium/fakes3pp/presign"
+	"github.com/VITObelgium/fakes3pp/requestutils"
 	"github.com/google/uuid"
 )
 
@@ -31,80 +33,12 @@ type handlerBuilder struct {
 }
 
 var justProxied handlerBuilderI = handlerBuilder{proxyFunc: justProxy}
- 
 
-const signAlgorithm = "AWS4-HMAC-SHA256"
-const expectedAuthorizationStartWithCredential = "AWS4-HMAC-SHA256 Credential="
-
-const credentialPartAccessKeyId = 0
-// const credentialPartDate = 1
-const credentialPartRegionName = 2
-const credentialPartServiceName = 3
-const credentialPartType = 4
-
-// Gets a part of the Credential value that is passed via the authorization header
-//
-func getSignatureCredentialPartFromRequest(r *http.Request, credentialPart int) (string, error) {
-	authorizationHeader := r.Header.Get("Authorization")
-	var credentialString string
-	var err error
-	if authorizationHeader != "" {
-		credentialString, err = getSignatureCredentialStringFromRequestAuthHeader(authorizationHeader)
-		if err != nil {
-			return "", err
-		}
-	} else {
-		qParams := r.URL.Query()
-		credentialString, err = getSignatureCredentialStringFromRequestQParams(qParams)
-		if err != nil {
-			return "", err
-		}
-	}
-	return getCredentialPart(credentialString, credentialPart)
-}
-
-// Gets a part of the Credential value that is passed via the authorization header
-func getSignatureCredentialStringFromRequestAuthHeader(authorizationHeader string) (string, error) {
-	if authorizationHeader == "" {
-		return "", fmt.Errorf("programming error should use empty authHeader to get credential part")
-	}
-	if !strings.HasPrefix(authorizationHeader, expectedAuthorizationStartWithCredential) {
-		return "", fmt.Errorf("invalid authorization header: %s", authorizationHeader)
-	}
-	authorizationHeaderTrimmed := authorizationHeader[len(expectedAuthorizationStartWithCredential):]
-	return authorizationHeaderTrimmed, nil
-}
-
-func getSignatureCredentialStringFromRequestQParams(qParams url.Values) (string, error) {
-	queryAlgorithm := qParams.Get("X-Amz-Algorithm")
-	if queryAlgorithm != signAlgorithm {
-		return "", fmt.Errorf("no Authorization header nor x-amz-algorithm query parameter present: %v", qParams)
-	}
-	queryCredential := qParams.Get("X-Amz-Credential")
-	if queryCredential == "" {
-		return "", fmt.Errorf("empty X-Amz-Credential parameter: %v", qParams)
-	}
-	return queryCredential, nil
-}
-
-func getCredentialPart(credentialString string, credentialPart int) (string, error) {
-	authorizationHeaderCredentialParts := strings.Split(
-		strings.Split(credentialString, ", ")[0],
-		"/",
-	)
-	if authorizationHeaderCredentialParts[credentialPartServiceName] != "s3" {
-		return "", errors.New("authorization header was not for S3")
-	}
-	if authorizationHeaderCredentialParts[credentialPartType] != "aws4_request" {
-		return "", errors.New("authorization header was not a supported sigv4")
-	}
-	return authorizationHeaderCredentialParts[credentialPart], nil
-}
 
 //For requests the access key and token are send over the wire
 func getCredentialsFromRequest(r *http.Request) (accessKeyId, sessionToken string, err error) {
-	sessionToken = r.Header.Get(AmzSecurityTokenKey)
-	accessKeyId, err = getSignatureCredentialPartFromRequest(r, credentialPartAccessKeyId)
+	sessionToken = r.Header.Get(constants.AmzSecurityTokenKey)
+	accessKeyId, err = requestutils.GetSignatureCredentialPartFromRequest(r, requestutils.CredentialPartAccessKeyId)
 	return
 }
 
@@ -112,7 +46,7 @@ const signedHeadersPrefix = "SignedHeaders="
 
 func getSignedHeadersFromRequest(ctx context.Context, req *http.Request) (signedHeaders map[string]string) {
 	signedHeaders = map[string]string{}
-	ah := req.Header.Get(authorizationHeader)
+	ah := req.Header.Get(constants.AuthorizationHeader)
 	if ah == "" {
 		return
 	}
@@ -131,26 +65,6 @@ func getSignedHeadersFromRequest(ctx context.Context, req *http.Request) (signed
 	return signedHeaders
 }
 
-var cleanableHeaders = map[string]bool{
-	"accept-encoding": true,
-	"x-forwarded-for": true,
-	"x-forwarded-host": true,
-	"x-forwarded-port": true,
-	"x-forwarded-proto": true,
-	"x-forwarded-server": true,
-	"x-real-ip": true,
-	"amz-sdk-invocation-id": true, //Added by AWS SDKs after signing
-	"amz-sdk-request": true, //Added by AWS SDKs after signing
-	"content-length": true,
-}
-
-func isCleanable(headerName string) bool {
-	value, ok := cleanableHeaders[strings.ToLower(headerName)]
-	if ok && value {
-		return true
-	}
-	return false
-}
 
 var s3ProxyKeyFunc func (t *jwt.Token) (interface{}, error)
 
@@ -166,40 +80,15 @@ func initializeS3ProxyKeyFunc(publicKeyFile string) error{
 	return nil
 }
 
-//CleanHeaders removes headers which are potentially added along the way
+//cleanHeadersThatAreNotSignedInAuthHeader removes headers which are potentially added along the way
 //
-func CleanHeaders(ctx context.Context, req *http.Request) {
-	var cleaned = []string{}
-	var skipped = []string{}
-	var signed = []string{}
+func cleanHeadersThatAreNotSignedInAuthHeader(ctx context.Context, req *http.Request) {
 	signedHeaders := getSignedHeadersFromRequest(ctx, req)
 
-	allHeadersInRequest := []string{}
-	for hearderName := range req.Header {
-		allHeadersInRequest = append(allHeadersInRequest, hearderName)
-	}
-
-	for _, header := range allHeadersInRequest {
-		_, ok := signedHeaders[strings.ToLower(header)]
-		if ok {
-			signed = append(signed, header)
-			continue
-		}
-		if isCleanable(header) {
-			//If content-length is to be cleaned it should
-			//also be <=0 otherwise it is taken in the signature
-			//-1 means unknown so let's fall back to that
-			if strings.ToLower(header) == "content-length" {
-				req.ContentLength = -1
-			}
-			req.Header.Del(header)
-			cleaned = append(cleaned, header)
-		} else {
-			skipped = append(skipped, header)
-		}
-	}
-	slog.Info("Cleaning of headers done", xRequestIDStr, getRequestID(ctx), "cleaned", cleaned, "skipped", skipped, "signed", signed)
+	presign.CleanHeadersTo(ctx, req, signedHeaders)
 }
+
+
 
 // Authorize an S3 action
 // maxExpiryTime is an upperbound for the expiry of the session token
@@ -290,66 +179,37 @@ func (hb handlerBuilder) Build(action S3ApiAction, presigned bool) (http.Handler
 		if presigned {
 			//bool to track whether signature was ok
 			var isValid bool
-			var sessionToken string
 			var expires time.Time
-			if r.URL.Query().Get("Signature") != "" && r.URL.Query().Get("x-amz-security-token") != "" && r.URL.Query().Get("AWSAccessKeyId") != "" {
-				accessKeyId := r.URL.Query().Get("AWSAccessKeyId")
-				sessionToken = r.URL.Query().Get("x-amz-security-token")
-				signingKey, err := getSigningKey()
-				if err != nil {
-					slog.Error("Could not get signing key", "error", err)
-					writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
-					return
-				}
-				secretAccessKey := CalculateSecretKey(accessKeyId, signingKey)
-				creds := aws.Credentials{
-					AccessKeyID: accessKeyId,
-					SecretAccessKey: secretAccessKey,
-					SessionToken: sessionToken,
-				}
-				isValid, err = HasS3PresignedUrlValidSignature(r, creds)
-				if err != nil {
-					slog.Error("Encountered error validating S3 presigned url", "error", err, xRequestIDStr, getRequestID(ctx))
-					writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
-					return
-				}
-				expires, err = GetS3PresignedUrlExpiresTime(r)
-				if err != nil {
-					slog.Info("Encountered error when getting expires time", "error", err, xRequestIDStr, getRequestID(ctx))
-					writeS3ErrorResponse(ctx, w, ErrS3InvalidSignature, nil)
-					return
-				}
-				// If url has gone passed expiry time (under user control)
-				if expires.Before(time.Now().UTC()) {
-					slog.Info("Encountered expired URL", "expires", expires, xRequestIDStr, getRequestID(ctx))
-					writeS3ErrorResponse(ctx, w, ErrS3InvalidSignature, errors.New("expired URL"))
-					return
-				}
 
-			} else {
-				//Presigned with sigv4
-				slog.Info("sigv4 signature", xRequestIDStr, getRequestID(ctx))
-				u := ReqToURI(r)
-				sessionToken = r.URL.Query().Get("X-Amz-Security-Token")
-				if sessionToken == "" {
-					slog.Info("Unsupported sigv4 with permanent credentials", xRequestIDStr, getRequestID(ctx))
-					writeS3ErrorResponse(ctx, w, ErrS3InternalError, errors.New("not implemented sigv4"))
-					return
-				}
-				err := CheckPresignedUrl(ctx, u, sessionToken)
-				if err != nil {
-					body := "Forbidden"
-					if strings.HasPrefix(fmt.Sprint(err), "Expired") {
-						body = "Expired"
-					}
-					slog.Info("Invalid presigned url", "body", body, "error", err, xRequestIDStr, getRequestID(ctx))
-					w.WriteHeader(http.StatusForbidden)
-					WriteButLogOnError(ctx, w, []byte(body))
-					return
-				} else {
-					isValid = true
-				}
+			signingKey, err := getSigningKey()
+			if err != nil {
+				slog.Error("Could not get signing key", "error", err)
+				writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
+				return
+			}
 
+			var secretDeriver = func(accessKeyId string) (secretAccessKey string, err error) {
+				return CalculateSecretKey(accessKeyId, signingKey), nil
+			}
+
+			presignedUrl, err := presign.MakePresignedUrl(r)
+			if err != nil {
+				slog.Error("Could not get presigned url", "error", err, xRequestIDStr, getRequestID(ctx))
+				writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
+				return
+			}
+			isValid, creds, expires, err:= presignedUrl.GetPresignedUrlDetails(ctx, secretDeriver)
+			if err != nil {
+				slog.Error("Error geting details of presigned url", "error", err, xRequestIDStr, getRequestID(ctx))
+				writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
+				return
+			}
+
+			// If url has gone passed expiry time (under user control)
+			if expires.Before(time.Now().UTC()) {
+				slog.Info("Encountered expired URL", "expires", expires, xRequestIDStr, getRequestID(ctx))
+				writeS3ErrorResponse(ctx, w, ErrS3InvalidSignature, errors.New("expired URL"))
+				return
 			}
 			
 			if isValid{
@@ -358,11 +218,11 @@ func (hb handlerBuilder) Build(action S3ApiAction, presigned bool) (http.Handler
 				r.RequestURI = strings.Replace(r.RequestURI, queryPart, "", 1)
 				r.URL.RawQuery = ""
 
-				CleanHeaders(ctx, r)
+				cleanHeadersThatAreNotSignedInAuthHeader(ctx, r)
 
 				//To have a valid signature
-				r.Header.Add("X-Amz-Content-Sha256", EmptyStringSHA256)
-				if authorizeS3Action(ctx, sessionToken, action, w, r, getCutoffForPresignedUrl()){
+				r.Header.Add(constants.AmzContentSHAKey, constants.EmptyStringSHA256)
+				if authorizeS3Action(ctx, creds.SessionToken, action, w, r, getCutoffForPresignedUrl()){
 					hb.proxyFunc(ctx, w, r)
 				}
 				return
@@ -387,21 +247,21 @@ func (hb handlerBuilder) Build(action S3ApiAction, presigned bool) (http.Handler
 			secretAccessKey := CalculateSecretKey(accessKeyId, signingKey)
 			backupContentLength := r.ContentLength
 			//There is no use of passing the headers that are set by a proxy and which we haven't verified.
-			CleanHeaders(ctx, r)
+			cleanHeadersThatAreNotSignedInAuthHeader(ctx, r)
 			clonedReq := r.Clone(ctx)
 			creds := aws.Credentials{
 				AccessKeyID: accessKeyId,
 				SecretAccessKey: secretAccessKey,
 				SessionToken: sessionToken,
 			}
-			err = SignWithCreds(ctx, clonedReq, creds)
+			err = presign.SignWithCreds(ctx, clonedReq, creds)
 			if err != nil {
 				slog.Error("Could not sign request", "error", err, xRequestIDStr, getRequestID(ctx))
 				writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
 				return
 			}
-			calculatedSignature := clonedReq.Header.Get(authorizationHeader) 
-			passedSignature := r.Header.Get(authorizationHeader)
+			calculatedSignature := clonedReq.Header.Get(constants.AuthorizationHeader) 
+			passedSignature := r.Header.Get(constants.AuthorizationHeader)
 			if calculatedSignature == passedSignature {
 				slog.Info("Valid signature", xRequestIDStr, getRequestID(ctx))
 				//Cleaning could have removed content length
@@ -423,10 +283,6 @@ func (hb handlerBuilder) Build(action S3ApiAction, presigned bool) (http.Handler
 			}
 		}
 	}
-}
-
-func ReqToURI(r *http.Request) string {
-	return fmt.Sprintf("https://%s%s", r.Host, r.URL.String())
 }
 
 type RequestID string
@@ -474,8 +330,8 @@ func logRequest(ctx context.Context, apiAction string, r *http.Request) {
 }
 
 func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-	ReTargetRequest(r)
-	err := SignRequest(ctx, r)
+	reTargetRequest(r)
+	err := signRequest(ctx, r)
 	if err != nil {
 		slog.Error("Could not sign request with permanent credentials", "error", err, xRequestIDStr, getRequestID(ctx))
 		writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
@@ -511,11 +367,11 @@ func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 // Adapt Host to the new target
 // We also have to clear RequestURI and set URL appropriately as explained in
 // https://stackoverflow.com/questions/19595860/http-request-requesturi-field-when-making-request-in-go
-func ReTargetRequest(r *http.Request) {
+func reTargetRequest(r *http.Request) {
 	// Old signature
 	r.Header.Del("Authorization")
 	// Old session token
-	r.Header.Del(AmzSecurityTokenKey)
+	r.Header.Del(constants.AmzSecurityTokenKey)
 	r.Header.Del("Host")
 	r.Header.Add("Host", s3TargetHost)
 	r.Host = s3TargetHost
@@ -534,7 +390,7 @@ func ReTargetRequest(r *http.Request) {
 	slog.Info("RawQuery that is put in place", "raw_query", r.URL.RawQuery)
 }
 
-func SignRequest(ctx context.Context, req *http.Request) error{
+func signRequest(ctx context.Context, req *http.Request) error{
 	accessKey := os.Getenv("AWS_ACCESS_KEY_ID")
 	secretKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
 
@@ -543,84 +399,6 @@ func SignRequest(ctx context.Context, req *http.Request) error{
 		SecretAccessKey: secretKey,
 	}
 
-	return SignWithCreds(ctx, req, creds)
+	return presign.SignWithCreds(ctx, req, creds)
 }
 
-func SignWithCreds(ctx context.Context, req *http.Request, creds aws.Credentials) error{
-	var signingTime time.Time
-	amzDate := req.Header.Get(AmzDateKey)
-	if amzDate == "" {
-		signingTime = time.Now()
-	} else {
-		var err error
-		signingTime, err = XAmzDateToTime(amzDate)
-		if err != nil {
-			slog.Error("Could not handle X-amz-date", AmzDateKey, amzDate, "error", err)
-			signingTime = time.Now()
-		}	
-	}
-
-	return SignRequestWithCreds(ctx, req, -1, signingTime, creds)
-}
-
-//If presigned url is valid return nil otherwise error why it is invalid
-//It also verifies whether the URL was valid at time of checking
-func CheckPresignedUrl(ctx context.Context, presignedUrlToCheck, sessionToken string) (error) {
-	u, err := url.Parse(presignedUrlToCheck)
-    if err != nil {
-        return err
-    }
-	XAmzDate := u.Query().Get("X-Amz-Date")
-	signDate, err := XAmzDateToTime(XAmzDate)
-	if err != nil {
-		return fmt.Errorf("InvalidSignature: could not process signature date %s due to %s", XAmzDate, err)
-	}
-	XAmzExpires := u.Query().Get("X-Amz-Expires")
-	expirySeconds, err := strconv.Atoi(XAmzExpires)
-	if err != nil {
-		return fmt.Errorf("InvalidSignature: could not get Expire seconds(X-Amz-Expires) %s: %s", XAmzExpires, err)
-	}
-
-	expiryTime := signDate.Add(time.Duration(expirySeconds) * time.Second)
-	now := time.Now()
-	if expiryTime.Before(now) {
-		return fmt.Errorf("ExpiredUrl: url expired on %s but the time is %s", expiryTime, now)
-	}
-
-	req, err := http.NewRequest(http.MethodGet, u.String(), nil)
-	var signedUri string
-	if err != nil {
-		return fmt.Errorf("InvalidSignature: could not create request: %s", err)
-	}
-	if sessionToken != "" {
-		accessKeyId, err := getSignatureCredentialPartFromRequest(req, credentialPartAccessKeyId)
-		if err != nil{
-			return err
-		}
-		key, err := getSigningKey()
-		if err != nil {
-			return err
-		}
-		secretKey := CalculateSecretKey(accessKeyId, key)
-	
-		creds := aws.Credentials{
-			AccessKeyID: accessKeyId,
-			SecretAccessKey: secretKey,
-			SessionToken: sessionToken,
-		}
-		signedUri, _, err = PreSignRequestWithCreds(ctx, req, expirySeconds, signDate, creds)
-		if err != nil {
-			return fmt.Errorf("InvalidSignature: encountered error trying to sign a similar req: %s", err)
-		}
-	} else {
-		signedUri, _, err = PreSignRequestWithServerCreds(req, expirySeconds, signDate)
-		if err != nil {
-			return fmt.Errorf("InvalidSignature: encountered error trying to sign a similar req: %s", err)
-		}
-	}
-
-	if s, err := haveSameSigv4Signature(signedUri, presignedUrlToCheck); !s || err != nil {
-		return fmt.Errorf("InvalidSignature: got 2 different signatures:\n%s\n%s", signedUri, presignedUrlToCheck)
-	}
-	return nil
-}

@@ -6,7 +6,6 @@ import (
 	"crypto/sha1"
 	"encoding/base32"
 	"encoding/hex"
-	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -68,19 +67,6 @@ func capitalizeFirstLetter(s string) string {
 	}
 }
 
-func fullUrlFromRequest(req *http.Request) string {
-	scheme := req.URL.Scheme
-	if scheme == "" {
-		scheme = "https"
-	}
-	return fmt.Sprintf(
-		"%s://%s%s?%s",
-		scheme,
-		req.Host,
-		req.URL.Path,
-		req.URL.RawQuery,
-	)
-}
 
 // Whenever we write back we should log if there are errors
 func WriteButLogOnError(ctx context.Context, w http.ResponseWriter, bytes []byte) {

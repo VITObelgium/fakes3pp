@@ -1,4 +1,6 @@
-package cmd
+// https://docs.aws.amazon.com/AmazonS3/latest/API/RESTAuthentication.html#RESTAuthenticationQueryStringAuth
+// e.g.: https://<s3-endpoing-FQDN>/<bucket>/<key>?AWSAccessKeyId=<aakid>&Signature=<sig>&x-amz-security-token=<tok>&Expires=<expires-epoch>
+package presign
 
 import (
 	"context"
@@ -14,22 +16,77 @@ import (
 	"strings"
 	"time"
 
+	"github.com/VITObelgium/fakes3pp/constants"
+	ru "github.com/VITObelgium/fakes3pp/requestutils"
 	"github.com/aws/aws-sdk-go-v2/aws"
 )
 
+type presignedUrlHmacv1Query struct {
+	*http.Request
+}
+
+func presignedUrlHmacv1queryFromRequest(r *http.Request) presignedUrlHmacv1Query {
+	return presignedUrlHmacv1Query{
+		r,
+	}
+}
+
+func isHmacV1Query(r *http.Request) bool {
+	return r.URL.Query().Get(constants.SignatureKey) != "" && r.URL.Query().Get(constants.AccessKeyId) != ""
+}
+
+//Presigned urls often get different casing (e.g. from boto3 library)
+func getHmacV1QuerySecurityToken(r *http.Request) string {
+	var result = r.URL.Query().Get("x-amz-security-token")
+	if result == "" {
+		result = r.URL.Query().Get(constants.AmzSecurityTokenKey)
+	}
+	return result
+}
+
+func (u presignedUrlHmacv1Query) GetPresignedUrlDetails(ctx context.Context, deriver SecretDeriver) (isValid bool, creds aws.Credentials, expires time.Time, err error) {
+	accessKeyId := u.URL.Query().Get(constants.AccessKeyId)
+	sessionToken := getHmacV1QuerySecurityToken(u.Request)
+
+	secretAccessKey, err := deriver(accessKeyId)
+	if err != nil {
+		return
+	}
+	creds = aws.Credentials{
+		AccessKeyID: accessKeyId,
+		SecretAccessKey: secretAccessKey,
+		SessionToken: sessionToken,
+	}
+	isValid, err = u.hasValidSignature(creds)
+	if err != nil {
+		return
+	}
+	expires, err = u.getExpiresTime()
+	return
+}
+
+func (u presignedUrlHmacv1Query) hasValidSignature(creds aws.Credentials) (bool, error) {
+	testUrl := UrlDropSchemeFQDNPort(ru.FullUrlFromRequest(u.Request))
+	expectedUrl, err := CalculateS3PresignedHmacV1QueryUrl(u.Request, creds, 0)
+	expectedUrl = UrlDropSchemeFQDNPort(expectedUrl)
+	if err != nil {
+		return false, err
+	}
+	return testUrl == expectedUrl, nil
+}
+
+func getExpiresFromHmacv1QueryUrl(r *http.Request) string {
+	return r.URL.Query().Get(constants.ExpiresKey)
+}
+
 // For a presigned url get the epoch string when it expires
-func getS3PresignedUrlExpires(req *http.Request) string {
-	return req.URL.Query().Get("Expires")
+func (u presignedUrlHmacv1Query) getExpires() string {
+	return getExpiresFromHmacv1QueryUrl(u.Request)
 }
 
 // For a presigned url get the time when it expires or return an error if invalid input
-func GetS3PresignedUrlExpiresTime(req *http.Request) (time.Time, error) {
-	expiresStr := getS3PresignedUrlExpires(req)
-	expiresInt, err := strconv.Atoi(expiresStr)
-	if err != nil {
-		return time.Now(), err
-	}
-	return time.Unix(int64(expiresInt), 0), nil
+func (u presignedUrlHmacv1Query) getExpiresTime() (time.Time, error) {
+	return epochStrToTime(u.getExpires())
 }
 
 //Calculate a Presigned URL out of a Request using AWS Credentials
@@ -37,18 +94,18 @@ func GetS3PresignedUrlExpiresTime(req *http.Request) (time.Time, error) {
 //If expirySeconds is set to 0 it is expected that a query parameter Expires is passed as part of the URL
 //With a value an epoch timestamp
 //This function will not make changes to the passed in request
-func CalculateS3PresignedUrl(req *http.Request, creds aws.Credentials, expirySeconds int) (string, error) {
-	var expires string = getS3PresignedUrlExpires(req)
+func CalculateS3PresignedHmacV1QueryUrl(req *http.Request, creds aws.Credentials, expirySeconds int) (string, error) {
+	var expires string = getExpiresFromHmacv1QueryUrl(req)
 	if expires == "" && expirySeconds == 0 {
-		return "", errors.New("got expirySeconds 0 but no expires in URL, impossible to get expiry")
+		return "", errors.New("got expirySeconds 0 but no expires in URL, impossible to get expires")
 	}
 	if expirySeconds > 0 {
 		if expires != "" {
-			return "", fmt.Errorf("got expirySeconds %d and expires in URL %s, impossible to now which expiry to use", expirySeconds, expires)
+			return "", fmt.Errorf("got expirySeconds %d and expires in URL %s, impossible to now which expires to use", expirySeconds, expires)
 		}
 		expires = getExpiresFromExpirySeconds(expirySeconds)
 	}
-	return CalculateS3PresignedUrlWithExpiryTime(req, creds, expires)
+	return calculateS3PresignedHmacV1QueryUrlWithExpiryTime(req, creds, expires)
 }
 
 func UrlDropSchemeFQDNPort(url string) string {
@@ -59,26 +116,7 @@ func UrlDropSchemeFQDNPort(url string) string {
 	return strings.Join(urlParts[3:], "/")
 }
 
-func HasS3PresignedUrlValidSignature(req *http.Request, creds aws.Credentials) (validSignature bool, err error) {
-	testUrl := UrlDropSchemeFQDNPort(fullUrlFromRequest(req))
-	expectedUrl, err := CalculateS3PresignedUrl(req, creds, 0)
-	expectedUrl = UrlDropSchemeFQDNPort(expectedUrl)
-	if err != nil {
-		return false, err
-	}
-	return testUrl == expectedUrl, nil
-}
-
-
-func HasGetS3PresignedUrlValidSignature(testUrl string, creds aws.Credentials) (validSignature bool, err error) {
-	req, err := http.NewRequest(http.MethodGet, testUrl, nil)
-	if err != nil {
-		return false, err
-	}
-	return HasS3PresignedUrlValidSignature(req, creds)
-}
-
-func CalculateS3PresignedUrlWithExpiryTime(req *http.Request, creds aws.Credentials, expires string) (string, error) {
+func calculateS3PresignedHmacV1QueryUrlWithExpiryTime(req *http.Request, creds aws.Credentials, expires string) (string, error) {
 	r := req.Clone(context.Background())
 	
 	assureSecTokenHeader(r, creds)
@@ -94,10 +132,10 @@ func CalculateS3PresignedUrlWithExpiryTime(req *http.Request, creds aws.Credenti
 	hashBytes := h.Sum(nil)
 	signature := base64.StdEncoding.EncodeToString(hashBytes)
 
-	return buildUrl(r, creds, expires, signature), nil
+	return buildHmacV1QueryUrl(r, creds, expires, signature), nil
 }
 
-func buildUrl(req *http.Request, creds aws.Credentials, expires, signature string) (string) {
+func buildHmacV1QueryUrl(req *http.Request, creds aws.Credentials, expires, signature string) (string) {
 	var secToken = ""
 	if creds.SessionToken != "" {
 		secToken = fmt.Sprintf("&x-amz-security-token=%s", url.QueryEscape(creds.SessionToken))

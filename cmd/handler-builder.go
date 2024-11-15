@@ -112,7 +112,8 @@ func authorizeS3Action(ctx context.Context, sessionToken string, action S3ApiAct
 		return
 	}
 
-	policyStr, err := pm.GetPolicy(sessionClaims.RoleARN, PolicyTemplateDataFromClaims(sessionClaims))
+	policySessionData := GetPolicySessionDataFromClaims(sessionClaims)
+	policyStr, err := pm.GetPolicy(sessionClaims.RoleARN, policySessionData)
 	if err != nil {
 		slog.Error("Could not get policy for temporary credentials", "error", err, xRequestIDStr, getRequestID(ctx), "role_arn", sessionClaims.RoleARN)
 		writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
@@ -125,7 +126,7 @@ func authorizeS3Action(ctx context.Context, sessionToken string, action S3ApiAct
 		writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
 		return
 	}
-	iamActions, err := NewIamActionsFromS3Request(action, r)
+	iamActions, err := newIamActionsFromS3Request(action, r, policySessionData)
 	if err != nil {
 		slog.Error("Could not get IAM actions from request", "error", err, xRequestIDStr, getRequestID(ctx), "policy", sessionClaims.RoleARN)
 		writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)

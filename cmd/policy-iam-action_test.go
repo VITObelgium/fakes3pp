@@ -24,7 +24,7 @@ type StubJustReturnIamAction struct{
 
 func (p *StubJustReturnIamAction) Build(action S3ApiAction, presigned bool) http.HandlerFunc{
 	return func (w http.ResponseWriter, r *http.Request)  {
-		actions, err := NewIamActionsFromS3Request(action, r)
+		actions, err := newIamActionsFromS3Request(action, r, testSessionDataTestDepartment)
 		if err != nil {
 			p.t.Error(err)
 			return
@@ -240,6 +240,26 @@ type apiAndIAMActionTestCase struct {
 	ExpectedActions []iamAction
 }
 
+var testSessionDataTestDepartment = &PolicySessionData{
+	Claims: PolicySessionClaims{},
+	Tags: AWSSessionTags{
+		PrincipalTags: map[string][]string{
+			"department": {"test"},
+		},
+		TransitiveTagKeys: []string{"department"},
+	},
+}
+
+var testSessionDataQaDeparment = &PolicySessionData{
+	Claims: PolicySessionClaims{},
+	Tags: AWSSessionTags{
+		PrincipalTags: map[string][]string{
+			"department": {"qa"},
+		},
+		TransitiveTagKeys: []string{"department"},
+	},
+} 
+
 //For each supported API we should add test coverage. This is used in this
 //file for checking wether it is mapped to the expected IAMActions and in
 //policy_api_action_test.go it is used to see if it is the expected APIAction
@@ -249,7 +269,7 @@ func getApiAndIAMActionTestCases() ([]apiAndIAMActionTestCase) {
 			ApiAction: "ListObjectsV2",
 			ApiCall:     runListObjectsV2AndReturnError,
 			ExpectedActions: []iamAction{
-				NewIamAction(IAMActionS3ListBucket, testBucketARN, contextType{
+				newIamAction(IAMActionS3ListBucket, testBucketARN, testSessionDataTestDepartment).addContext(contextType{
 					IAMConditionS3Prefix: policy.NewConditionValueString(true, ""),
 				}),
 			},
@@ -258,7 +278,7 @@ func getApiAndIAMActionTestCases() ([]apiAndIAMActionTestCase) {
 			ApiAction: "ListObjectsV2",
 			ApiCall:     runListObjectsV2WithPrefixAndReturnError,
 			ExpectedActions: []iamAction{
-				NewIamAction(IAMActionS3ListBucket, testBucketARN, contextType{
+				newIamAction(IAMActionS3ListBucket, testBucketARN, testSessionDataTestDepartment).addContext(contextType{
 					IAMConditionS3Prefix: policy.NewConditionValueString(true, listobjectv2_test_prefix),
 				}),
 			},
@@ -267,14 +287,14 @@ func getApiAndIAMActionTestCases() ([]apiAndIAMActionTestCase) {
 			ApiAction: "PutObject",
 			ApiCall:     runPutObjectAndReturnError,
 			ExpectedActions: []iamAction{
-				NewIamAction(IAMActionS3PutObject, putObjectFullObjectARN, nil),
+				newIamAction(IAMActionS3PutObject, putObjectFullObjectARN, testSessionDataTestDepartment),
 			},
 		},
 		{
 			ApiAction: "GetObject",
 			ApiCall:     runGetObjectAndReturnError,
 			ExpectedActions: []iamAction{
-				NewIamAction(IAMActionS3GetObject, putObjectFullObjectARN, nil),
+				newIamAction(IAMActionS3GetObject, putObjectFullObjectARN, testSessionDataTestDepartment),
 			},
 		},
 		// TODO: HeadObject behaves different client side and overrides the error so our hacky way of testing does not work
@@ -291,14 +311,14 @@ func getApiAndIAMActionTestCases() ([]apiAndIAMActionTestCase) {
 			ApiAction: "ListBuckets",
 			ApiCall:   runListBucketsAndReturnError,
 			ExpectedActions: []iamAction{
-				NewIamAction(IAMActionS3ListAllMyBuckets, "*", nil),
+				newIamAction(IAMActionS3ListAllMyBuckets, "*", testSessionDataTestDepartment),
 			},
 		},
 		{
 			ApiAction: "AbortMultipartUpload",
 			ApiCall:     runAbortMultipartUploadAndReturnError,
 			ExpectedActions: []iamAction{
-				NewIamAction(IAMActionS3AbortMultipartUpload, putObjectFullObjectARN, nil),
+				newIamAction(IAMActionS3AbortMultipartUpload, putObjectFullObjectARN, testSessionDataTestDepartment),
 			},
 		},
 		{
@@ -307,7 +327,7 @@ func getApiAndIAMActionTestCases() ([]apiAndIAMActionTestCase) {
 			ExpectedActions: []iamAction{
 				//https://docs.aws.amazon.com/AmazonS3/latest/userguide/mpuoverview.html
 				//You must be allowed to perform the s3:PutObject action on an object to initiate multipart upload.
-				NewIamAction(IAMActionS3PutObject, putObjectFullObjectARN, nil),
+				newIamAction(IAMActionS3PutObject, putObjectFullObjectARN, testSessionDataTestDepartment),
 			},
 		},
 		{
@@ -316,7 +336,7 @@ func getApiAndIAMActionTestCases() ([]apiAndIAMActionTestCase) {
 			ExpectedActions: []iamAction{
 				//https://docs.aws.amazon.com/AmazonS3/latest/userguide/mpuoverview.html
 				//You must be allowed to perform the s3:PutObject action on an object to initiate multipart upload.
-				NewIamAction(IAMActionS3PutObject, putObjectFullObjectARN, nil),
+				newIamAction(IAMActionS3PutObject, putObjectFullObjectARN, testSessionDataTestDepartment),
 			},
 		},
 		{
@@ -325,7 +345,7 @@ func getApiAndIAMActionTestCases() ([]apiAndIAMActionTestCase) {
 			ExpectedActions: []iamAction{
 				//https://docs.aws.amazon.com/AmazonS3/latest/userguide/mpuoverview.html
 				//You must be allowed to perform the s3:PutObject action on an object to initiate multipart upload.
-				NewIamAction(IAMActionS3PutObject, putObjectFullObjectARN, nil),
+				newIamAction(IAMActionS3PutObject, putObjectFullObjectARN, testSessionDataTestDepartment),
 			},
 		},
 	}

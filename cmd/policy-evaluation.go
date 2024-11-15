@@ -45,6 +45,8 @@ func NewPolicyEvaluatorFromStr(policyContent string)  (*PolicyEvaluator, error) 
 type evalReason string
 const reasonActionIsAllowed evalReason = "Action is allowed"
 const reasonNoStatementAllowingAction evalReason = "No statement allows the action"
+const reasonExplicitDeny evalReason = "Explicit deny"
+const reasonErrorEncountered evalReason = "Error was encountered"
 
 //Allow wildcards like * and ? but escape other special characters
 //https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html
@@ -75,28 +77,42 @@ func areAllConditionValuesSingular(context map[string]*policy.ConditionValue) (b
 	return true
 }
 
+//Evaluate what a StringLike operation does
+func evalStringLike(conditionDetails map[string]*policy.ConditionValue, context map[string]*policy.ConditionValue) (bool, error)  {
+	if !areAllConditionValuesSingular(context) {
+		return false, fmt.Errorf("non-singular value got %v", context)
+	}
+	for sConditionKey, sConditionValue := range conditionDetails {
+		contextValue, exists := context[sConditionKey]
+		if !exists {
+			return false, fmt.Errorf("condition key '%s' was not set in request context", sConditionKey)
+		}
+		if !isConditionMetForStringLike(sConditionValue, contextValue) {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
 // See whether the condition defined by the conditionOperator and conditionDetails is met
 // for the given context
 func isConditionMetForOperator(conditionOperator string, conditionDetails map[string]*policy.ConditionValue, context map[string]*policy.ConditionValue) (bool, error) {
 	switch conditionOperator {
 	case "StringLike":
-		if !areAllConditionValuesSingular(context) {
-			return false, fmt.Errorf("non-singular value for %s, got %v", conditionOperator, context)
+		result, err := evalStringLike(conditionDetails, context)
+		if err != nil {
+			return false, fmt.Errorf("operator StringLike encountered %s", err)
 		}
-		for sConditionKey, sConditionValue := range conditionDetails {
-			contextValue, exists := context[sConditionKey]
-			if !exists {
-				return false, fmt.Errorf("condition key '%s' was not set in request context", sConditionKey)
-			}
-			if !isConditionMetForStringLike(sConditionValue, contextValue) {
-				return false, nil
-			}
+		return result, err
+	case "StringNotLike":
+		result, err := evalStringLike(conditionDetails, context)
+		if err != nil {
+			return false, fmt.Errorf("operator StringLike encountered %s", err)
 		}
+		return !result, err
 	default:
 		return false, fmt.Errorf("unsupported condition: '%s'", conditionOperator)
 	}
-	//No unmet condition
-	return true, nil
 }
 
 
@@ -164,7 +180,13 @@ func (e *PolicyEvaluator) Evaluate(a iamAction) (isAllowed bool, reason evalReas
 				reason = reasonActionIsAllowed
 			}
 		case policy.EffectDeny:
-			panic("Not implemented yet")
+			relevant, err := isRelevantFor(s, a)
+			if err != nil {
+				return false, reasonErrorEncountered, err
+			}
+			if relevant {
+				return false, reasonExplicitDeny, err 
+			}
 		}
 	}
 	return

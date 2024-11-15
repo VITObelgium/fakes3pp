@@ -133,20 +133,36 @@ func (m *PolicyManager) getPolicyTemplate(arn string) (tmpl *template.Template, 
 	return 
 }
 
-type policyTemplateData struct {
-	Claims map[string]string
+
+type PolicySessionClaims struct {
+	Subject string
+	Issuer string
 }
 
-func PolicyTemplateDataFromClaims(sc *SessionClaims) policyTemplateData{
-	return policyTemplateData{
-		Claims: map[string]string{
-			"Issuer": sc.IIssuer,
-			"Subject": sc.Subject,
+
+//This is the structure that will be made available during templating and
+//thus is available to be used in policies.
+type PolicySessionData struct {
+	Claims PolicySessionClaims
+	Tags AWSSessionTags
+}
+
+func GetPolicySessionDataFromClaims(claims *SessionClaims) *PolicySessionData {
+	issuer := claims.IIssuer
+	if issuer == "" {
+		issuer = claims.Issuer
+	}
+	return &PolicySessionData{
+		Claims: PolicySessionClaims{
+			Subject: claims.Subject,
+			Issuer: issuer,
 		},
+		Tags: claims.Tags,
 	}
 }
 
-func (m *PolicyManager) GetPolicy(arn string, data policyTemplateData) (string, error) {
+
+func (m *PolicyManager) GetPolicy(arn string, data *PolicySessionData) (string, error) {
 	tmpl, err := m.getPolicyTemplate(arn)
 	if err != nil {
 		return "", err

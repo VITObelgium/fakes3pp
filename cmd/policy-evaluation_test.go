@@ -54,7 +54,39 @@ var testPolScen2AllowListingBucketWithinPrefix = fmt.Sprintf(`
 }
 `, IAMActionS3ListBucket, testBucketARN, testAllowedPrefix)
 
-
+var testPolAllowAllIfTestDepartmentOtherwiseDenyAll = `
+{
+	"Version": "2012-10-17",
+	"Statement": [
+        {
+			"Sid": "Allow all if test department",
+			"Effect": "Allow",
+			"Action": [
+				"*"
+			],
+			"Resource": "*",
+			"Condition" : {
+                "StringLike" : {
+                    "aws:PrincipalTag/department": "test" 
+                }
+            } 
+        },
+		{
+			"Sid": "Deny all if not test department",
+			"Effect": "Deny",
+			"Action": [
+				"*"
+			],
+			"Resource": "*",
+			"Condition" : {
+                "StringNotLike" : {
+                    "aws:PrincipalTag/department": "test" 
+                }
+            } 
+        } 
+	]
+}
+`
 
 
 func TestPolicyEvaluations(t *testing.T) {
@@ -120,6 +152,39 @@ func TestPolicyEvaluations(t *testing.T) {
 			},
 			false,
 			reasonNoStatementAllowingAction,
+		},
+		{
+			"Any action should be allowed if we run with test department session tag",
+			testPolAllowAllIfTestDepartmentOtherwiseDenyAll,
+			newIamAction(
+				IAMActionS3GetObject,
+				testBucketARN,
+				testSessionDataTestDepartment,
+			),
+			true,
+			reasonActionIsAllowed,
+		},
+		{
+			"Any action should be allowed if we run with test department session tag 2",
+			testPolAllowAllIfTestDepartmentOtherwiseDenyAll,
+			newIamAction(
+				IAMActionS3ListAllMyBuckets,
+				testBucketARN,
+				testSessionDataTestDepartment,
+			),
+			true,
+			reasonActionIsAllowed,
+		},
+		{
+			"Any action should be disallowed if we run with deparment session tag different from test",
+			testPolAllowAllIfTestDepartmentOtherwiseDenyAll,
+			newIamAction(
+				IAMActionS3GetObject,
+				testBucketARN,
+				testSessionDataQaDeparment,
+			),
+			false,
+			reasonExplicitDeny,
 		},
 	}
 

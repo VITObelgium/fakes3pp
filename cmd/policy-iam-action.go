@@ -16,12 +16,23 @@ type iamAction struct{
 	Context map[string]*policy.ConditionValue `json:"context,omitempty"`
 }
 
-func NewIamAction(action, resource string, context map[string]*policy.ConditionValue) iamAction{
+func newIamAction(action, resource string, session *PolicySessionData) iamAction{
+	context := map[string]*policy.ConditionValue{}
+	addGenericSessionContextKeys(context, session)
+
 	return iamAction{
 		Action: action,
 		Resource: resource,
 		Context: context,
 	}
+}
+
+// For a given IAM action add context specific for the action
+func (a iamAction) addContext(context map[string]*policy.ConditionValue) (iamAction){
+	for contextKey, ContextKeyValues := range context {
+		a.Context[contextKey] = ContextKeyValues
+	}
+	return a
 }
 
 func makeS3BucketArn(bucketName string) string {
@@ -49,9 +60,22 @@ func getS3ObjectFromRequest(req *http.Request) (bucketName string, objectKey str
 	}
 }
 
+//Add context keys that are added to nearly all requests that contain information about the current session
+func addGenericSessionContextKeys(context map[string]*policy.ConditionValue, session *PolicySessionData) {
+	addAwsPrincipalTagConditionKeys(context, session)
+}
+
+//Add aws:PrincipalTag/tag-key keys that are added to nearly all requests that contain information about the current session
+//https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-keys.html#condition-keys-principaltag
+func addAwsPrincipalTagConditionKeys(context map[string]*policy.ConditionValue, session *PolicySessionData) {
+	for tagKey, tagValues := range session.Tags.PrincipalTags {
+		context[fmt.Sprintf("aws:PrincipalTag/%s", tagKey)] = policy.NewConditionValueString(true, tagValues...)
+	}
+}
+
 //Buid a new IAM action based out of an HTTP Request. The IAM action should resemble the required
 //Permissions. The api_action is passed in as a string argument
-func NewIamActionsFromS3Request(api_action S3ApiAction, req *http.Request) (actions []iamAction, err error) {
+func newIamActionsFromS3Request(api_action S3ApiAction, req *http.Request, session *PolicySessionData) (actions []iamAction, err error) {
 	actions = []iamAction{}
 	switch api_action {
 	// https://docs.aws.amazon.com/AmazonS3/latest/userguide/mpuoverview.html
@@ -60,49 +84,55 @@ func NewIamActionsFromS3Request(api_action S3ApiAction, req *http.Request) (acti
 		if err != nil {
 			return nil, err
 		}
-		a := iamAction{
-			Action: IAMActionS3PutObject,
-			Resource: makeS3ObjectArn(bucket, key),
-		}
+		a := newIamAction(
+			IAMActionS3PutObject,
+			makeS3ObjectArn(bucket, key),
+			session,
+		)
 		actions = append(actions, a)
 	case apiS3GetObject, apiS3HeadObject:
 		bucket, key, err := getS3ObjectFromRequest(req)
 		if err != nil {
 			return nil, err
 		}
-		a := iamAction{
-			Action: IAMActionS3GetObject,
-			Resource: makeS3ObjectArn(bucket, key),
-		}
+		a := newIamAction(
+			IAMActionS3GetObject,
+			makeS3ObjectArn(bucket, key),
+			session,
+		)
 		actions = append(actions, a)
 	case apiS3ListObjectsV2:
 		bucket, _, err := getS3ObjectFromRequest(req)
 		if err != nil {
 			return nil, err
 		}
-		a := iamAction{
-			Action: IAMActionS3ListBucket,
-			Resource: makeS3BucketArn(bucket),
-			Context: map[string]*policy.ConditionValue{
+		a := newIamAction(
+			IAMActionS3ListBucket,
+			makeS3BucketArn(bucket),
+			session,
+		).addContext(
+			map[string]*policy.ConditionValue{
 				IAMConditionS3Prefix: policy.NewConditionValueString(true, req.URL.Query().Get("prefix")),
 			},
-		}
+		)
 		actions = append(actions, a)
 	case apiS3AbortMultipartUpload:
 		bucket, key, err := getS3ObjectFromRequest(req)
 		if err != nil {
 			return nil, err
 		}
-		a := iamAction{
-			Action: IAMActionS3AbortMultipartUpload,
-			Resource: makeS3ObjectArn(bucket, key),
-		}
+		a := newIamAction(
+			IAMActionS3AbortMultipartUpload,
+			makeS3ObjectArn(bucket, key),
+			session,
+		)
 		actions = append(actions, a)
 	case apiS3ListBuckets:
-		a := iamAction{
-			Action: IAMActionS3ListAllMyBuckets,
-			Resource: "*",  //Can only be granted on *
-		}
+		a := newIamAction(
+			IAMActionS3ListAllMyBuckets,
+			"*",  //Can only be granted on *
+			session,
+		)
 		actions = append(actions, a)
 	default:
 		return nil, errors.New("cannot get IAM actions due to unsupported api action")

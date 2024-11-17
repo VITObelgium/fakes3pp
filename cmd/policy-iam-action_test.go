@@ -8,13 +8,11 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	sg "github.com/aws/smithy-go"
 	"github.com/micahhausler/aws-iam-policy/policy"
 )
 
@@ -22,13 +20,16 @@ type StubJustReturnIamAction struct{
 	t *testing.T
 }
 
+var latestIamActionInStubReturnIamAction []iamAction = nil
+
 func (p *StubJustReturnIamAction) Build(action S3ApiAction, presigned bool) http.HandlerFunc{
 	return func (w http.ResponseWriter, r *http.Request)  {
-		actions, err := newIamActionsFromS3Request(action, r, testSessionDataTestDepartment)
+		actions, err := newIamActionsFromS3Request(action, r, nil)
 		if err != nil {
 			p.t.Error(err)
 			return
 		}
+		latestIamActionInStubReturnIamAction = actions
 		bytes, err := json.Marshal(actions)
 		if err != nil {
 			p.t.Error(err)
@@ -146,21 +147,20 @@ func runGetObjectAndReturnError(t *testing.T) error {
 	return err
 }
 
-// TODO: Check how to get this under test coverage
-// func runHeadObjectAndReturnError(t *testing.T) error {
-// 	client, max1Sec, cancel := getAnonymousS3TestClient(t)
+func runHeadObjectAndReturnError(t *testing.T) error {
+	client, max1Sec, cancel := getAnonymousS3TestClient(t)
 
-// 	input := s3.HeadObjectInput{
-// 		Bucket: &testBucketName,
-// 		Key: &putObjectTestKey,
-// 	}
-// 	defer cancel()
-// 	_, err := client.HeadObject(max1Sec, &input)
-// 	if err == nil {
-// 		t.Error("Should have encountered error but did not")
-// 	}
-// 	return err
-// }
+	input := s3.HeadObjectInput{
+		Bucket: &testBucketName,
+		Key: &putObjectTestKey,
+	}
+	defer cancel()
+	_, err := client.HeadObject(max1Sec, &input)
+	if err == nil {
+		t.Error("Should have encountered error but did not")
+	}
+	return err
+}
 
 func runAbortMultipartUploadAndReturnError(t *testing.T) error {
 	client, max1Sec, cancel := getAnonymousS3TestClient(t)
@@ -269,7 +269,7 @@ func getApiAndIAMActionTestCases() ([]apiAndIAMActionTestCase) {
 			ApiAction: "ListObjectsV2",
 			ApiCall:     runListObjectsV2AndReturnError,
 			ExpectedActions: []iamAction{
-				newIamAction(IAMActionS3ListBucket, testBucketARN, testSessionDataTestDepartment).addContext(contextType{
+				newIamAction(IAMActionS3ListBucket, testBucketARN, nil).addContext(contextType{
 					IAMConditionS3Prefix: policy.NewConditionValueString(true, ""),
 				}),
 			},
@@ -278,7 +278,7 @@ func getApiAndIAMActionTestCases() ([]apiAndIAMActionTestCase) {
 			ApiAction: "ListObjectsV2",
 			ApiCall:     runListObjectsV2WithPrefixAndReturnError,
 			ExpectedActions: []iamAction{
-				newIamAction(IAMActionS3ListBucket, testBucketARN, testSessionDataTestDepartment).addContext(contextType{
+				newIamAction(IAMActionS3ListBucket, testBucketARN, nil).addContext(contextType{
 					IAMConditionS3Prefix: policy.NewConditionValueString(true, listobjectv2_test_prefix),
 				}),
 			},
@@ -287,38 +287,37 @@ func getApiAndIAMActionTestCases() ([]apiAndIAMActionTestCase) {
 			ApiAction: "PutObject",
 			ApiCall:     runPutObjectAndReturnError,
 			ExpectedActions: []iamAction{
-				newIamAction(IAMActionS3PutObject, putObjectFullObjectARN, testSessionDataTestDepartment),
+				newIamAction(IAMActionS3PutObject, putObjectFullObjectARN, nil),
 			},
 		},
 		{
 			ApiAction: "GetObject",
 			ApiCall:     runGetObjectAndReturnError,
 			ExpectedActions: []iamAction{
-				newIamAction(IAMActionS3GetObject, putObjectFullObjectARN, testSessionDataTestDepartment),
+				newIamAction(IAMActionS3GetObject, putObjectFullObjectARN, nil),
 			},
 		},
-		// TODO: HeadObject behaves different client side and overrides the error so our hacky way of testing does not work
-		// {
-		// 	ApiAction: "HeadObject",
-		// 	ApiCall:     runHeadObjectAndReturnError,
-		// 	ExpectedActions: []iamAction{
-		// 		// https://docs.aws.amazon.com/AmazonS3/latest/API/API_HeadObject.html
-		// 		// To use HEAD, you must have the s3:GetObject permission.
-		// 		NewIamAction(IAMActionS3GetObject, putObjectFullObjectARN, nil),
-		// 	},
-		// },
+		{
+			ApiAction: "HeadObject",
+			ApiCall:     runHeadObjectAndReturnError,
+			ExpectedActions: []iamAction{
+				// https://docs.aws.amazon.com/AmazonS3/latest/API/API_HeadObject.html
+				// To use HEAD, you must have the s3:GetObject permission.
+				newIamAction(IAMActionS3GetObject, putObjectFullObjectARN, nil),
+			},
+		},
 		{
 			ApiAction: "ListBuckets",
 			ApiCall:   runListBucketsAndReturnError,
 			ExpectedActions: []iamAction{
-				newIamAction(IAMActionS3ListAllMyBuckets, "*", testSessionDataTestDepartment),
+				newIamAction(IAMActionS3ListAllMyBuckets, "*", nil),
 			},
 		},
 		{
 			ApiAction: "AbortMultipartUpload",
 			ApiCall:     runAbortMultipartUploadAndReturnError,
 			ExpectedActions: []iamAction{
-				newIamAction(IAMActionS3AbortMultipartUpload, putObjectFullObjectARN, testSessionDataTestDepartment),
+				newIamAction(IAMActionS3AbortMultipartUpload, putObjectFullObjectARN, nil),
 			},
 		},
 		{
@@ -327,7 +326,7 @@ func getApiAndIAMActionTestCases() ([]apiAndIAMActionTestCase) {
 			ExpectedActions: []iamAction{
 				//https://docs.aws.amazon.com/AmazonS3/latest/userguide/mpuoverview.html
 				//You must be allowed to perform the s3:PutObject action on an object to initiate multipart upload.
-				newIamAction(IAMActionS3PutObject, putObjectFullObjectARN, testSessionDataTestDepartment),
+				newIamAction(IAMActionS3PutObject, putObjectFullObjectARN, nil),
 			},
 		},
 		{
@@ -336,7 +335,7 @@ func getApiAndIAMActionTestCases() ([]apiAndIAMActionTestCase) {
 			ExpectedActions: []iamAction{
 				//https://docs.aws.amazon.com/AmazonS3/latest/userguide/mpuoverview.html
 				//You must be allowed to perform the s3:PutObject action on an object to initiate multipart upload.
-				newIamAction(IAMActionS3PutObject, putObjectFullObjectARN, testSessionDataTestDepartment),
+				newIamAction(IAMActionS3PutObject, putObjectFullObjectARN, nil),
 			},
 		},
 		{
@@ -345,7 +344,7 @@ func getApiAndIAMActionTestCases() ([]apiAndIAMActionTestCase) {
 			ExpectedActions: []iamAction{
 				//https://docs.aws.amazon.com/AmazonS3/latest/userguide/mpuoverview.html
 				//You must be allowed to perform the s3:PutObject action on an object to initiate multipart upload.
-				newIamAction(IAMActionS3PutObject, putObjectFullObjectARN, testSessionDataTestDepartment),
+				newIamAction(IAMActionS3PutObject, putObjectFullObjectARN, nil),
 			},
 		},
 	}
@@ -365,34 +364,15 @@ func TestExpectedIamActionsAreReturned(t *testing.T) {
 
 	for _, tc := range getApiAndIAMActionTestCases() {
 		err := tc.ApiCall(t)
-		smityError, ok := err.(*sg.OperationError) 
-		if !ok {
-			t.Errorf("err was not smithy error %s", err)
-			continue
+		if err == nil {
+			t.Errorf("%s: by design the stub should return an error but we did not get one.", tc.ApiAction)
+			t.FailNow()
 		}
-		accessDeniedParts := strings.Split(smityError.Error(), "AccessDenied: ")
-		if len(accessDeniedParts) < 2 {
-			t.Errorf("Encountered unexpected error (not Access Denied) %s", smityError)
-			continue
+ 
+		if !reflect.DeepEqual(latestIamActionInStubReturnIamAction, tc.ExpectedActions) {
+			printPointerAndJSONStringComparison(t, tc.ApiAction, tc.ExpectedActions, latestIamActionInStubReturnIamAction)
+			t.Errorf("unexpected actions got %v, expected %v", latestIamActionInStubReturnIamAction, tc.ExpectedActions)
 		}
-		msg := accessDeniedParts[1]
-		var actions []iamAction
-		err = json.Unmarshal([]byte(msg), &actions)
-		if err != nil {
-			t.Error(err)
-		}
-		if !reflect.DeepEqual(actions, tc.ExpectedActions) {
-			if len(actions) != len(tc.ExpectedActions) {
-				printPointerAndJSONStringComparison(t, tc.ApiAction, tc.ExpectedActions, actions)
-			} else {
-				//Same amount of actions string and pointer representations might not show the issue let's compare 1-by 1
-				for i, action := range actions {
-					expectedAction := tc.ExpectedActions[i]
-					if !reflect.DeepEqual(action, expectedAction) {
-						printPointerAndJSONStringComparison(t, tc.ApiAction, expectedAction, action)
-					}
-				}
-			}
-		}
+
 	}
 }

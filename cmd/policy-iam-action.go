@@ -68,6 +68,9 @@ func addGenericSessionContextKeys(context map[string]*policy.ConditionValue, ses
 //Add aws:PrincipalTag/tag-key keys that are added to nearly all requests that contain information about the current session
 //https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-keys.html#condition-keys-principaltag
 func addAwsPrincipalTagConditionKeys(context map[string]*policy.ConditionValue, session *PolicySessionData) {
+	if session == nil {
+		return
+	}
 	for tagKey, tagValues := range session.Tags.PrincipalTags {
 		context[fmt.Sprintf("aws:PrincipalTag/%s", tagKey)] = policy.NewConditionValueString(true, tagValues...)
 	}

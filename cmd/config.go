@@ -32,15 +32,12 @@ func (e envVarDef) shouldBeSetFor(cmd string) (bool) {
 } 
 
 const(
-	awsAccessKeyId = "awsAccessKeyId"
-	awsSecretAccessKey = "awsSecretAccessKey"
 	s3ProxyFQDN = "s3ProxyFQDN"
 	s3ProxyPort = "s3ProxyPort"
 	s3ProxyCertFile = "s3ProxyCertFile"
 	s3ProxyKeyFile = "s3ProxyKeyFile"
 	s3ProxyJwtPublicRSAKey = "s3ProxyJwtPublicRSAKey"
 	s3ProxyJwtPrivateRSAKey = "s3ProxyJwtPrivateRSAKey"
-	s3ProxyTarget = "s3ProxyTarget"
 	stsProxyFQDN = "stsProxyFQDN"
 	stsProxyPort = "stsProxyPort"
 	stsProxyCertFile = "stsProxyCertFile"
@@ -48,46 +45,31 @@ const(
 	rolePolicyPath = "rolePolicyPath"
 	secure = "secure"
 	stsOIDCConfigFile = "stsOIDCConfigFile"
+	s3BackendConfigFile = "s3BackendConfigFile"
 	stsMaxDurationSeconds = "stsMaxDurationSeconds"
 	signedUrlGraceTimeSeconds = "signedUrlGraceTimeSeconds"
 
 	//Environment variables are upper cased
 	//Unless they are wellknown environment variables they should be prefixed
-	AWS_ACCESS_KEY_ID = "AWS_ACCESS_KEY_ID"
-	AWS_SECRET_ACCESS_KEY = "AWS_SECRET_ACCESS_KEY"
 	FAKES3PP_S3_PROXY_FQDN = "FAKES3PP_S3_PROXY_FQDN"
 	FAKES3PP_S3_PROXY_PORT = "FAKES3PP_S3_PROXY_PORT"
 	FAKES3PP_S3_PROXY_CERT_FILE = "FAKES3PP_S3_PROXY_CERT_FILE"
 	FAKES3PP_S3_PROXY_KEY_FILE = "FAKES3PP_S3_PROXY_KEY_FILE"
 	FAKES3PP_S3_PROXY_JWT_PUBLIC_RSA_KEY = "FAKES3PP_S3_PROXY_JWT_PUBLIC_RSA_KEY"
 	FAKES3PP_S3_PROXY_JWT_PRIVATE_RSA_KEY = "FAKES3PP_S3_PROXY_JWT_PRIVATE_RSA_KEY"
-	FAKES3PP_S3_PROXY_TARGET = "FAKES3PP_S3_PROXY_TARGET"
 	FAKES3PP_STS_PROXY_FQDN = "FAKES3PP_STS_PROXY_FQDN"
 	FAKES3PP_STS_PROXY_PORT = "FAKES3PP_STS_PROXY_PORT"
 	FAKES3PP_STS_PROXY_CERT_FILE = "FAKES3PP_STS_PROXY_CERT_FILE"
 	FAKES3PP_STS_PROXY_KEY_FILE = "FAKES3PP_STS_PROXY_KEY_FILE"
 	FAKES3PP_SECURE = "FAKES3PP_SECURE"
 	FAKES3PP_STS_OIDC_CONFIG = "FAKES3PP_STS_OIDC_CONFIG"
+	FAKES3PP_S3_BACKEND_CONFIG = "FAKES3PP_S3_BACKEND_CONFIG"
 	FAKES3PP_ROLE_POLICY_PATH = "FAKES3PP_ROLE_POLICY_PATH"
 	FAKES3PP_STS_MAX_DURATION_SECONDS = "FAKES3PP_STS_MAX_DURATION_SECONDS"
 	FAKES3PP_SIGNEDURL_GRACE_TIME_SECONDS = "FAKES3PP_SIGNEDURL_GRACE_TIME_SECONDS"
 )
 
 var envVarDefs = []envVarDef{
-	{
-		awsAccessKeyId,
-		AWS_ACCESS_KEY_ID,
-		true,
-		"The AWS_ACCESS_KEY_ID that will be used to go to the upstream S3 API.",
-		[]string{proxys3},
-	},
-	{
-		awsSecretAccessKey,
-		AWS_SECRET_ACCESS_KEY,
-		true,
-		"The AWS_SECRET_ACCESS_KEY that will be used to go to the upstream S3 API.",
-		[]string{proxys3},
-	},
 	{
 		s3ProxyFQDN,
 		FAKES3PP_S3_PROXY_FQDN,
@@ -131,13 +113,6 @@ var envVarDefs = []envVarDef{
 		[]string{proxys3, proxysts},
 	},
 	{
-		s3ProxyTarget,
-		FAKES3PP_S3_PROXY_TARGET,
-		true,
-		"The hostname to be used to connect to the backend.",
-		[]string{proxys3},
-	},
-	{
 		stsProxyFQDN,
 		FAKES3PP_STS_PROXY_FQDN,
 		true,
@@ -178,6 +153,13 @@ var envVarDefs = []envVarDef{
 		true,
 		"The configuration of which issuers are trusted for OIDC tokens",
 		[]string{proxysts},
+	},
+	{
+		s3BackendConfigFile,
+		FAKES3PP_S3_BACKEND_CONFIG,
+		true,
+		"The configuration of the backends that are proxied. See the sample start config for details how to configure these backends",
+		[]string{proxys3},
 	},
 	{
 		rolePolicyPath,

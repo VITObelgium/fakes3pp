@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 	"time"
 
@@ -255,7 +254,7 @@ func (hb handlerBuilder) Build(action S3ApiAction, presigned bool) (http.Handler
 				SecretAccessKey: secretAccessKey,
 				SessionToken: sessionToken,
 			}
-			err = presign.SignWithCreds(ctx, clonedReq, creds)
+			err = presign.SignWithCreds(ctx, clonedReq, creds, "ThisShouldNotBeUsedForSigv4Requests258")
 			if err != nil {
 				slog.Error("Could not sign request", "error", err, xRequestIDStr, getRequestID(ctx))
 				writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
@@ -331,10 +330,22 @@ func logRequest(ctx context.Context, apiAction string, r *http.Request) {
 }
 
 func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-	reTargetRequest(r)
-	err := signRequest(ctx, r)
+	targetRegion := requestutils.GetRegionFromRequest(r, globalBackendsConfig.defaultBackend)
+	err := reTargetRequest(r, targetRegion)
 	if err != nil {
-		slog.Error("Could not sign request with permanent credentials", "error", err, xRequestIDStr, getRequestID(ctx))
+		slog.Error("Could not re-target request with permanent credentials", "error", err, xRequestIDStr, getRequestID(ctx), "backendId", targetRegion)
+		writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
+		return
+	}
+	creds, err := getBackendCredentials(targetRegion)
+	if err != nil {
+		slog.Error("Could not get credentials for request", "error", err, xRequestIDStr, getRequestID(ctx), "backendId", targetRegion)
+		writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
+		return
+	}
+	err = presign.SignWithCreds(ctx, r, creds, targetRegion)
+	if err != nil {
+		slog.Error("Could not sign request with permanent credentials", "error", err, xRequestIDStr, getRequestID(ctx), "backendId", targetRegion)
 		writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
 		return
 	}
@@ -368,38 +379,30 @@ func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 // Adapt Host to the new target
 // We also have to clear RequestURI and set URL appropriately as explained in
 // https://stackoverflow.com/questions/19595860/http-request-requesturi-field-when-making-request-in-go
-func reTargetRequest(r *http.Request) {
+func reTargetRequest(r *http.Request, backendId string) (error) {
 	// Old signature
 	r.Header.Del("Authorization")
 	// Old session token
 	r.Header.Del(constants.AmzSecurityTokenKey)
 	r.Header.Del("Host")
-	r.Header.Add("Host", s3TargetHost)
-	r.Host = s3TargetHost
+	endpoint, err := getBackendEndpoint(backendId)
+	if err != nil {
+		return err
+	}
+	r.Header.Add("Host", endpoint.getHost())
+	r.Host = endpoint.getHost()
 	origRawQuery := r.URL.RawQuery
 	slog.Info("Stored orig RawQuery", "raw_query", origRawQuery)
 
-	u, err := url.Parse(fmt.Sprintf("https://%s%s", s3TargetHost, r.RequestURI))
+	u, err := url.Parse(fmt.Sprintf("%s%s", endpoint.getBaseURI(), r.RequestURI))
     if err != nil {
-        panic(err)
+        return err
     }
-		r.RequestURI = ""
+	r.RequestURI = ""
 	r.RemoteAddr = ""
     r.URL = u
 
 	r.URL.RawQuery = origRawQuery
 	slog.Info("RawQuery that is put in place", "raw_query", r.URL.RawQuery)
+	return nil
 }
-
-func signRequest(ctx context.Context, req *http.Request) error{
-	accessKey := os.Getenv("AWS_ACCESS_KEY_ID")
-	secretKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
-
-	creds := aws.Credentials{
-		AccessKeyID:     accessKey,
-		SecretAccessKey: secretKey,
-	}
-
-	return presign.SignWithCreds(ctx, req, creds)
-}
-

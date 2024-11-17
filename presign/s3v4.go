@@ -16,20 +16,20 @@ import (
 
 //This file just contains helpers to presign for S3 with sigv4
 
-func PreSignRequestWithCreds(ctx context.Context, req *http.Request, expiryInSeconds int, signingTime time.Time, creds aws.Credentials) (signedURI string, signedHeaders http.Header, err error){
+func PreSignRequestWithCreds(ctx context.Context, req *http.Request, expiryInSeconds int, signingTime time.Time, creds aws.Credentials, defaultRegion string) (signedURI string, signedHeaders http.Header, err error){
 	if expiryInSeconds <= 0 {
 		return "", nil, errors.New("expiryInSeconds must be bigger than 0 for presigned requests")
 	}
 	signer := v4.NewSigner()
 
-	ctx, creds, req, payloadHash, service, region, signingTime := GetS3SignRequestParams(ctx, req, expiryInSeconds, signingTime, creds)
+	ctx, creds, req, payloadHash, service, region, signingTime := GetS3SignRequestParams(ctx, req, expiryInSeconds, signingTime, creds, defaultRegion)
 	return signer.PresignHTTP(ctx, creds, req, payloadHash, service, region, signingTime)
 }
 
-func SignRequestWithCreds(ctx context.Context, req *http.Request, expiryInSeconds int, signingTime time.Time, creds aws.Credentials) (err error){
+func SignRequestWithCreds(ctx context.Context, req *http.Request, expiryInSeconds int, signingTime time.Time, creds aws.Credentials, defaultRegion string) (err error){
 	signer := v4.NewSigner()
 
-	ctx, creds, req, payloadHash, service, region, signingTime := GetS3SignRequestParams(ctx, req, expiryInSeconds, signingTime, creds)
+	ctx, creds, req, payloadHash, service, region, signingTime := GetS3SignRequestParams(ctx, req, expiryInSeconds, signingTime, creds, defaultRegion)
 	return signer.SignHTTP(ctx, creds, req, payloadHash, service, region, signingTime)
 }
 
@@ -44,8 +44,9 @@ var signatureQueryParamNames []string = []string{
 
 //Sign an HTTP request with a sigv4 signature. If expiry in seconds is bigger than zero then the signature has an explicit limited lifetime
 //use a negative value to not set an explicit expiry time
-func GetS3SignRequestParams(ctx context.Context, req *http.Request, expiryInSeconds int, signingTime time.Time, creds aws.Credentials) (context.Context, aws.Credentials, *http.Request, string, string, string, time.Time){
-	region := "eu-west-1"
+//The requests gets checked to determine the region but if the request does not specify it the defaultRegion aruement will be used as fallback 
+func GetS3SignRequestParams(ctx context.Context, req *http.Request, expiryInSeconds int, signingTime time.Time, creds aws.Credentials, defaultRegion string) (context.Context, aws.Credentials, *http.Request, string, string, string, time.Time){
+	region := defaultRegion
 	regionName, err := requestutils.GetSignatureCredentialPartFromRequest(req, requestutils.CredentialPartRegionName)
 	if err == nil {
 		region = regionName
@@ -73,7 +74,7 @@ func GetS3SignRequestParams(ctx context.Context, req *http.Request, expiryInSeco
 }
 
 
-func SignWithCreds(ctx context.Context, req *http.Request, creds aws.Credentials) error{
+func SignWithCreds(ctx context.Context, req *http.Request, creds aws.Credentials, defaultRegion string) error{
 	var signingTime time.Time
 	amzDate := req.Header.Get(constants.AmzDateKey)
 	if amzDate == "" {
@@ -87,5 +88,5 @@ func SignWithCreds(ctx context.Context, req *http.Request, creds aws.Credentials
 		}	
 	}
 
-	return SignRequestWithCreds(ctx, req, -1, signingTime, creds)
+	return SignRequestWithCreds(ctx, req, -1, signingTime, creds, defaultRegion)
 }

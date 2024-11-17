@@ -54,10 +54,9 @@ cp -R etc etc.private
 ```
 
 Next adapt the config under etc.private. To get a minimal working local proxy you need to change at least:
- - etc.private/.env.docker
-   - AWS_ACCESS_KEY_ID: The access key id for the object store that you are proxying
-   - AWS_SECRET_ACCESS_KEY: The secret access key for the object store that you are proxying
-   - FAKES3PP_S3_PROXY_TARGET: The hostname of the object store you are proxying (e.g. `s3.waw3-1.cloudferro.com`)
+ - etc.private/backend-config.yaml
+   - The example shows config for 2 S3 backends. Remove and add config as per your use case.
+   - The additional files you can create under etc.private as they get mounted under /etc/fakes3pp
 
 ### Production configuration
 

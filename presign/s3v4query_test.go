@@ -68,7 +68,7 @@ func TestAwsCliGeneratedURLMustWork(t *testing.T) {
 			t.FailNow()
 		}
 	
-		signedUri, _, err := PreSignRequestWithCreds(ctx, req, testExpirySeconds, signDate, creds)
+		signedUri, _, err := PreSignRequestWithCreds(ctx, req, testExpirySeconds, signDate, creds, "eu-west-1")
 		if err != nil {
 			t.Errorf("Did not expect error. Got %s", err)
 		}

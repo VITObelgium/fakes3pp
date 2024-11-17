@@ -59,6 +59,16 @@ func GetSignatureCredentialPartFromRequest(r *http.Request, credentialPart Crede
 	return GetCredentialPart(credentialString, credentialPart)
 }
 
+//Get region name from a request and return fallback if the information is not in the request
+func GetRegionFromRequest(req *http.Request, fallback string) (region string) {
+	region = fallback
+	regionName, err := GetSignatureCredentialPartFromRequest(req, CredentialPartRegionName)
+	if err == nil {
+		region = regionName
+	}
+	return
+}
+
 // Gets a part of the Credential value that is passed via the authorization header
 func getSignatureCredentialStringFromRequestAuthHeader(authorizationHeader string) (string, error) {
 	if authorizationHeader == "" {

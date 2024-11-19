@@ -132,6 +132,9 @@ func (e endpoint) getBaseURI() string {
 
 func (bce *backendConfigEntry) fromBackendConfigFileEntry(input backendConfigFileEntry) error {
 	endpoint, err := buildEndpoint(input.Endpoint)
+	if err != nil {
+		return err
+	}
 	bce.endpoint = endpoint
 
 	awsCredentials, err := input.getCredentials()

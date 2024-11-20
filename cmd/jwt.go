@@ -9,17 +9,20 @@ import (
 	"github.com/google/uuid"
 )
 
-type SessionClaims struct {
-	RoleARN string `json:"role_arn"`
-	//The issuer of the initial OIDC refresh token
-	IIssuer string `json:"initial_issuer"`
+type AWSSessionTags struct {
+	PrincipalTags map[string][]string `json:"principal_tags"`
+	TransitiveTagKeys []string `json:"transitive_tag_keys,omitempty"`
+}
+
+type IDPClaims struct {
+	//The optional session tags
+	Tags AWSSessionTags `json:"https://aws.amazon.com/tags,omitempty"` 
 	jwt.RegisteredClaims
 }
 
-func createRS256PolicyToken(issuer, iIssuer, subject, roleARN string, expiry time.Duration) (*jwt.Token) {
-	claims := &SessionClaims{
-		roleARN,
-		iIssuer,
+func newIDPClaims(issuer, subject string, expiry time.Duration, tags AWSSessionTags) (*IDPClaims) {
+	return &IDPClaims{
+		tags,
 		jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().UTC().Add(expiry)),
 			IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
@@ -27,6 +30,32 @@ func createRS256PolicyToken(issuer, iIssuer, subject, roleARN string, expiry tim
 			Issuer:    issuer,
 			Subject:   subject,
 			ID:        uuid.New().String(),
+		},
+	}
+
+}
+
+type SessionClaims struct {
+	RoleARN string `json:"role_arn"`
+	//The issuer of the initial OIDC refresh token
+	IIssuer string `json:"initial_issuer"`
+	IDPClaims
+}
+
+func createRS256PolicyToken(issuer, iIssuer, subject, roleARN string, expiry time.Duration) (*jwt.Token) {
+	claims := &SessionClaims{
+		roleARN,
+		iIssuer,
+		IDPClaims{
+			AWSSessionTags{},
+			jwt.RegisteredClaims{
+				ExpiresAt: jwt.NewNumericDate(time.Now().UTC().Add(expiry)),
+				IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
+				NotBefore: jwt.NewNumericDate(time.Now().UTC()),
+				Issuer:    issuer,
+				Subject:   subject,
+				ID:        uuid.New().String(),
+			},
 		},
 	}
 

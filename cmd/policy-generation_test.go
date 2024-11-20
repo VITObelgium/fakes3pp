@@ -26,7 +26,7 @@ var testPolicyRealistic = `
 				"Resource": "arn:aws:s3:::OpenEO-artifacts",
 				"Condition" : {
 					"StringLike" : {
-						"s3:prefix": "{{.Claims.Issuer}}/*" 
+						"s3:prefix": "{{.Claims.Subject}}/*" 
 					}
 				} 
 			}
@@ -34,15 +34,7 @@ var testPolicyRealistic = `
 	}
 `
 
-func NewTestPolicyRetriever() *TestPolicyRetriever {
-	return &TestPolicyRetriever{
-		testPolicies: map[string]string{
-			"policyRealistic": testPolicyRealistic,
-		},
-	}
-}
-
-func NewTestPolicyManager() *PolicyManager {
+func newTestPolicyManager() *PolicyManager {
 	return NewPolicyManager(
 		TestPolicyRetriever{
 			testPolicies: map[string]string{
@@ -77,43 +69,53 @@ func (r TestPolicyRetriever) retrieveAllIdentifiers() ([]string, error) {
 
 type policyGenerationTestCase struct {
 	PolicyName     string 
-	Claims         policyTemplateData
+	Claims         *SessionClaims
 	Expectedpolicy string
+}
+
+func buildTestSessionClaimsNoTags(issuer, subject string) (*SessionClaims) {
+	idpClaims := newIDPClaims(issuer, subject, time.Hour * 1, AWSSessionTags{})
+	return &SessionClaims{
+		RoleARN: "",
+		IIssuer: "",
+		IDPClaims: *idpClaims,
+	}
 }
 
 func TestPolicyGeneration(t *testing.T) {
 	testCases := []policyGenerationTestCase{
 		{
 			PolicyName: "policyRealistic",
-			Claims:     policyTemplateData{Claims: map[string]string{"Issuer": "https://SuperIssuer"}},
-			Expectedpolicy: strings.Replace(testPolicyRealistic, "{{.Claims.Issuer}}", "https://SuperIssuer", -1),
+			Claims:     buildTestSessionClaimsNoTags("", "userA"),
+			Expectedpolicy: strings.Replace(testPolicyRealistic, "{{.Claims.Subject}}", "userA", -1),
 		},
 		{
 			PolicyName: "now",
-			Claims:     policyTemplateData{Claims: map[string]string{}},
+			Claims:     buildTestSessionClaimsNoTags("", ""),
 			Expectedpolicy: YYYYmmdd(Now()),
 		},
 		{
 			PolicyName: "nowSlashed",
-			Claims:     policyTemplateData{Claims: map[string]string{}},
+			Claims:     buildTestSessionClaimsNoTags("", ""),
 			Expectedpolicy: YYYYmmddSlashed(Now()),
 		},
 		{
 			PolicyName: "tomorrow",
-			Claims:     policyTemplateData{Claims: map[string]string{}},
+			Claims:     buildTestSessionClaimsNoTags("", ""),
 			Expectedpolicy: YYYYmmdd(Now().Add(time.Hour * 24)),
 		},
 		{
 			PolicyName: "sha1",
-			Claims:     policyTemplateData{Claims: map[string]string{"Issuer": "a", "Subject": "b"}},
+			Claims:     buildTestSessionClaimsNoTags("a", "b"),
 			Expectedpolicy: sha1sum("a:b"),
 		},
 	}
 
-	tpm := NewTestPolicyManager()
+	tpm := newTestPolicyManager()
 
 	for _, tc := range testCases {
-		got, err := tpm.GetPolicy(tc.PolicyName, tc.Claims)
+		policyData := GetPolicySessionDataFromClaims(tc.Claims)
+		got, err := tpm.GetPolicy(tc.PolicyName, policyData)
 		if err != nil {
 			t.Errorf("Encountered for policy %s error %s", tc.PolicyName, err)
 		}

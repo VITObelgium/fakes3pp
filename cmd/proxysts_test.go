@@ -205,8 +205,7 @@ func getTestAwsConfig(t *testing.T) (aws.Config) {
 	return cfg
 }
 
-func assumeRoleWithWebIdentityAgainstTestStsProxy(t *testing.T, token, roleSessionName, roleArn string) (*sts.AssumeRoleWithWebIdentityOutput, error) {
-	cfg := getTestAwsConfig(t)
+func getProxyUrlWithoutPort() string {
 	secure := viper.GetBool(secure)
 	var protocol string
 	if secure {
@@ -214,11 +213,19 @@ func assumeRoleWithWebIdentityAgainstTestStsProxy(t *testing.T, token, roleSessi
 	} else {
 		protocol = "http"
 	}
+	return fmt.Sprintf("%s://%s", protocol, viper.GetString(stsProxyFQDN))
+}
+
+func getStsProxyUrl() string {
+	return fmt.Sprintf("%s:%d/", getProxyUrlWithoutPort(), viper.GetInt(stsProxyPort))
+}
+
+func assumeRoleWithWebIdentityAgainstTestStsProxy(t *testing.T, token, roleSessionName, roleArn string) (*sts.AssumeRoleWithWebIdentityOutput, error) {
+	cfg := getTestAwsConfig(t)
+
 
 	client := sts.NewFromConfig(cfg, func (o *sts.Options) {
-		o.BaseEndpoint = aws.String(
-			fmt.Sprintf("%s://%s:%d/", protocol, viper.GetString(stsProxyFQDN), viper.GetInt(stsProxyPort)),
-		)
+		o.BaseEndpoint = aws.String(getStsProxyUrl())
 	})
 	input := &sts.AssumeRoleWithWebIdentityInput{
 		RoleSessionName: &roleSessionName,

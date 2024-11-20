@@ -126,7 +126,7 @@ func TestExpiredPreSign(t *testing.T) {
 
 var testRequests = []*http.Request{}
 
-var testProxyStub = func (ctx context.Context, w http.ResponseWriter, r *http.Request)  {
+var testProxyStub = func (ctx context.Context, w http.ResponseWriter, r *http.Request, backendId string)  {
 	testRequests = append(testRequests, r)
 	w.WriteHeader(http.StatusOK)
 }
@@ -169,8 +169,8 @@ func setupSuiteProxyS3(t *testing.T, handlerBuilder handlerBuilderI) (func(t *te
 }
 
 //Get the fully qualified URL to the S3 Proxy
-func getS3ProxyUrl() string{
-	return fmt.Sprintf("%s://%s:%d/", getProxyProtocol(), viper.GetString(s3ProxyFQDN), viper.GetInt(s3ProxyPort))
+func getS3ProxyUrl() string {
+	return fmt.Sprintf("%s:%d/", getProxyUrlWithoutPort(), viper.GetInt(s3ProxyPort))
 }
 
 

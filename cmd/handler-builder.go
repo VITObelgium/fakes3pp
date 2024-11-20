@@ -28,7 +28,7 @@ type handlerBuilderI interface {
 // A handler builder builds http handlers
 type handlerBuilder struct {
 	//How proxying is done to the backend
-	proxyFunc func(context.Context, http.ResponseWriter, *http.Request)
+	proxyFunc func(context.Context, http.ResponseWriter, *http.Request, string)
 }
 
 var justProxied handlerBuilderI = handlerBuilder{proxyFunc: justProxy}
@@ -213,6 +213,7 @@ func (hb handlerBuilder) Build(action S3ApiAction, presigned bool) (http.Handler
 			}
 			
 			if isValid{
+				targetBackendId := requestutils.GetRegionFromRequest(r, globalBackendsConfig.defaultBackend)
 				//Then make sure query parameters are no longer passed otherwise you can get 'InvalidAccessKeyId'
 				queryPart := fmt.Sprintf("?%s", r.URL.RawQuery)
 				r.RequestURI = strings.Replace(r.RequestURI, queryPart, "", 1)
@@ -223,7 +224,7 @@ func (hb handlerBuilder) Build(action S3ApiAction, presigned bool) (http.Handler
 				//To have a valid signature
 				r.Header.Add(constants.AmzContentSHAKey, constants.EmptyStringSHA256)
 				if authorizeS3Action(ctx, creds.SessionToken, action, w, r, getCutoffForPresignedUrl()){
-					hb.proxyFunc(ctx, w, r)
+					hb.proxyFunc(ctx, w, r, targetBackendId)
 				}
 				return
 			}
@@ -266,9 +267,12 @@ func (hb handlerBuilder) Build(action S3ApiAction, presigned bool) (http.Handler
 				slog.Info("Valid signature", xRequestIDStr, getRequestID(ctx))
 				//Cleaning could have removed content length
 				r.ContentLength = backupContentLength
+
+	            targetRegion := requestutils.GetRegionFromRequest(r, globalBackendsConfig.defaultBackend)
+
 				//Authn done time to perform authorization				
 				if authorizeS3Action(ctx, creds.SessionToken, action, w, r, time.Now().UTC()){
-					hb.proxyFunc(ctx, w, r)
+					hb.proxyFunc(ctx, w, r, targetRegion)
 				}
 				return
 			} else {
@@ -329,23 +333,22 @@ func logRequest(ctx context.Context, apiAction string, r *http.Request) {
 	)
 }
 
-func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-	targetRegion := requestutils.GetRegionFromRequest(r, globalBackendsConfig.defaultBackend)
-	err := reTargetRequest(r, targetRegion)
+func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request, targetBackendId string) {
+	err := reTargetRequest(r, targetBackendId)
 	if err != nil {
-		slog.Error("Could not re-target request with permanent credentials", "error", err, xRequestIDStr, getRequestID(ctx), "backendId", targetRegion)
+		slog.Error("Could not re-target request with permanent credentials", "error", err, xRequestIDStr, getRequestID(ctx), "backendId", targetBackendId)
 		writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
 		return
 	}
-	creds, err := getBackendCredentials(targetRegion)
+	creds, err := getBackendCredentials(targetBackendId)
 	if err != nil {
-		slog.Error("Could not get credentials for request", "error", err, xRequestIDStr, getRequestID(ctx), "backendId", targetRegion)
+		slog.Error("Could not get credentials for request", "error", err, xRequestIDStr, getRequestID(ctx), "backendId", targetBackendId)
 		writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
 		return
 	}
-	err = presign.SignWithCreds(ctx, r, creds, targetRegion)
+	err = presign.SignWithCreds(ctx, r, creds, targetBackendId)
 	if err != nil {
-		slog.Error("Could not sign request with permanent credentials", "error", err, xRequestIDStr, getRequestID(ctx), "backendId", targetRegion)
+		slog.Error("Could not sign request with permanent credentials", "error", err, xRequestIDStr, getRequestID(ctx), "backendId", targetBackendId)
 		writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
 		return
 	}

@@ -56,6 +56,11 @@ jobs:
     - name: Build
       run: go build -v ./...
 
+    - name: Setup test dependencies
+      run: |
+        make setup-test-dependencies
+        make start-test-s3-servers
+
     - name: Test
       # As we use config files from time to time we always want to run without cache
       run: go clean -testcache && go test -v ./...

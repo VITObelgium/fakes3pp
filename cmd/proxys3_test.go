@@ -173,6 +173,35 @@ func getS3ProxyUrl() string{
 	return fmt.Sprintf("%s://%s:%d/", getProxyProtocol(), viper.GetString(s3ProxyFQDN), viper.GetInt(s3ProxyPort))
 }
 
+
+func adapterCredentialsToCredentialsProvider(creds aws.Credentials) aws.CredentialsProviderFunc {
+	return func(ctx context.Context) (aws.Credentials, error) {
+		return creds, nil
+	}
+}
+
+func adapterAwsCredentialsToCredentials(creds AWSCredentials) aws.Credentials {
+	return aws.Credentials{
+		AccessKeyID: creds.AccessKey,
+		SecretAccessKey: creds.SecretKey,
+		SessionToken: creds.SessionToken,
+	}
+}
+
+
+func getS3ClientAgainstS3Proxy(t *testing.T, region string, creds aws.Credentials) (*s3.Client) {
+	cfg := getTestAwsConfig(t)
+
+	client := s3.NewFromConfig(cfg, func (o *s3.Options) {
+		o.BaseEndpoint = aws.String(getS3ProxyUrl())
+		o.Credentials = adapterCredentialsToCredentialsProvider(creds)
+		o.Region = region
+		o.UsePathStyle = true
+	})
+
+	return client
+}
+
 func TestWithValidCredsButNoAccess(t *testing.T) {
 	teardownSuite := setupSuiteProxyS3(t, testStubJustProxy)
 	defer teardownSuite(t)
@@ -183,14 +212,8 @@ func TestWithValidCredsButNoAccess(t *testing.T) {
 		t.Error(err)
 	}
 
-	cfg := getTestAwsConfig(t)
-
-	client := s3.NewFromConfig(cfg, func (o *s3.Options) {
-		o.BaseEndpoint = aws.String(getS3ProxyUrl())
-		o.Credentials = cred
-		o.Region = "eu-west-1"
-		o.UsePathStyle = true
-	})
+	client := getS3ClientAgainstS3Proxy(t, "eu-west-1", adapterAwsCredentialsToCredentials(*cred))
+	
 	max1Sec, cancel := context.WithTimeout(context.Background(), 1000 * time.Second)
 	testPrefix := testAllowedPrefix
 	input := s3.ListObjectsV2Input{

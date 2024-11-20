@@ -2,3 +2,7 @@
 **/.idea
 
 **/*.private
+
+testing/venv/**
+testing/**.err
+testing/**.log

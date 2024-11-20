@@ -111,13 +111,14 @@ func TestProxyStsAssumeRoleWithWebIdentityBasicToken(t *testing.T) {
 	}
 }
 
-func createRS256PolicyTokenWithSessionTags(issuer, subject string, expiry time.Duration) (*jwt.Token) {
-	tags := AWSSessionTags{
-		PrincipalTags: map[string][]string{
-			"custom_id": {"idA"},
-		},
-		TransitiveTagKeys: []string{"custom_id"},
-	}
+var testSessionTagsCustomIdA = AWSSessionTags{
+	PrincipalTags: map[string][]string{
+		"custom_id": {"idA"},
+	},
+	TransitiveTagKeys: []string{"custom_id"},
+}
+
+func createRS256PolicyTokenWithSessionTags(issuer, subject string, expiry time.Duration, tags AWSSessionTags) (*jwt.Token) { 
 	claims := newIDPClaims(issuer, subject, expiry, tags)
 
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
@@ -138,7 +139,7 @@ func TestProxyStsAssumeRoleWithWebIdentitySessionTagsToken(t *testing.T) {
 		t.Error("Could not get test signing key")
 		t.FailNow()
 	}
-	token, err := CreateSignedToken(createRS256PolicyTokenWithSessionTags(testFakeIssuer, testSubject, 20 * time.Minute), signingKey)
+	token, err := CreateSignedToken(createRS256PolicyTokenWithSessionTags(testFakeIssuer, testSubject, 20 * time.Minute, testSessionTagsCustomIdA), signingKey)
 	if err != nil {
 		t.Error("Could create signed token")
 		t.FailNow()
@@ -204,10 +205,7 @@ func getTestAwsConfig(t *testing.T) (aws.Config) {
 	return cfg
 }
 
-func TestProxyStsViaSTSClient(t *testing.T) {
-	teardownSuite := setupSuiteProxySTS(t)
-	defer teardownSuite(t)
-
+func assumeRoleWithWebIdentityAgainstTestStsProxy(t *testing.T, token, roleSessionName, roleArn string) (*sts.AssumeRoleWithWebIdentityOutput, error) {
 	cfg := getTestAwsConfig(t)
 	secure := viper.GetBool(secure)
 	var protocol string
@@ -222,24 +220,30 @@ func TestProxyStsViaSTSClient(t *testing.T) {
 			fmt.Sprintf("%s://%s:%d/", protocol, viper.GetString(stsProxyFQDN), viper.GetInt(stsProxyPort)),
 		)
 	})
-
-	token := getTestingToken(t)
-	//Given the policy Manager that has roleArn for the testARN
-	initializePolicyManager()
-	roleSessionName := "my-session"
-	var arnToAssume string = testARN
-
 	input := &sts.AssumeRoleWithWebIdentityInput{
 		RoleSessionName: &roleSessionName,
 		WebIdentityToken: &token,
-		RoleArn: &arnToAssume,
+		RoleArn: &roleArn,
 	}
 
 	max1Sec, cancel := context.WithTimeout(context.Background(), 1000 * time.Second)
 	defer cancel()
-	_, err := client.AssumeRoleWithWebIdentity(
+	result, err := client.AssumeRoleWithWebIdentity(
 		max1Sec, input,
 	)
+
+	return result, err
+}
+
+func TestProxyStsViaSTSClient(t *testing.T) {
+	teardownSuite := setupSuiteProxySTS(t)
+	defer teardownSuite(t)
+
+	token := getTestingToken(t)
+	//Given the policy Manager that has roleArn for the testARN
+	initializePolicyManager()
+
+	_, err := assumeRoleWithWebIdentityAgainstTestStsProxy(t, token, "my-session", testARN)
 	if err != nil {
 		t.Errorf("encountered error when assuming role: %s", err)
 	}

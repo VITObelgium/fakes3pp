@@ -75,7 +75,7 @@ func getSignatureCredentialStringFromRequestAuthHeader(authorizationHeader strin
 		return "", fmt.Errorf("programming error should use empty authHeader to get credential part")
 	}
 	if !strings.HasPrefix(authorizationHeader, expectedAuthorizationStartWithCredential) {
-		return "", fmt.Errorf("invalid authorization header: %s", authorizationHeader)
+		return "", errors.New("invalid authorization header")
 	}
 	authorizationHeaderTrimmed := authorizationHeader[len(expectedAuthorizationStartWithCredential):]
 	return strings.Split(authorizationHeaderTrimmed, ", ")[0], nil

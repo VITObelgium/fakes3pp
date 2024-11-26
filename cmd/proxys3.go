@@ -12,7 +12,6 @@ import (
 )
 
 const proxys3 = "proxys3"
-var s3TargetHost string
 
 // proxys3Cmd represents the proxyS3 command
 var proxys3Cmd = &cobra.Command{
@@ -27,13 +26,18 @@ var proxys3Cmd = &cobra.Command{
 		if err != nil {
 			panic(err) //Fail hard
 		}
-		s3TargetHost = viper.GetString(s3ProxyTarget)
-		if s3TargetHost == "" {
-			slog.Error("S3 target host not defined")
-			panic(err) //Fail hard
+		
+		if err := initializeGlobalBackendsConfig(); err != nil {
+			panic(err) //Fail hard as no valid backends are configured
 		}
 		s3Proxy()
 	},
+}
+
+func initializeGlobalBackendsConfig() error {
+	cfg, err := getBackendsConfig()
+	globalBackendsConfig = cfg
+	return err
 }
 
 func createAndStartS3Proxy(proxyHB handlerBuilderI) (*sync.WaitGroup, *http.Server, error) {

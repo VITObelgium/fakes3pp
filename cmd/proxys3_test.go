@@ -24,17 +24,31 @@ func TestMain(m *testing.M) {
 	m.Run()
 }
 
+func getTestServerCreds(t *testing.T) aws.Credentials{
+	creds, err := getBackendCredentials("waw3-1")
+	if err != nil {
+		t.Errorf("Could not get test credentials")
+		t.FailNow()
+	}
+	return creds
+}
+
 func TestValidPreSignWithServerCreds(t *testing.T) {
 	//Given valid server config
 	BindEnvVariables("proxys3")
+	//Pre-sign with server creds so must initialize backend config for testing
+	if err := initializeGlobalBackendsConfig(); err != nil {
+		t.Error(err) //Fail hard as no valid backends are configured
+		t.FailNow()
+	}
 
 	//Given we have a valid signed URI valid for 1 second
-	signedURI, err := PreSignRequestForGet("pvb-test", "onnx_dependencies_1.16.3.zip", time.Now(), 60)
+	signedURI, err := PreSignRequestForGet("pvb-test", "onnx_dependencies_1.16.3.zip", testDefaultBackendRegion, time.Now(), 60)
 	if err != nil {
 		t.Errorf("could not presign request: %s\n", err)
 	}
 	//When we check the signature within 1 second
-	isValid, err := presign.IsPresignedUrlWithValidSignature(context.Background(), signedURI, getServerCreds())
+	isValid, err := presign.IsPresignedUrlWithValidSignature(context.Background(), signedURI, getTestServerCreds(t))
 	//Then it is a valid signature
 	if err != nil {
 		t.Errorf("Url should have been valid but %s", err)
@@ -68,7 +82,7 @@ func TestValidPreSignWithTempCreds(t *testing.T) {
 		t.Errorf("error when creating a request context for url: %s", err)
 	}
 
-	uri, _, err := presign.PreSignRequestWithCreds(context.Background(), req, 100, time.Now(), creds)
+	uri, _, err := presign.PreSignRequestWithCreds(context.Background(), req, 100, time.Now(), creds, testDefaultBackendRegion)
 	if err != nil {
 		t.Errorf("error when signing request with creds: %s", err)
 	}
@@ -88,14 +102,19 @@ func TestValidPreSignWithTempCreds(t *testing.T) {
 func TestExpiredPreSign(t *testing.T) {
 	//Given valid server config
 	BindEnvVariables("proxys3")
+	//Pre-sign with server creds so must initialize backend config for testing
+	if err := initializeGlobalBackendsConfig(); err != nil {
+		t.Error(err) //Fail hard as no valid backends are configured
+		t.FailNow()
+	}
 	//Given we have a valid signed URI valid for 1 second
-	signedURI, err := PreSignRequestForGet("pvb-test", "onnx_dependencies_1.16.3.zip", time.Now(), 1)
+	signedURI, err := PreSignRequestForGet("pvb-test", "onnx_dependencies_1.16.3.zip", testDefaultBackendRegion, time.Now(), 1)
 	if err != nil {
 		t.Errorf("could not presign request: %s\n", err)
 	}
 	//When we would check the url after 1 second
 	time.Sleep(1 * time.Second)
-	isValid, err := presign.IsPresignedUrlWithValidSignature(context.Background(), signedURI, getServerCreds())
+	isValid, err := presign.IsPresignedUrlWithValidSignature(context.Background(), signedURI, getTestServerCreds(t))
 	//Then it is no longer a valid signature TODO check
 	if err != nil {
 		t.Errorf("Url should have been valid but %s", err)
@@ -107,7 +126,7 @@ func TestExpiredPreSign(t *testing.T) {
 
 var testRequests = []*http.Request{}
 
-var testProxyStub = func (ctx context.Context, w http.ResponseWriter, r *http.Request)  {
+var testProxyStub = func (ctx context.Context, w http.ResponseWriter, r *http.Request, backendId string)  {
 	testRequests = append(testRequests, r)
 	w.WriteHeader(http.StatusOK)
 }
@@ -150,8 +169,37 @@ func setupSuiteProxyS3(t *testing.T, handlerBuilder handlerBuilderI) (func(t *te
 }
 
 //Get the fully qualified URL to the S3 Proxy
-func getS3ProxyUrl() string{
-	return fmt.Sprintf("%s://%s:%d/", getProxyProtocol(), viper.GetString(s3ProxyFQDN), viper.GetInt(s3ProxyPort))
+func getS3ProxyUrl() string {
+	return fmt.Sprintf("%s:%d/", getProxyUrlWithoutPort(), viper.GetInt(s3ProxyPort))
+}
+
+
+func adapterCredentialsToCredentialsProvider(creds aws.Credentials) aws.CredentialsProviderFunc {
+	return func(ctx context.Context) (aws.Credentials, error) {
+		return creds, nil
+	}
+}
+
+func adapterAwsCredentialsToCredentials(creds AWSCredentials) aws.Credentials {
+	return aws.Credentials{
+		AccessKeyID: creds.AccessKey,
+		SecretAccessKey: creds.SecretKey,
+		SessionToken: creds.SessionToken,
+	}
+}
+
+
+func getS3ClientAgainstS3Proxy(t *testing.T, region string, creds aws.Credentials) (*s3.Client) {
+	cfg := getTestAwsConfig(t)
+
+	client := s3.NewFromConfig(cfg, func (o *s3.Options) {
+		o.BaseEndpoint = aws.String(getS3ProxyUrl())
+		o.Credentials = adapterCredentialsToCredentialsProvider(creds)
+		o.Region = region
+		o.UsePathStyle = true
+	})
+
+	return client
 }
 
 func TestWithValidCredsButNoAccess(t *testing.T) {
@@ -164,14 +212,8 @@ func TestWithValidCredsButNoAccess(t *testing.T) {
 		t.Error(err)
 	}
 
-	cfg := getTestAwsConfig(t)
-
-	client := s3.NewFromConfig(cfg, func (o *s3.Options) {
-		o.BaseEndpoint = aws.String(getS3ProxyUrl())
-		o.Credentials = cred
-		o.Region = "eu-west-1"
-		o.UsePathStyle = true
-	})
+	client := getS3ClientAgainstS3Proxy(t, "eu-west-1", adapterAwsCredentialsToCredentials(*cred))
+	
 	max1Sec, cancel := context.WithTimeout(context.Background(), 1000 * time.Second)
 	testPrefix := testAllowedPrefix
 	input := s3.ListObjectsV2Input{
@@ -371,7 +413,7 @@ func TestWithValidCredsButProxyHeaders(t *testing.T) {
 	req.Header.Add("User-Agent", "aws-cli/2.15.40 Python/3.11.8 Linux/6.8.0-40-generic exe/x86_64.ubuntu.12 prompt/off command/s3.ls")
 	req.Header.Add("X-Amz-Content-SHA256", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
 	ctx = buildContextWithRequestID(req)
-	err = presign.SignWithCreds(ctx, req, awsCred)
+	err = presign.SignWithCreds(ctx, req, awsCred, testDefaultBackendRegion)
 	if err != nil {
 		t.Error(err)
 		t.FailNow()
@@ -426,7 +468,7 @@ func TestWithValidCredsButUntrustedHeaders(t *testing.T) {
 	req.Header.Add("User-Agent", "aws-cli/2.15.40 Python/3.11.8 Linux/6.8.0-40-generic exe/x86_64.ubuntu.12 prompt/off command/s3.ls")
 	req.Header.Add("X-Amz-Content-SHA256", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
 	ctx = buildContextWithRequestID(req)
-	err = presign.SignWithCreds(ctx, req, awsCred)
+	err = presign.SignWithCreds(ctx, req, awsCred, testDefaultBackendRegion)
 	if err != nil {
 		t.Error(err)
 		t.FailNow()

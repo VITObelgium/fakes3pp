@@ -1,0 +1,3 @@
+aws_access_key_id: fake_key_id_otc
+aws_secret_access_key: fake_secret_otc
+aws_session_token: fakeSessionTokOtc1

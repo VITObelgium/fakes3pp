@@ -21,7 +21,7 @@ var oidcProvidersPublicKey map[string]*rsa.PublicKey
 
 
 type oidcProviderConfig struct {
-	Realm             string `json:"realm" yaml:"realm"`
+	Realm            string `json:"realm" yaml:"realm"`
 	PublicKey        string `json:"public_key" yaml:"public_key"`
 	TokenService     string `json:"token-service" yaml:"token-service"`
 	AccountService   string `json:"account-service" yaml:"account-service"`

@@ -10,6 +10,7 @@ import (
 
 var testBucketName = "bucket1"
 const testAllowedPrefix = "okprefix/"
+const testAllowedPrefix2 = "okprefix2/"
 var testBucketARN = fmt.Sprintf("arn:aws:s3:::%s", testBucketName)
 
 var allowedWriteARNStart = fmt.Sprintf("%s/%s", testBucketARN, testAllowedPrefix)
@@ -53,6 +54,27 @@ var testPolScen2AllowListingBucketWithinPrefix = fmt.Sprintf(`
 	]
 }
 `, IAMActionS3ListBucket, testBucketARN, testAllowedPrefix)
+
+var testPolScen2AllowListingBucketWithinPrefixes = fmt.Sprintf(`
+{
+	"Version": "2012-10-17",
+	"Statement": [
+        {
+			"Sid": "Allow to list objects under a prefix",
+			"Effect": "Allow",
+			"Action": [
+				"%s"
+			],
+			"Resource": "%s",
+			"Condition" : {
+                "StringLike" : {
+                    "s3:prefix": ["%s*", "%s*"] 
+                }
+            } 
+          } 
+	]
+}
+`, IAMActionS3ListBucket, testBucketARN, testAllowedPrefix, testAllowedPrefix2)
 
 var testPolAllowAllIfTestDepartmentOtherwiseDenyAll = `
 {
@@ -152,6 +174,32 @@ func TestPolicyEvaluations(t *testing.T) {
 			},
 			false,
 			reasonNoStatementAllowingAction,
+		},
+		{
+			"A listBucket is allowed if it is under the conditioned prefix with multiple prefixes (prefix1)",
+			testPolScen2AllowListingBucketWithinPrefixes,
+			iamAction{
+				Action: IAMActionS3ListBucket,
+				Resource: testBucketARN,
+				Context: map[string]*policy.ConditionValue{
+					IAMConditionS3Prefix: policy.NewConditionValueString(true, fmt.Sprintf("%ssubprefix/", testAllowedPrefix)),
+				},
+			},
+			true,
+			reasonActionIsAllowed,
+		},
+		{
+			"A listBucket is allowed if it is under the conditioned prefix with multiple prefixes (prefix2)",
+			testPolScen2AllowListingBucketWithinPrefixes,
+			iamAction{
+				Action: IAMActionS3ListBucket,
+				Resource: testBucketARN,
+				Context: map[string]*policy.ConditionValue{
+					IAMConditionS3Prefix: policy.NewConditionValueString(true, fmt.Sprintf("%ssubprefix/", testAllowedPrefix2)),
+				},
+			},
+			true,
+			reasonActionIsAllowed,
 		},
 		{
 			"Any action should be allowed if we run with test department session tag",

@@ -109,6 +109,7 @@ func isConditionMetForOperator(conditionOperator string, conditionDetails map[st
 		if err != nil {
 			return false, fmt.Errorf("operator StringLike encountered %s", err)
 		}
+		// https://stackoverflow.com/a/71531863/2653523
 		return !result, err
 	default:
 		return false, fmt.Errorf("unsupported condition: '%s'", conditionOperator)

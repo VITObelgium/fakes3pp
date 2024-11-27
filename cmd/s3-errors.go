@@ -82,6 +82,7 @@ const (
 	ErrS3InvalidAccessKeyId
 	ErrS3InvalidSignature
 	ErrS3InvalidSecurity
+	ErrS3InvalidRegion
 )
 
 
@@ -126,5 +127,10 @@ var s3ErrCodes = s3ErrorCodeMap{
 		Code:           "InvalidSecurity",
 		Description:    "The provided security credentials are not valid.",
 		HTTPStatusCode: http.StatusForbidden,
+	},
+	ErrS3InvalidRegion: {
+		Code:           "InvalidRegion",
+		Description:    "The provided region is not valid.",
+		HTTPStatusCode: http.StatusBadRequest,
 	},
 }

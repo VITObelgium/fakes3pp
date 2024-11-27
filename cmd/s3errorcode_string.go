@@ -15,11 +15,12 @@ func _() {
 	_ = x[ErrS3InvalidAccessKeyId-4]
 	_ = x[ErrS3InvalidSignature-5]
 	_ = x[ErrS3InvalidSecurity-6]
+	_ = x[ErrS3InvalidRegion-7]
 }
 
-const _S3ErrorCode_name = "S3NoneS3AccessDeniedS3InternalErrorS3UpstreamErrorS3InvalidAccessKeyIdS3InvalidSignatureS3InvalidSecurity"
+const _S3ErrorCode_name = "S3NoneS3AccessDeniedS3InternalErrorS3UpstreamErrorS3InvalidAccessKeyIdS3InvalidSignatureS3InvalidSecurityS3InvalidRegion"
 
-var _S3ErrorCode_index = [...]uint8{0, 6, 20, 35, 50, 70, 88, 105}
+var _S3ErrorCode_index = [...]uint8{0, 6, 20, 35, 50, 70, 88, 105, 120}
 
 func (i S3ErrorCode) String() string {
 	if i < 0 || i >= S3ErrorCode(len(_S3ErrorCode_index)-1) {

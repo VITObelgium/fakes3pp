@@ -335,7 +335,11 @@ func logRequest(ctx context.Context, apiAction string, r *http.Request) {
 
 func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request, targetBackendId string) {
 	err := reTargetRequest(r, targetBackendId)
-	if err != nil {
+	if err == errInvalidBackendErr {
+		slog.Warn("Invalid region was specified in the request", "error", err, xRequestIDStr, getRequestID(ctx), "backendId", targetBackendId)
+		writeS3ErrorResponse(ctx, w, ErrS3InvalidRegion, nil)
+		return
+	} else if err != nil {
 		slog.Error("Could not re-target request with permanent credentials", "error", err, xRequestIDStr, getRequestID(ctx), "backendId", targetBackendId)
 		writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
 		return

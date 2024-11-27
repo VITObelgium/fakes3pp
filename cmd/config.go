@@ -48,6 +48,8 @@ const(
 	s3BackendConfigFile = "s3BackendConfigFile"
 	stsMaxDurationSeconds = "stsMaxDurationSeconds"
 	signedUrlGraceTimeSeconds = "signedUrlGraceTimeSeconds"
+	enableLegacyBehaviorInvalidRegionToDefaultRegion = "enableLegacyBehaviorInvalidRegionToDefaultRegion"
+	
 
 	//Environment variables are upper cased
 	//Unless they are wellknown environment variables they should be prefixed
@@ -67,6 +69,7 @@ const(
 	FAKES3PP_ROLE_POLICY_PATH = "FAKES3PP_ROLE_POLICY_PATH"
 	FAKES3PP_STS_MAX_DURATION_SECONDS = "FAKES3PP_STS_MAX_DURATION_SECONDS"
 	FAKES3PP_SIGNEDURL_GRACE_TIME_SECONDS = "FAKES3PP_SIGNEDURL_GRACE_TIME_SECONDS"
+	ENABLE_LEGACY_BEHAVIOR_INVALID_REGION_TO_DEFAULT_REGION = "ENABLE_LEGACY_BEHAVIOR_INVALID_REGION_TO_DEFAULT_REGION"
 )
 
 var envVarDefs = []envVarDef{
@@ -180,7 +183,14 @@ var envVarDefs = []envVarDef{
 		FAKES3PP_SIGNEDURL_GRACE_TIME_SECONDS,
 		false,
 		"The maximum duration in seconds a signed url can be valid past the lifetime of the credentials used to generate it",
-		[]string{},
+		[]string{proxys3},
+	},
+	{
+		enableLegacyBehaviorInvalidRegionToDefaultRegion,
+		ENABLE_LEGACY_BEHAVIOR_INVALID_REGION_TO_DEFAULT_REGION,
+		false,
+		"If set to true invalid regions will not necessarily fail but will try default region",
+		[]string{proxys3},
 	},
 }
 

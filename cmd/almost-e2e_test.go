@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,11 +12,14 @@ import (
 	"github.com/VITObelgium/fakes3pp/presign"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/smithy-go"
+	"github.com/spf13/viper"
 )
 
 
 const testRegion1 = "tst-1"
 const testRegion2 = "eu-test-2"
+var defaultBakendIdAlmostE2ETests = testRegion2
 var backendTestRegions = []string{testRegion1, testRegion2}
 var testingBucketNameBackenddetails = "backenddetails"
 var testingRegionTxtObjectKey = "region.txt"
@@ -32,7 +36,7 @@ s3backends:
       file: ../etc/creds/otc_creds.yaml
     endpoint: http://localhost:5001
 default:  %s
-`, testRegion1, testRegion2, testRegion2))
+`, testRegion1, testRegion2, defaultBakendIdAlmostE2ETests))
 
 
 //Set the configurations as expected for the testingbackends
@@ -103,7 +107,7 @@ func getCredentialsFromTestStsProxy(t *testing.T, token, sessionName, roleArn st
 }
 
 //region object is setup in the backends and matches the region name of the backend
-func getRegionObjectContent(t *testing.T, region string, creds aws.Credentials) string{
+func getRegionObjectContent(t *testing.T, region string, creds aws.Credentials) (string, smithy.APIError){
   client := getS3ClientAgainstS3Proxy(t, region, creds)
 	
 	max1Sec, cancel := context.WithTimeout(context.Background(), 1000 * time.Second)
@@ -115,13 +119,19 @@ func getRegionObjectContent(t *testing.T, region string, creds aws.Credentials) 
 	defer cancel()
 	s3ObjectOutput, err := client.GetObject(max1Sec, &input)
 	if err != nil {
-		t.Errorf("encountered error getting region file for %s: %s", region, err)
+    var oe smithy.APIError
+    if !errors.As(err, &oe) {
+        t.Errorf("Could not convert smity error")
+        t.FailNow()
+    }
+    return "", oe
 	}
   bytes, err := io.ReadAll(s3ObjectOutput.Body)
   if err != nil {
-		t.Errorf("encountered error reading region file content for %s: %s", region, err)
+    t.Error("Reading body should not fail unless issue with test environment")
+    t.FailNow()
 	}
-  return string(bytes)
+  return string(bytes), nil
 }
 
 
@@ -140,10 +150,64 @@ func TestMakeSureCorrectBackendIsSelected(t *testing.T) {
 
 
   for _, backendRegion := range backendTestRegions {
-    regionContent := getRegionObjectContent(t, backendRegion, creds)
-    if regionContent != backendRegion {
+    regionContent, err := getRegionObjectContent(t, backendRegion, creds)
+    if err != nil {
+      t.Errorf("Could not get region content due to error %s", err)
+    } else if regionContent != backendRegion {
       t.Errorf("when retrieving region file for %s we got %s", backendRegion, regionContent)
     }
+  }
+}
+
+//When requests are made with an invalid region generally it is expected to have the requests fail.
+//for the legacy implementation only supporting a single backend that was not the case and the region
+//information was ignored. It is recommended to discourage usage of wrong regions by region out to users
+//who are using an invalid region. But to allow for a grace period where not breaking old usages you can also
+//ENABLE_LEGACY_BEHAVIOR_INVALID_REGION_TO_DEFAULT_REGION
+func TestAllowFallbackToDefaultBackend(t *testing.T) {
+  //Given legacy behavior mode enabled
+  viper.Set(enableLegacyBehaviorInvalidRegionToDefaultRegion, true)
+  
+  tearDown, getSignedToken := testingFixture(t)
+  defer tearDown()
+  token := getSignedToken("mySubject", time.Minute * 20, AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
+  //Given the policy Manager that has roleArn for the testARN
+	pm = *NewTestPolicyManagerAllowAll()
+  //Given credentials for that role
+  creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowAllARN)
+
+  // When a request is done to an invalid region
+  regionContent, err := getRegionObjectContent(t, "invalidRegion", creds)
+  // The response is as if the request was set to the default region
+  if err != nil {
+    t.Errorf("Could not get region content due to error %s", err)
+  } else if regionContent != defaultBakendIdAlmostE2ETests {
+    t.Errorf("when retrieving region file for %s we got %s but expected %s", "invalidRegion", regionContent, testDefaultBackendRegion)
+  }
+}
+
+//When not allowing fallback an invalid region should have clear indication that it is a user err
+func TestIfNoFallbackToDefaultBackendBadRequestShouldBeReturned(t *testing.T) {
+  //Given legacy behavior mode enabled
+  viper.Set(enableLegacyBehaviorInvalidRegionToDefaultRegion, false)
+  
+  tearDown, getSignedToken := testingFixture(t)
+  defer tearDown()
+  token := getSignedToken("mySubject", time.Minute * 20, AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
+  //Given the policy Manager that has roleArn for the testARN
+	pm = *NewTestPolicyManagerAllowAll()
+  //Given credentials for that role
+  creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowAllARN)
+
+  // When a request is done to an invalid region
+  regionContent, err := getRegionObjectContent(t, "invalidRegion", creds)
+  // The response is as if the request was set to the default region
+  if err == nil {
+    t.Errorf("Should not have succeeded but I got %s without error", regionContent)
+  }
+  if err.ErrorMessage() != "The provided region is not valid." {
+    t.Errorf("Unexpected error message: %s", err.ErrorMessage())
+    t.FailNow()
   }
 }
 

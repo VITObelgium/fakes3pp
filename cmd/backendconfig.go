@@ -147,6 +147,8 @@ type backendsConfig struct {
 	defaultBackend string
 }
 
+var errInvalidBackendErr = errors.New("invalid BackendId")
+
 func (cfg* backendsConfig) getBackendConfig(backendId string) (cfgEntry backendConfigEntry, err error) {
 	if cfg == nil {
 		return cfgEntry, errors.New("backendsConfig not initialised")
@@ -158,7 +160,11 @@ func (cfg* backendsConfig) getBackendConfig(backendId string) (cfgEntry backendC
 	if ok {
 		return backendCfg, nil
 	} else {
-		return cfgEntry, fmt.Errorf("no such backend: %s", backendId)
+		if viper.GetBool(enableLegacyBehaviorInvalidRegionToDefaultRegion) && backendId != cfg.defaultBackend{
+			return cfg.getBackendConfig(cfg.defaultBackend)
+		} else {
+			return cfgEntry, errInvalidBackendErr
+		}
 	}
 }
 

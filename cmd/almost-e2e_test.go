@@ -53,6 +53,7 @@ func setTestingBackendsConfig(t *testing.T) {
 //This is the testing fixture. It starts an sts and s3 proxy which
 //are configured with the S3 backends detailed in testing/README.md.
 func testingFixture(t *testing.T) (tearDown func ()(), getToken func(subject string, d time.Duration, tags AWSSessionTags) string){
+  skipIfNoTestingBackends(t)
   //Configure backends to be the testing S3 backends
   setTestingBackendsConfig(t)
 	//Given valid server config

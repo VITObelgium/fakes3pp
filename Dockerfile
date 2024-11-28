@@ -12,6 +12,7 @@ WORKDIR /usr/src/fakes3pp
 RUN go mod download
 RUN go mod tidy
 ADD . /usr/src/fakes3pp/
+ENV NO_TESTING_BACKENDS=container_build
 RUN go test -coverprofile cover.out ./...
 RUN go vet
 RUN CGO_ENABLED=0 GOOS=linux go build -o main .

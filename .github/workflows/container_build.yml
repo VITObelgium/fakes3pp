@@ -10,6 +10,7 @@ on:
       - v*
 env:
   IMAGE_NAME: fakes3pp
+  NO_TESTING_BACKENDS: "GithubAction" 
 
 jobs:
   # This pushes the image to GitHub Packages.

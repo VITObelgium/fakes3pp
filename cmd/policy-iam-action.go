@@ -63,6 +63,7 @@ func getS3ObjectFromRequest(req *http.Request) (bucketName string, objectKey str
 //Add context keys that are added to nearly all requests that contain information about the current session
 func addGenericSessionContextKeys(context map[string]*policy.ConditionValue, session *PolicySessionData) {
 	addAwsPrincipalTagConditionKeys(context, session)
+	addAwsRequestedRegionConditionKey(context, session)
 }
 
 //Add aws:PrincipalTag/tag-key keys that are added to nearly all requests that contain information about the current session
@@ -73,6 +74,17 @@ func addAwsPrincipalTagConditionKeys(context map[string]*policy.ConditionValue, 
 	}
 	for tagKey, tagValues := range session.Tags.PrincipalTags {
 		context[fmt.Sprintf("aws:PrincipalTag/%s", tagKey)] = policy.NewConditionValueString(true, tagValues...)
+	}
+}
+
+//Add aws:RequestedRegion key that are added to all requests
+//https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_examples_aws_deny-requested-region.html
+func addAwsRequestedRegionConditionKey(context map[string]*policy.ConditionValue, session *PolicySessionData) {
+	if session == nil {
+		return
+	}
+	if session.RequestedRegion != "" {
+		context["aws:RequestedRegion"] = policy.NewConditionValueString(true, session.RequestedRegion)
 	}
 }
 

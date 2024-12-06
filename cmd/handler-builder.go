@@ -91,7 +91,7 @@ func cleanHeadersThatAreNotSignedInAuthHeader(ctx context.Context, req *http.Req
 
 // Authorize an S3 action
 // maxExpiryTime is an upperbound for the expiry of the session token
-func authorizeS3Action(ctx context.Context, sessionToken string, action S3ApiAction, w http.ResponseWriter, r *http.Request, maxExpiryTime time.Time) (allowed bool) {
+func authorizeS3Action(ctx context.Context, sessionToken, targetRegion string, action S3ApiAction, w http.ResponseWriter, r *http.Request, maxExpiryTime time.Time) (allowed bool) {
 	allowed = false
 	sessionClaims, err := ExtractTokenClaims(sessionToken, s3ProxyKeyFunc)
 	if err != nil {
@@ -112,6 +112,7 @@ func authorizeS3Action(ctx context.Context, sessionToken string, action S3ApiAct
 	}
 
 	policySessionData := GetPolicySessionDataFromClaims(sessionClaims)
+	policySessionData.RequestedRegion = targetRegion
 	policyStr, err := pm.GetPolicy(sessionClaims.RoleARN, policySessionData)
 	if err != nil {
 		slog.Error("Could not get policy for temporary credentials", "error", err, xRequestIDStr, getRequestID(ctx), "role_arn", sessionClaims.RoleARN)
@@ -223,7 +224,7 @@ func (hb handlerBuilder) Build(action S3ApiAction, presigned bool) (http.Handler
 
 				//To have a valid signature
 				r.Header.Add(constants.AmzContentSHAKey, constants.EmptyStringSHA256)
-				if authorizeS3Action(ctx, creds.SessionToken, action, w, r, getCutoffForPresignedUrl()){
+				if authorizeS3Action(ctx, creds.SessionToken, targetBackendId, action, w, r, getCutoffForPresignedUrl()){
 					hb.proxyFunc(ctx, w, r, targetBackendId)
 				}
 				return
@@ -271,7 +272,7 @@ func (hb handlerBuilder) Build(action S3ApiAction, presigned bool) (http.Handler
 	            targetRegion := requestutils.GetRegionFromRequest(r, globalBackendsConfig.defaultBackend)
 
 				//Authn done time to perform authorization				
-				if authorizeS3Action(ctx, creds.SessionToken, action, w, r, time.Now().UTC()){
+				if authorizeS3Action(ctx, creds.SessionToken, targetRegion, action, w, r, time.Now().UTC()){
 					hb.proxyFunc(ctx, w, r, targetRegion)
 				}
 				return

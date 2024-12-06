@@ -8,7 +8,7 @@ import (
 
 func TestCredential(t *testing.T) {
 	BindEnvVariables(proxysts)
-	token := createRS256PolicyToken("testIssuer", testEgiIssuer, "subject", "policy", time.Minute)
+	token := createRS256PolicyToken("testIssuer", testEgiIssuer, "subject", "policy", time.Minute, AWSSessionTags{})
 	ac, err := NewAWSCredentials(token, time.Second)
 	if err != nil {
 		t.Errorf("Oops got error %s when creating %s", err, ac)

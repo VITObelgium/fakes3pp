@@ -163,12 +163,12 @@ func NewTestPolicyManagerAllowAll() *PolicyManager {
 
 func CreateTestingToken() (*jwt.Token) {
 	pm = *NewTestPolicyManagerAllowAll()
-	return createRS256PolicyToken(testFakeIssuer, testEgiIssuer, testSubject, testPolicyAllowAllARN,20 * time.Minute)
+	return createRS256PolicyToken(testFakeIssuer, testEgiIssuer, testSubject, testPolicyAllowAllARN,20 * time.Minute, AWSSessionTags{})
 }
 
 func CreateTestingTokenWithNoAccess() (*jwt.Token) {
 	pm = *NewTestPolicyManagerAllowAll()
-	return createRS256PolicyToken(testFakeIssuer, testEgiIssuer, testSubject, testPolicyNoPermissionsARN,20 * time.Minute)
+	return createRS256PolicyToken(testFakeIssuer, testEgiIssuer, testSubject, testPolicyNoPermissionsARN,20 * time.Minute, AWSSessionTags{})
 }
 
 func CreateSignedTestingToken() (string, error) {

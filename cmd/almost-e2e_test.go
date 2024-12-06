@@ -280,11 +280,34 @@ var testPolicyAllowTeamFolder string = fmt.Sprintf(`{
 	]
 }`, testingBucketNameBackenddetails, testTeamFile, testTeamTag, testAllowedTeam)
 
+var testPolicyAllowAllInRegion1ARN string = "arn:aws:iam::000000000000:role/AllowAllInRegion1"
+
+//This policy is to test whether a policy can be scoped to a specific region
+//since our proxy uses region to determine a backend this makes sure to be able
+//to have different permissions for different backends. This is used in test cases
+//that start with TestPolicyAllowAllInRegion1
+var testPolicyAllowAllInRegion1 string = fmt.Sprintf(`{
+	"Version": "2012-10-17",
+	"Statement": [
+		{
+			"Effect": "Allow",
+			"Action": "s3:*",
+			"Resource": "*",
+			"Condition" : {
+					"StringLike" : {
+							"aws:RequestedRegion": "%s" 
+					}
+			} 
+		}
+	]
+}`, testRegion1)
+
 func NewTestPolicyManagerAlmostE2EPolicies() *PolicyManager {
 	return NewPolicyManager(
 		TestPolicyRetriever{
 			testPolicies: map[string]string{
 				testPolicyAllowTeamFolderARN: testPolicyAllowTeamFolder,
+        testPolicyAllowAllInRegion1ARN: testPolicyAllowAllInRegion1,
 			},
 		},
 	)
@@ -327,7 +350,7 @@ func TestPolicyAllowTeamFolderIDPClaimsCanBeUsedInPolicyEvaluationPrincipalWithI
 		t.Error("We should have gotten a Forbidden error but no error was raised.")
 	}
 	if err.ErrorCode() != "AccessDenied" {
-		t.Errorf("Expected Forbidden, got %s", err.ErrorCode())
+		t.Errorf("Expected AccessDenied, got %s", err.ErrorCode())
 	}
 }
 
@@ -347,6 +370,36 @@ func TestPolicyAllowTeamFolderIDPClaimsCanBeUsedInPolicyEvaluationPrincipalWitho
 		t.Error("We should have gotten a Forbidden error but no error was raised.")
 	}
 	if err.ErrorCode() != "AccessDenied" {
-		t.Errorf("Expected Forbidden, got %s", err.ErrorCode())
+		t.Errorf("Expected AccessDenied, got %s", err.ErrorCode())
 	}
+}
+
+func TestPolicyAllowAllInRegion1ConditionsOnRegionAreEnforced(t *testing.T) {
+	tearDown, getSignedToken := testingFixture(t)
+	defer tearDown()
+	token := getSignedToken("mySubject", time.Minute * 20, AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
+	//Given the policy Manager that has our test policies
+  pm = *NewTestPolicyManagerAlmostE2EPolicies()
+	//Given credentials that use the policy that allow everything in Region1
+	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowAllInRegion1ARN)
+
+  //WHEN we get an object in region 1
+  regionContent, err := getRegionObjectContent(t, testRegion1, creds)
+  //THEN it should just succeed as any action is allowed
+  if err != nil {
+    t.Errorf("Could not get region content due to error %s", err)
+  } else if regionContent != testRegion1 {
+    t.Errorf("when retrieving region file for %s we got %s", testRegion1, regionContent)
+  }
+
+  //WHEN we get an object in region2
+  regionContent2, err2 := getRegionObjectContent(t, testRegion2, creds)
+  //THEN we expect it to give an access denied as no explicit allow exists for which region is not excluded via a condition
+  if err2 == nil {
+    t.Errorf("Could get region content %s but policy should have limited to %s", regionContent2, testRegion1)
+  } else {
+    if err2.ErrorCode() != "AccessDenied" {
+      t.Errorf("Expected AccessDenied, got %s", err.ErrorCode())
+    }
+  }
 }

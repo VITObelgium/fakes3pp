@@ -145,6 +145,7 @@ type PolicySessionClaims struct {
 type PolicySessionData struct {
 	Claims PolicySessionClaims
 	Tags AWSSessionTags
+	RequestedRegion string
 }
 
 func GetPolicySessionDataFromClaims(claims *SessionClaims) *PolicySessionData {

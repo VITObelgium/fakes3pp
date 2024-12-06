@@ -172,8 +172,8 @@ func registerStsRouter(router *mux.Router) {
 	stsRouter.PathPrefix("/").HandlerFunc(justLog)
 }
 
-func newProxyIssuedToken(subject, issuer, roleARN string, expiry time.Duration) (token *jwt.Token) {
-	return createRS256PolicyToken(stsProxyIssuer, issuer, subject, roleARN, expiry)
+func newProxyIssuedToken(subject, issuer, roleARN string, expiry time.Duration, tags AWSSessionTags) (token *jwt.Token) {
+	return createRS256PolicyToken(stsProxyIssuer, issuer, subject, roleARN, expiry, tags)
 }
 
 func calculateFinalDurationSeconds(apiProvidedDuration int, jwtExpiry *jwt.NumericDate) (*time.Duration, error) {
@@ -315,7 +315,7 @@ func assumeRoleWithWebIdentity(ctx context.Context, w http.ResponseWriter, r *ht
 		return
 	}
 	
-	newToken := newProxyIssuedToken(subject, issuer, roleArn, *duration)
+	newToken := newProxyIssuedToken(subject, issuer, roleArn, *duration, claimsMap.Tags)
 
 	cred, err := NewAWSCredentials(newToken, *duration)
 

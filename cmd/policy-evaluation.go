@@ -85,7 +85,8 @@ func evalStringLike(conditionDetails map[string]*policy.ConditionValue, context 
 	for sConditionKey, sConditionValue := range conditionDetails {
 		contextValue, exists := context[sConditionKey]
 		if !exists {
-			return false, fmt.Errorf("condition key '%s' was not set in request context", sConditionKey)
+			slog.Debug("condition key was not set in request context", "operation", "StringLike", "conditionKey", sConditionKey)
+			return false, nil
 		}
 		if !isConditionMetForStringLike(sConditionValue, contextValue) {
 			return false, nil

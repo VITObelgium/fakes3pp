@@ -42,12 +42,12 @@ type SessionClaims struct {
 	IDPClaims
 }
 
-func createRS256PolicyToken(issuer, iIssuer, subject, roleARN string, expiry time.Duration) (*jwt.Token) {
+func createRS256PolicyToken(issuer, iIssuer, subject, roleARN string, expiry time.Duration, tags AWSSessionTags) (*jwt.Token) {
 	claims := &SessionClaims{
 		roleARN,
 		iIssuer,
 		IDPClaims{
-			AWSSessionTags{},
+			tags,
 			jwt.RegisteredClaims{
 				ExpiresAt: jwt.NewNumericDate(time.Now().UTC().Add(expiry)),
 				IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),

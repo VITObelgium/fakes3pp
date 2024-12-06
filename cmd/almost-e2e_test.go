@@ -109,13 +109,19 @@ func getCredentialsFromTestStsProxy(t *testing.T, token, sessionName, roleArn st
 
 //region object is setup in the backends and matches the region name of the backend
 func getRegionObjectContent(t *testing.T, region string, creds aws.Credentials) (string, smithy.APIError){
+  return getTestBucketObjectContent(t, region, testingRegionTxtObjectKey, creds)
+}
+
+
+func getTestBucketObjectContent(t *testing.T, region, objectKey string, creds aws.Credentials) (string, smithy.APIError){
+
   client := getS3ClientAgainstS3Proxy(t, region, creds)
 	
 	max1Sec, cancel := context.WithTimeout(context.Background(), 1000 * time.Second)
 
 	input := s3.GetObjectInput{
 		Bucket: &testingBucketNameBackenddetails,
-    Key: &testingRegionTxtObjectKey,
+    Key: &objectKey,
 	}
 	defer cancel()
 	s3ObjectOutput, err := client.GetObject(max1Sec, &input)
@@ -246,5 +252,101 @@ func TestSigv4PresignedUrlsWork(t *testing.T) {
       t.Errorf("Invalid response of presigned url expected %s, got %s", backendRegion, string(bytes))
     }
   }
-  
+}
+
+
+var testPolicyAllowTeamFolderARN = "arn:aws:iam::000000000000:role/AllowTeamFolder"
+var testAllowedTeam = "teamA"
+var testDisallowedTeam = "teamB"
+var testTeamTag = "team"
+var testTeamFile = "team.txt"
+
+//This policy is to test whether principl tags are correctly set when
+//assuming a role an correctly enforced when evaluating policies. This is
+//used in test cases that start with TestPolicyAllowTeamFolder
+var testPolicyAllowTeamFolder string = fmt.Sprintf(`{
+	"Version": "2012-10-17",
+	"Statement": [
+		{
+			"Effect": "Allow",
+			"Action": "s3:GetObject",
+			"Resource": "arn:aws:s3:::%s/%s",
+      "Condition" : {
+          "StringLike" : {
+              "aws:PrincipalTag/%s": "%s" 
+          }
+      } 
+		}
+	]
+}`, testingBucketNameBackenddetails, testTeamFile, testTeamTag, testAllowedTeam)
+
+func NewTestPolicyManagerAlmostE2EPolicies() *PolicyManager {
+	return NewPolicyManager(
+		TestPolicyRetriever{
+			testPolicies: map[string]string{
+				testPolicyAllowTeamFolderARN: testPolicyAllowTeamFolder,
+			},
+		},
+	)
+}
+
+func TestPolicyAllowTeamFolderIDPClaimsCanBeUsedInPolicyEvaluationPrincipalWithCorrectTag(t *testing.T) {
+  tearDown, getSignedToken := testingFixture(t)
+  defer tearDown()
+  // GIVEN token for team that does have access
+  token := getSignedToken("mySubject", time.Minute * 20, AWSSessionTags{PrincipalTags: map[string][]string{testTeamTag: {testAllowedTeam}}})
+	pm = *NewTestPolicyManagerAlmostE2EPolicies()
+  creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowTeamFolderARN)
+
+  //WHEN access is attempted that required the team information
+  content, err := getTestBucketObjectContent(t, testRegion1, testTeamFile, creds)
+
+  //THEN the file content should be returned
+  if err != nil {
+    t.Errorf("Could not get team file even though part of correct team. got %s", err)
+  }
+  expectedContent := "teamSecret123"
+  if content != expectedContent {
+    t.Errorf("Got %s, expected %s", content, expectedContent)
+  }
+}
+
+func TestPolicyAllowTeamFolderIDPClaimsCanBeUsedInPolicyEvaluationPrincipalWithIncorrectTag(t *testing.T) {
+  tearDown, getSignedToken := testingFixture(t)
+  defer tearDown()
+  // GIVEN token for team that does not have access
+  token := getSignedToken("mySubject", time.Minute * 20, AWSSessionTags{PrincipalTags: map[string][]string{testTeamTag: {testDisallowedTeam}}})
+	pm = *NewTestPolicyManagerAlmostE2EPolicies()
+  creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowTeamFolderARN)
+
+  //WHEN access is attempted that required the team information
+  _, err := getTestBucketObjectContent(t, testRegion1, testTeamFile, creds)
+
+  //THEN the request should be denied 
+  if err == nil {
+    t.Error("We should have gotten a Forbidden error but no error was raised.")
+  }
+  if err.ErrorCode() != "AccessDenied" {
+    t.Errorf("Expected Forbidden, got %s", err.ErrorCode())
+  }
+}
+
+func TestPolicyAllowTeamFolderIDPClaimsCanBeUsedInPolicyEvaluationPrincipalWithoutTag(t *testing.T) {
+  tearDown, getSignedToken := testingFixture(t)
+  defer tearDown()
+  // GIVEN token with no team information
+  token := getSignedToken("mySubject", time.Minute * 20, AWSSessionTags{PrincipalTags: map[string][]string{}})
+	pm = *NewTestPolicyManagerAlmostE2EPolicies()
+  creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowTeamFolderARN)
+
+  //WHEN access is attempted that required the team information
+  _, err := getTestBucketObjectContent(t, testRegion1, testTeamFile, creds)
+
+  //THEN the request should be denied 
+  if err == nil {
+    t.Error("We should have gotten a Forbidden error but no error was raised.")
+  }
+  if err.ErrorCode() != "AccessDenied" {
+    t.Errorf("Expected Forbidden, got %s", err.ErrorCode())
+  }
 }

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -171,5 +172,103 @@ func TestPolicyManagerPrewarm(t *testing.T) {
 	expectedPolicy := "arn:aws:iam::000000000000:role/S3Access"
 	if !pm.DoesPolicyExist(expectedPolicy) {
 		t.Errorf("Missing policy %s", expectedPolicy)
+	}
+}
+
+
+func createTestPolicyFileForLocalPolicyRetriever(policyArn, policyContent string, pr *LocalPolicyRetriever, t *testing.T) {
+	policyFileName := pr.getPolicyPath(policyArn)
+	f, err := os.Create(policyFileName)
+    checkErrorTestDependency(err, t, fmt.Sprintf("Could Not create policy file %s", policyFileName))
+
+	f.Write([]byte(policyContent))
+
+	defer f.Close()
+}
+
+func deleteTestPolicyFileForLocalPolicyRetriever(policyArn string, pr *LocalPolicyRetriever, t *testing.T) {
+	policyFileName := pr.getPolicyPath(policyArn)
+	err := os.Remove(policyFileName)
+	checkErrorTestDependency(err, t, fmt.Sprintf("Could not delete policy file %s", policyFileName))
+}
+
+
+func TestCacheInvalidationLocalPolicyRetrieverIfPolicyIsRemoved(t *testing.T) {
+	//Given a policy manager that is backed by a local PolicyRetriever
+	pr := NewLocalPolicyRetriever(t.TempDir())
+	pm := NewPolicyManager(pr)
+	//Given a test Arn
+	testArn := "arn:aws:iam::000000000000:role/cache-invalidation"
+	
+    //WHEN the policy file exists in the expected place
+	createTestPolicyFileForLocalPolicyRetriever(testArn, testPolicyAllowAll, pr, t)
+	//THEN it must exist as per the Policy Manager
+	if !pm.DoesPolicyExist(testArn) {
+		t.Errorf("Policy %s should have existed but it did not", testArn)
+		t.FailNow()
+	}
+
+	//WHEN the policyFile gets deleted
+	deleteTestPolicyFileForLocalPolicyRetriever(testArn, pr, t)
+	deletionTime := time.Now()
+
+	var policyManagerKnowsPolicyDoesNotExist predicateFunction = func () bool{
+		return !pm.DoesPolicyExist(testArn)
+	}
+
+	//THEN in due time it should no longer exist
+	if !isTrueWithinDueTime(policyManagerKnowsPolicyDoesNotExist) {
+		t.Errorf("Policy %s was removed at %s and now %s policy manager still thinks it exists", testArn, deletionTime, time.Now())
+		t.FailNow()
+	}
+}
+
+
+func TestCacheInvalidationLocalPolicyRetrieverIfPolicyIsChanged(t *testing.T) {
+	//Given a policy manager that is backed by a local PolicyRetriever
+	pr := NewLocalPolicyRetriever(t.TempDir())
+	pm := NewPolicyManager(pr)
+	//Given 2 test Arn
+	testArn1 := "arn:aws:iam::000000000000:role/cache-invalidation1"
+	testArn2 := "arn:aws:iam::000000000000:role/cache-invalidation2"
+	
+    //WHEN the policy files exists in the expected place and are policies without time conditions
+	createTestPolicyFileForLocalPolicyRetriever(testArn1, testPolicyAllowAll, pr, t)
+	createTestPolicyFileForLocalPolicyRetriever(testArn2, testPolicyAllowAllInRegion1, pr, t)
+
+	//THEN the templates actually differ
+	pol1, err1 := pm.GetPolicy(testArn1, &PolicySessionData{})
+	checkErrorTestDependency(err1, t, "Policy1 should have been retrievable")
+	pol2, err2 := pm.GetPolicy(testArn2, &PolicySessionData{})
+	checkErrorTestDependency(err2, t, "Policy2 should have been retrievable")
+
+	if pol1 == pol2 {
+		t.Errorf("Policies should have been different but both gave: %s", pol1)
+		t.FailNow()
+	}
+
+	//WHEN the 2nd policy gets updated such that it has the same content as the first.
+	deleteTestPolicyFileForLocalPolicyRetriever(testArn2, pr, t)
+	createTestPolicyFileForLocalPolicyRetriever(testArn2, testPolicyAllowAll, pr, t)
+
+	updateTime := time.Now()
+
+	var policyManagerSeesUpdate predicateFunction = func () bool{
+		pol1, err1 := pm.GetPolicy(testArn1, &PolicySessionData{})
+		checkErrorTestDependency(err1, t, "Policy1 should have been retrievable")
+		pol2, err2 := pm.GetPolicy(testArn2, &PolicySessionData{})
+		checkErrorTestDependency(err2, t, "Policy2 should have been retrievable")
+
+		return pol1 == pol2
+	}
+
+	//THEN in due time it should no longer exist
+	if !isTrueWithinDueTime(policyManagerSeesUpdate) {
+		polText, err := pm.GetPolicy(testArn2, &PolicySessionData{})
+		if err != nil {
+			polText = err.Error()
+		}
+		t.Errorf("Policy %s was updated at %s and now %s policy manager still sees %s", testArn2, updateTime, time.Now(), polText)
+		t.FailNow()
 	}
 }

@@ -57,6 +57,10 @@ func (r TestPolicyRetriever) retrievePolicyStr(arn string) (string, error) {
 	return policy, nil 
 }
 
+func (r TestPolicyRetriever) registerPolicyManager(pm *PolicyManager) {
+	//Cache invalidation is not a thing for testpolicy retriever so no need to keep PolicyManager
+}
+
 func (r TestPolicyRetriever) retrieveAllIdentifiers() ([]string, error) {
 	keys := make([]string, len(r.testPolicies))
 

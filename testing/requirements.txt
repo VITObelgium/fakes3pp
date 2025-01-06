@@ -18,7 +18,7 @@ Flask-Cors==5.0.0
 graphql-core==3.2.5
 idna==3.10
 itsdangerous==2.2.0
-Jinja2==3.1.4
+Jinja2>=3.1.5, <4
 jmespath==1.0.1
 joserfc==1.0.0
 jsondiff==2.2.1

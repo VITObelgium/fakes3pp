@@ -2,8 +2,11 @@ package cmd
 
 import (
 	"crypto/rsa"
+	"errors"
 	"fmt"
+	"log/slog"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/spf13/viper"
@@ -77,7 +80,9 @@ var envVarDefs = []envVarDef{
 		s3ProxyFQDN,
 		FAKES3PP_S3_PROXY_FQDN,
 		true,
-		"The fully qualified domain name of this S3 proxy server (e.g. localhost)",
+		`The fully qualified domain name(s) of this S3 proxy server (e.g. localhost).
+		You can specify multiple to allow access via multiple FQDNs but the first one will be used for generating pre-signed urls.
+		When specifying multiple they must be comma-separated.`,
 		[]string{proxys3},
 	},
 	{
@@ -225,6 +230,51 @@ func getMaxStsDurationSeconds() int {
 
 func getMaxStsDuration() (time.Duration) {
 	return time.Second * time.Duration(getMaxStsDurationSeconds())
+}
+
+//The Fully Qualified Domain names for the S3 proxy
+var s3ProxyFQDNs []string
+
+//get all the FQDNs associated with the S3 Proxy
+func getS3ProxyFQDNs() ([]string, error) {
+	if s3ProxyFQDNs == nil {
+		var tmpS3ProxyFQDNS []string
+		err := viper.UnmarshalKey(s3ProxyFQDN, &tmpS3ProxyFQDNS)
+		if err != nil {
+			return nil, err
+		}
+		s3ProxyFQDNs = make([]string, len(tmpS3ProxyFQDNS))
+		for i, tmpFQDN := range tmpS3ProxyFQDNS {
+			s3ProxyFQDNs[i] = strings.ToLower(tmpFQDN)
+		}
+	}	
+	return s3ProxyFQDNs, nil
+}
+
+//Check whether a given hostname is one of the possible FQDNs.
+func isAS3ProxyFQDN(hostname string) bool{
+	fqdns, err := getS3ProxyFQDNs()
+	if err != nil {
+		slog.Error("Could not get S3ProxyFQDNS", "error", err)
+	}
+	for _, fqdn := range fqdns {
+		if fqdn == strings.ToLower(hostname) {
+			return true
+		}
+	}
+	return false
+}
+
+//get the main FQDN associated with the S3 proxy
+func getMainS3ProxyFQDN() (string, error) {
+	fqdns, err := getS3ProxyFQDNs()
+	if err != nil {
+		return "", err
+	}
+	if len(fqdns) == 0 {
+		return "", errors.New("no S3ProxyFQDN available")
+	}
+	return fqdns[0], nil
 }
 
 //Bind the environment variables for a command

@@ -87,7 +87,11 @@ func PreSignRequestWithServerCreds(req *http.Request, exiryInSeconds int, signin
 
 
 func PreSignRequestForGet(bucket, key, region string, signingTime time.Time, expirySeconds int) (string, error) {
-	url := fmt.Sprintf("https://%s:%d/%s/%s", viper.Get(s3ProxyFQDN), viper.GetInt(s3ProxyPort), bucket, key)
+	mainS3ProxyFQDN, err := getMainS3ProxyFQDN()
+	if err != nil {
+		return "", fmt.Errorf("could not get main S3ProxyFQDN: %s", err)
+	}
+	url := fmt.Sprintf("https://%s:%d/%s/%s", mainS3ProxyFQDN, viper.GetInt(s3ProxyPort), bucket, key)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return "", fmt.Errorf("error when creating a request context for url: %s", err)

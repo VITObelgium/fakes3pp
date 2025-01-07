@@ -58,6 +58,15 @@ func TestValidPreSignWithServerCreds(t *testing.T) {
 	}
 }
 
+func getMainS3ProxyFQDNForTest(t *testing.T) string {
+	mainS3ProxyFQDN, err := getMainS3ProxyFQDN()
+	if err != nil {
+		t.Errorf("COuld not get Main S3 Proxy FQDN: %s", err)
+		t.FailNow()
+	}
+	return mainS3ProxyFQDN
+}
+
 func TestValidPreSignWithTempCreds(t *testing.T) {
 	//Given valid server config
 	BindEnvVariables("proxys3")
@@ -74,9 +83,8 @@ func TestValidPreSignWithTempCreds(t *testing.T) {
 		SessionToken: "Incredibly secure",
 	}
 
-	
 	//Given we have a valid signed URI valid for 1 second
-	url := fmt.Sprintf("https://%s:%d/%s/%s", viper.Get(s3ProxyFQDN), viper.GetInt(s3ProxyPort), "bucket", "key")
+	url := fmt.Sprintf("https://%s:%d/%s/%s", getMainS3ProxyFQDNForTest(t), viper.GetInt(s3ProxyPort), "bucket", "key")
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		t.Errorf("error when creating a request context for url: %s", err)

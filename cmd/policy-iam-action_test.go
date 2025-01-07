@@ -55,11 +55,9 @@ func newStubJustReturnIamAction(ti *testing.T) handlerBuilderI {
 	return &testStub
 }
 
-
-func getAnonymousS3TestClient(t *testing.T) (client *s3.Client, ctx context.Context, cancel context.CancelFunc) {
+func getAnonymousS3TestClientForEndpoint(t *testing.T, endpoint string) (client *s3.Client, ctx context.Context, cancel context.CancelFunc) {
 	cfg := getTestAwsConfig(t)
 
-	endpoint := getS3ProxyUrl()
 	client = s3.NewFromConfig(cfg, func (o *s3.Options) {
 		o.BaseEndpoint = aws.String(endpoint)
 		o.Region = "eu-central-1"
@@ -70,8 +68,15 @@ func getAnonymousS3TestClient(t *testing.T) (client *s3.Client, ctx context.Cont
 	return
 }
 
-func runListObjectsV2AndReturnError(t *testing.T) error {
-	client, max1Sec, cancel := getAnonymousS3TestClient(t)
+
+func getAnonymousS3TestClient(t *testing.T) (client *s3.Client, ctx context.Context, cancel context.CancelFunc) {
+	endpoint := getS3ProxyUrl()
+
+	return getAnonymousS3TestClientForEndpoint(t, endpoint)
+}
+
+func runListObjectsV2AndReturnErrorForEndpoint(t *testing.T, endpoint string) error {
+	client, max1Sec, cancel := getAnonymousS3TestClientForEndpoint(t, endpoint)
 
 	input := s3.ListObjectsV2Input{
 		Bucket: &testBucketName,
@@ -82,6 +87,15 @@ func runListObjectsV2AndReturnError(t *testing.T) error {
 		t.Error("Should have encountered error but did not")
 	}
 	return err
+}
+
+func runListObjectsV2AndReturnError(t *testing.T) error {
+	return runListObjectsV2AndReturnErrorForEndpoint(t, getS3ProxyUrl())
+}
+
+//run listObjectsV2 but use alternate FQDN that is known by S3Proxy.
+func runListObjectsV2AndReturnErrorAlternateEndpoint(t *testing.T) error {
+	return runListObjectsV2AndReturnErrorForEndpoint(t, "localhost2")
 }
 
 var listobjectv2_test_prefix string = "my-prefix"
@@ -277,6 +291,15 @@ func getApiAndIAMActionTestCases() ([]apiAndIAMActionTestCase) {
 		{
 			ApiAction: "ListObjectsV2",
 			ApiCall:     runListObjectsV2WithPrefixAndReturnError,
+			ExpectedActions: []iamAction{
+				newIamAction(IAMActionS3ListBucket, testBucketARN, nil).addContext(contextType{
+					IAMConditionS3Prefix: policy.NewConditionValueString(true, listobjectv2_test_prefix),
+				}),
+			},
+		},
+		{
+			ApiAction: "ListObjectsV2",
+			ApiCall:     runListObjectsV2AndReturnErrorAlternateEndpoint,
 			ExpectedActions: []iamAction{
 				newIamAction(IAMActionS3ListBucket, testBucketARN, nil).addContext(contextType{
 					IAMConditionS3Prefix: policy.NewConditionValueString(true, listobjectv2_test_prefix),

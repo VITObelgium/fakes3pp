@@ -176,9 +176,17 @@ func setupSuiteProxyS3(t *testing.T, handlerBuilder handlerBuilderI) (func(t *te
 	}
 }
 
+func getS3ProxyUrlWithoutPort() string {
+	mainS3ProxyFQDN, err := getMainS3ProxyFQDN()
+	if err != nil {
+		panic(fmt.Errorf("Could not get main S3 ProxyFQDN panic as this is from test code only, %s", mainS3ProxyFQDN))
+	}
+	return fmt.Sprintf("%s://%s", getProxyProtocol(), mainS3ProxyFQDN)
+}
+
 //Get the fully qualified URL to the S3 Proxy
 func getS3ProxyUrl() string {
-	return fmt.Sprintf("%s:%d/", getProxyUrlWithoutPort(), viper.GetInt(s3ProxyPort))
+	return fmt.Sprintf("%s:%d/", getS3ProxyUrlWithoutPort(), viper.GetInt(s3ProxyPort))
 }
 
 

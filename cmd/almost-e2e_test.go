@@ -379,7 +379,7 @@ func TestPolicyAllowAllInRegion1ConditionsOnRegionAreEnforced(t *testing.T) {
 	defer tearDown()
 	token := getSignedToken("mySubject", time.Minute * 20, AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
 	//Given the policy Manager that has our test policies
-  pm = *NewTestPolicyManagerAlmostE2EPolicies()
+	pm = *NewTestPolicyManagerAlmostE2EPolicies()
 	//Given credentials that use the policy that allow everything in Region1
 	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowAllInRegion1ARN)
 
@@ -402,4 +402,59 @@ func TestPolicyAllowAllInRegion1ConditionsOnRegionAreEnforced(t *testing.T) {
       t.Errorf("Expected AccessDenied, got %s", err.ErrorCode())
     }
   }
+}
+
+func listTestBucketObjects(t *testing.T, region, prefix string, creds aws.Credentials) (*s3.ListObjectsV2Output, smithy.APIError){
+
+	client := getS3ClientAgainstS3Proxy(t, region, creds)
+	
+	max1Sec, cancel := context.WithTimeout(context.Background(), 1000 * time.Second)
+
+	input := s3.ListObjectsV2Input{
+		Bucket: &testingBucketNameBackenddetails,
+		Prefix: &prefix,
+	}
+	defer cancel()
+	s3ListObjectsOutput, err := client.ListObjectsV2(max1Sec, &input)
+	if err != nil {
+		var oe smithy.APIError
+		if !errors.As(err, &oe) {
+				t.Errorf("Could not convert smity error")
+				t.FailNow()
+		}
+		return nil, oe
+	}
+	return s3ListObjectsOutput, nil
+}
+
+//Make sure that needleObjectKey exists in the object Listing objectsList
+func assertObjectInBucketListing(t *testing.T, objectsList *s3.ListObjectsV2Output, needleObjectKey string) {
+	for _, s3Object := range objectsList.Contents {
+		if needleObjectKey == *s3Object.Key {
+			return
+		}
+	}
+	t.Errorf("Did not encounter %s in %v", needleObjectKey, objectsList)
+}
+
+func TestListingOfS3BucketHasExpectedObjects(t *testing.T) {
+	tearDown, getSignedToken := testingFixture(t)
+	defer tearDown()
+	token := getSignedToken("mySubject", time.Minute * 20, AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
+	//Given the policy Manager that has our test policies
+	pm = *NewTestPolicyManagerAlmostE2EPolicies()
+	//Given credentials that use the policy that allow everything in Region1
+	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowAllInRegion1ARN)
+
+	var prefix string= ""
+
+	//WHEN we get an object in region 1
+	listObjects, err := listTestBucketObjects(t, testRegion1, prefix, creds)
+	//THEN it should just succeed as any action is allowed
+	if err != nil {
+		t.Errorf("Could not get objects in bucket due to error %s", err)
+	} 
+	//THEN it should report the known objects "region.txt" and "team.txt"
+	assertObjectInBucketListing(t, listObjects, "region.txt")
+	assertObjectInBucketListing(t, listObjects, "team.txt")
 }

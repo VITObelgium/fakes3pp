@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/micahhausler/aws-iam-policy/policy"
-	"github.com/spf13/viper"
 )
 
 type iamAction struct{
@@ -44,8 +43,8 @@ func makeS3ObjectArn(bucketName, objectKey string) string {
 }
 
 func getS3ObjectFromRequest(req *http.Request) (bucketName string, objectKey string, err error) {
-	fqdn := viper.GetString(s3ProxyFQDN)
-	if strings.HasPrefix(req.Host, fqdn) {
+	hostWithoutPort := strings.Split(req.Host, ":")[0]
+	if isAS3ProxyFQDN(hostWithoutPort) {
 		//Path-style request
 		if !strings.HasPrefix(req.URL.Path, "/") {
 			return "", "", fmt.Errorf("request uri did not start with '/': %s", req.RequestURI)
@@ -56,7 +55,7 @@ func getS3ObjectFromRequest(req *http.Request) (bucketName string, objectKey str
 		return bucketName, objectKey, nil
 	} else {
 		//Virtual hosting
-		return "", "", errors.New("virtual hosting requests not implemented")
+		return "", "", errors.New("virtual hosting not supported try path-style request")
 	}
 }
 

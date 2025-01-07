@@ -205,19 +205,12 @@ func getTestAwsConfig(t *testing.T) (aws.Config) {
 	return cfg
 }
 
-func getProxyUrlWithoutPort() string {
-	secure := viper.GetBool(secure)
-	var protocol string
-	if secure {
-		protocol = "https"
-	} else {
-		protocol = "http"
-	}
-	return fmt.Sprintf("%s://%s", protocol, viper.GetString(stsProxyFQDN))
+func getStsProxyUrlWithoutPort() string {
+	return fmt.Sprintf("%s://%s", getProxyProtocol(), viper.GetString(stsProxyFQDN))
 }
 
 func getStsProxyUrl() string {
-	return fmt.Sprintf("%s:%d/", getProxyUrlWithoutPort(), viper.GetInt(stsProxyPort))
+	return fmt.Sprintf("%s:%d/", getStsProxyUrlWithoutPort(), viper.GetInt(stsProxyPort))
 }
 
 func assumeRoleWithWebIdentityAgainstTestStsProxy(t *testing.T, token, roleSessionName, roleArn string) (*sts.AssumeRoleWithWebIdentityOutput, error) {

@@ -75,10 +75,10 @@ var proxystsCmd = &cobra.Command{
 func getProxyProtocol() string {
 	secure := viper.GetBool(secure)
 	if secure{
-		slog.Info("Got proxy protocol", "procotol", "https", "secure", secure)
+		slog.Debug("Got proxy protocol", "procotol", "https", "secure", secure)
 		return "https"
 	} else {
-		slog.Info("Got proxy protocol", "procotol", "http", "secure", secure)
+		slog.Debug("Got proxy protocol", "procotol", "http", "secure", secure)
 		return "http"
 	}
 }

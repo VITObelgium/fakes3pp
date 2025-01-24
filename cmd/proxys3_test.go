@@ -150,7 +150,7 @@ func popLastRequestByTestProxy() (*http.Request) {
 var testStubJustProxy handlerBuilderI = handlerBuilder{proxyFunc: testProxyStub}
 
 
-func setupSuiteProxyS3(t *testing.T, handlerBuilder handlerBuilderI) (func(t *testing.T)) {
+func setupSuiteProxyS3(t testing.TB, handlerBuilder handlerBuilderI) (func(t testing.TB)) {
 	// Have test Config
 	BindEnvVariables(proxys3)
 	// Make sure proxy key config is there 
@@ -167,7 +167,7 @@ func setupSuiteProxyS3(t *testing.T, handlerBuilder handlerBuilderI) (func(t *te
 	}
 
 	// Return a function to teardown the test
-	return func(t *testing.T) {
+	return func(t testing.TB) {
 		if err := s3ProxySrv.Shutdown(context.Background()); err != nil {
 			panic(err)
 		}
@@ -205,7 +205,7 @@ func adapterAwsCredentialsToCredentials(creds AWSCredentials) aws.Credentials {
 }
 
 
-func getS3ClientAgainstS3Proxy(t *testing.T, region string, creds aws.Credentials) (*s3.Client) {
+func getS3ClientAgainstS3Proxy(t testing.TB, region string, creds aws.Credentials) (*s3.Client) {
 	cfg := getTestAwsConfig(t)
 
 	client := s3.NewFromConfig(cfg, func (o *s3.Options) {

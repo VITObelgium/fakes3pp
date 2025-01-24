@@ -53,7 +53,7 @@ func createAndStartS3Proxy(proxyHB handlerBuilderI) (*sync.WaitGroup, *http.Serv
 
 	registerS3Router(router, proxyHB)
 	listenAddress := fmt.Sprintf(":%d", portNr)
-	slog.Info("Started listening", "port", portNr)
+	slog.Debug("Started listening", "port", portNr)
 
 	srv := &http.Server{Addr: listenAddress}
 	srv.Handler = router
@@ -63,10 +63,10 @@ func createAndStartS3Proxy(proxyHB handlerBuilderI) (*sync.WaitGroup, *http.Serv
 		defer s3ProxyDone.Done()
 		var err error
 		if secure {
-			slog.Info("Starting ListenAndServeTLS", "secure", secure)
+			slog.Debug("Starting ListenAndServeTLS", "secure", secure)
 			err = srv.ListenAndServeTLS(certFile, keyFile)
 		} else {
-			slog.Info("Starting ListenAndServe", "secure", secure)
+			slog.Debug("Starting ListenAndServe", "secure", secure)
 			err = srv.ListenAndServe()
 		}
 

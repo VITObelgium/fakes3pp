@@ -25,8 +25,14 @@ type LocalPolicyRetriever struct{
 	watcher *fsnotify.Watcher
 }
 
+var localPolicyRetrievers map[string]*LocalPolicyRetriever = map[string]*LocalPolicyRetriever{}
+
 func NewLocalPolicyRetriever(stsRolePolicyPath string) *LocalPolicyRetriever {
-	var lp *LocalPolicyRetriever
+	lp, ok := localPolicyRetrievers[stsRolePolicyPath]
+	if ok {
+		slog.Warn("Getting lp from cache", "stsRolePolicyPath", stsRolePolicyPath)
+		return lp
+	}
 
 	var fileDeleted fileCallback = func(fileName string) {
 		if lp.pm == nil {
@@ -63,6 +69,8 @@ func NewLocalPolicyRetriever(stsRolePolicyPath string) *LocalPolicyRetriever {
 		rolePolicyPath: stsRolePolicyPath,
 		watcher: watcher,
 	}
+
+	localPolicyRetrievers[stsRolePolicyPath] = lp
 
 	return lp
 }

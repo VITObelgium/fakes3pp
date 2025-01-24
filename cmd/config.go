@@ -52,6 +52,7 @@ const(
 	stsMaxDurationSeconds = "stsMaxDurationSeconds"
 	signedUrlGraceTimeSeconds = "signedUrlGraceTimeSeconds"
 	enableLegacyBehaviorInvalidRegionToDefaultRegion = "enableLegacyBehaviorInvalidRegionToDefaultRegion"
+	logLevel = "logLevel"
 	
 
 	//Environment variables are upper cased
@@ -73,6 +74,7 @@ const(
 	FAKES3PP_STS_MAX_DURATION_SECONDS = "FAKES3PP_STS_MAX_DURATION_SECONDS"
 	FAKES3PP_SIGNEDURL_GRACE_TIME_SECONDS = "FAKES3PP_SIGNEDURL_GRACE_TIME_SECONDS"
 	ENABLE_LEGACY_BEHAVIOR_INVALID_REGION_TO_DEFAULT_REGION = "ENABLE_LEGACY_BEHAVIOR_INVALID_REGION_TO_DEFAULT_REGION"
+	LOG_LEVEL = "LOG_LEVEL"
 )
 
 var envVarDefs = []envVarDef{
@@ -197,6 +199,13 @@ var envVarDefs = []envVarDef{
 		"If set to true invalid regions will not necessarily fail but will try default region",
 		[]string{proxys3},
 	},
+	{
+		logLevel,
+		LOG_LEVEL,
+		false,
+		"The Loglevel at which to run (DEBUG, INFO (default), WARN, ERROR)",
+		[]string{proxys3, proxysts},
+	},
 }
 
 func getSignedUrlGraceTimeSeconds() time.Duration {
@@ -294,10 +303,12 @@ func BindEnvVariables(cmd string) {
 func checkViperVarNotEmpty(evd envVarDef) {
 	r := viper.Get(evd.viperKey)
 	if r == nil {
-		fmt.Printf("key %s[%s](%s) is emtpy\n", evd.viperKey, evd.envVarName, evd.description)
 		if evd.isCritical {
+			slog.Error("Mandatory key is empty", "viperKey", evd.viperKey, "envVarName", evd.envVarName, "description", evd.description)
 			fmt.Printf("key %s[%s] is mandatory, aborting\n", evd.viperKey, evd.envVarName)
 			os.Exit(1)
+		} else {
+			slog.Info("Optional key empty", "viperKey", evd.viperKey, "envVarName", evd.envVarName, "description", evd.description)
 		}
 	}
 }

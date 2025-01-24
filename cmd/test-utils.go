@@ -24,7 +24,7 @@ func printPointerAndJSONStringComparison(t *testing.T, description string, expec
 
 
 //utility function to not run a test if there are no testing backends in the build environment.
-func skipIfNoTestingBackends(t *testing.T) {
+func skipIfNoTestingBackends(t testing.TB) {
   if os.Getenv("NO_TESTING_BACKENDS") != "" {
     t.Skip("Skipping this test because no testing backends and that is a dependency for thist test.")
   }

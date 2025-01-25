@@ -265,7 +265,7 @@ func (hb handlerBuilder) Build(action S3ApiAction, presigned bool) (http.Handler
 			calculatedSignature := clonedReq.Header.Get(constants.AuthorizationHeader) 
 			passedSignature := r.Header.Get(constants.AuthorizationHeader)
 			if calculatedSignature == passedSignature {
-				slog.Info("Valid signature", xRequestIDStr, getRequestID(ctx))
+				slog.Debug("Valid signature", xRequestIDStr, getRequestID(ctx))
 				//Cleaning could have removed content length
 				r.ContentLength = backupContentLength
 
@@ -400,7 +400,7 @@ func reTargetRequest(r *http.Request, backendId string) (error) {
 	r.Header.Add("Host", endpoint.getHost())
 	r.Host = endpoint.getHost()
 	origRawQuery := r.URL.RawQuery
-	slog.Info("Stored orig RawQuery", "raw_query", origRawQuery)
+	slog.Debug("Stored orig RawQuery", "raw_query", origRawQuery)
 
 	u, err := url.Parse(fmt.Sprintf("%s%s", endpoint.getBaseURI(), r.RequestURI))
     if err != nil {
@@ -411,6 +411,6 @@ func reTargetRequest(r *http.Request, backendId string) (error) {
     r.URL = u
 
 	r.URL.RawQuery = origRawQuery
-	slog.Info("RawQuery that is put in place", "raw_query", r.URL.RawQuery)
+	slog.Debug("RawQuery that is put in place", "raw_query", r.URL.RawQuery)
 	return nil
 }

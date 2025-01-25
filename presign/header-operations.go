@@ -21,6 +21,14 @@ var cleanableHeaders = map[string]bool{
 	"content-length": true,
 }
 
+//It is not always clear which headers are OK to skip cleaning. These headers
+//have been skipped without issues.
+//Each entry should be lower case. The value is not used.
+var okToSkipHeadersForCleaning = map[string]bool {
+	"user-agent": true,
+	"authorization": true,
+}
+
 func isCleanable(headerName string) bool {
 	value, ok := cleanableHeaders[strings.ToLower(headerName)]
 	if ok && value {
@@ -33,6 +41,7 @@ func CleanHeadersTo(ctx context.Context, req *http.Request, toKeep map[string]st
 	var cleaned = []string{}
 	var skipped = []string{}
 	var signed = []string{}
+	var riskySkips = 0
 
 	allHeadersInRequest := []string{}
 	for hearderName := range req.Header {
@@ -40,7 +49,8 @@ func CleanHeadersTo(ctx context.Context, req *http.Request, toKeep map[string]st
 	}
 
 	for _, header := range allHeadersInRequest {
-		_, ok := toKeep[strings.ToLower(header)]
+		headerLC := strings.ToLower(header)
+		_, ok := toKeep[headerLC]
 		if ok {
 			signed = append(signed, header)
 			continue
@@ -49,16 +59,20 @@ func CleanHeadersTo(ctx context.Context, req *http.Request, toKeep map[string]st
 			//If content-length is to be cleaned it should
 			//also be <=0 otherwise it is taken in the signature
 			//-1 means unknown so let's fall back to that
-			if strings.ToLower(header) == "content-length" {
+			if headerLC == "content-length" {
 				req.ContentLength = -1
 			}
 			req.Header.Del(header)
 			cleaned = append(cleaned, header)
 		} else {
+			_, ok := okToSkipHeadersForCleaning[headerLC]
+			if !ok {
+				riskySkips += 1
+			}
 			skipped = append(skipped, header)
 		}
 	}
-	if len(skipped) > 0 {
-		slog.Warn("Cleaning of headers done", "cleaned", cleaned, "skipped", skipped, "toKeep", signed)
+	if riskySkips > 0 {
+		slog.Warn("Cleaning of headers done but some where skipped.", "cleaned", cleaned, "skipped", skipped, "toKeep", signed)
 	}
 }

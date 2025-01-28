@@ -32,6 +32,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/VITObelgium/fakes3pp/requestctx"
 	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/minio/mux"
 	"github.com/spf13/cobra"
@@ -158,7 +159,7 @@ func registerHealthEndpoint(router *mux.Router) {
 	router.Methods(http.MethodGet).Path("/ping").HandlerFunc(
 		func(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
-			WriteButLogOnError(buildContextWithChosenRequestId(r, dummyRequestID), w, []byte("pong"))
+			WriteButLogOnError(r.Context(), w, []byte("pong"))
 		},
 	)
 }
@@ -208,10 +209,10 @@ func processSTSPost(w http.ResponseWriter, r *http.Request) {
 		defer r.Body.Close()
 	}
 
-	ctx := buildContextWithRequestID(r)
+	ctx := requestctx.NewContextFromHttpRequest(r)
 	// Parse the incoming form data.
 	if err := parseForm(r); err != nil {
-		slog.Debug("parseForm returned error, should be benign", "error", err)
+		slog.DebugContext(ctx, "parseForm returned error, should be benign", "error", err)
 	}
 
 	if r.Form.Get(stsVersion) != stsAPIVersion {
@@ -251,39 +252,39 @@ type stsClaims map[string]interface{}
 func assumeRoleWithWebIdentity(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 
 	claims := stsClaims{}
-	defer slog.Info("Auditlog", xRequestIDStr, getRequestID(ctx), "claims", claims)
+	defer slog.InfoContext(ctx, "Auditlog", "claims", claims)
 
 	token := r.Form.Get(stsWebIdentityToken)
 
 	claimsMap, err := ExtractOIDCTokenClaims(token)
 	if err != nil {
-		slog.Info("Encountered error extracting claims", "error", err, xRequestIDStr, getRequestID(ctx))
-		userErr := fmt.Errorf("invalid webidentity token. If issue persist and need support share ID %s", getRequestID(ctx))
+		slog.InfoContext(ctx, "Encountered error extracting claims", "error", err)
+		userErr := fmt.Errorf("invalid webidentity token. If issue persist and need support share ID %s", requestctx.GetRequestID(ctx))
 		writeSTSErrorResponse(ctx, w, ErrSTSInvalidParameterValue, userErr)
 		return
 	}
 	subject, err := claimsMap.GetSubject()
 	if subject == "" || err != nil {
-		slog.Error("Error extracting subject from oidc jwt token", "error", err, xRequestIDStr, getRequestID(ctx), "subject", subject)
+		slog.ErrorContext(ctx, "Error extracting subject from oidc jwt token", "error", err, "subject", subject)
 		writeSTSErrorResponse(ctx, w, ErrSTSInvalidParameterValue,
 			errors.New("STS JWT Token has `sub` claim missing, `sub` claim is mandatory"))
 		return
 	}
 	issuer, err := claimsMap.GetIssuer()
 	if issuer == "" || err != nil {
-		slog.Error("Error extracting issuer from oidc jwt token", "error", err, xRequestIDStr, getRequestID(ctx), "issuer", issuer)
+		slog.ErrorContext(ctx, "Error extracting issuer from oidc jwt token", "error", err, "issuer", issuer)
 		writeSTSErrorResponse(ctx, w, ErrSTSInvalidParameterValue,
 			errors.New("STS JWT Token has `iss` claim missing, `iss` claim is mandatory"))
 		return
 	}
 	subFromToken := fmt.Sprintf("%s:%s", issuer, subject)
 	subFromTokenSha1 := sha1sum(subFromToken)
-	slog.Info("User hash calculated", "subject", subFromToken, "hash", subFromTokenSha1)
+	slog.InfoContext(ctx, "User hash calculated", "subject", subFromToken, "hash", subFromTokenSha1)
 
 
 	expiry, err := claimsMap.GetExpirationTime()
 	if err != nil {
-		slog.Error("Error extracting expiry time from oidc jwt token", "error", err, xRequestIDStr, getRequestID(ctx), "token", token)
+		slog.ErrorContext(ctx, "Error extracting expiry time from oidc jwt token", "error", err, "token", token)
 		writeSTSErrorResponse(ctx, w, ErrSTSInvalidParameterValue,
 			errors.New("STS JWT Token has `sub` claim missing, `exp` claim is mandatory"))
 		return
@@ -294,7 +295,7 @@ func assumeRoleWithWebIdentity(ctx context.Context, w http.ResponseWriter, r *ht
 	}
 	durationSecondsInt, err := strconv.Atoi(paramDurationSeconds)
 	if err != nil {
-		slog.Error("Error converting duration seconds", "error", err, xRequestIDStr, getRequestID(ctx))
+		slog.ErrorContext(ctx, "Error converting duration seconds", "error", err)
 		writeSTSErrorResponse(ctx, w, ErrSTSInvalidParameterValue,
 			fmt.Errorf("invalid %s", stsDurationSeconds))
 		return
@@ -302,15 +303,15 @@ func assumeRoleWithWebIdentity(ctx context.Context, w http.ResponseWriter, r *ht
 
 	duration, err := calculateFinalDurationSeconds(durationSecondsInt, expiry)
 	if err != nil {
-		slog.Error("Error calculating final duration seconds", "error", err, xRequestIDStr, getRequestID(ctx))
-		slog.Debug("Error calculating final duration seconds", "error", err, xRequestIDStr, getRequestID(ctx), "token", token)
+		slog.ErrorContext(ctx, "Error calculating final duration seconds", "error", err)
+		slog.DebugContext(ctx, "Error calculating final duration seconds", "error", err, "token", token)
 		writeSTSErrorResponse(ctx, w, ErrSTSInternalError, err)
 		return
 	}
 
 	roleArn := r.Form.Get(stsRoleArn)
 	if !pm.DoesPolicyExist(roleArn) {
-		slog.Info("Error retrieving policy", "role_arn", roleArn, "error", err, xRequestIDStr, getRequestID(ctx))
+		slog.InfoContext(ctx, "Error retrieving policy", "role_arn", roleArn, "error", err)
 		writeSTSErrorResponse(ctx, w, ErrSTSInvalidParameterValue, fmt.Errorf("invalid value for %s: %s", stsRoleArn, roleArn))
 		return
 	}
@@ -333,7 +334,7 @@ func assumeRoleWithWebIdentity(ctx context.Context, w http.ResponseWriter, r *ht
 			SubjectFromWebIdentityToken: subFromToken,
 		},
 	}
-	webIdentityResponse.ResponseMetadata.RequestID = getRequestID(ctx)
+	webIdentityResponse.ResponseMetadata.RequestID = requestctx.GetRequestID(ctx)
 	encodedSuccessResponse = encodeResponse(ctx, webIdentityResponse)
 
 	writeSuccessResponseXML(ctx, w, encodedSuccessResponse)

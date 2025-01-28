@@ -20,7 +20,7 @@ func TestMain(m *testing.M) {
 	envFiles = "../etc/.env"
 	loadEnvVarsFromDotEnv()
 	initConfig()
-	initializeLogging()
+	initializeTestLogging()
 	m.Run()
 }
 
@@ -428,7 +428,6 @@ func TestWithValidCredsButProxyHeaders(t *testing.T) {
 	}
 	req.Header.Add("User-Agent", "aws-cli/2.15.40 Python/3.11.8 Linux/6.8.0-40-generic exe/x86_64.ubuntu.12 prompt/off command/s3.ls")
 	req.Header.Add("X-Amz-Content-SHA256", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
-	ctx = buildContextWithRequestID(req)
 	err = presign.SignWithCreds(ctx, req, awsCred, testDefaultBackendRegion)
 	if err != nil {
 		t.Error(err)
@@ -483,7 +482,6 @@ func TestWithValidCredsButUntrustedHeaders(t *testing.T) {
 	}
 	req.Header.Add("User-Agent", "aws-cli/2.15.40 Python/3.11.8 Linux/6.8.0-40-generic exe/x86_64.ubuntu.12 prompt/off command/s3.ls")
 	req.Header.Add("X-Amz-Content-SHA256", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
-	ctx = buildContextWithRequestID(req)
 	err = presign.SignWithCreds(ctx, req, awsCred, testDefaultBackendRegion)
 	if err != nil {
 		t.Error(err)

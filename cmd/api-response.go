@@ -34,7 +34,7 @@ func writeResponse(ctx context.Context, w http.ResponseWriter, statusCode int, r
 	}
 	// Similar check to http.checkWriteHeaderCode
 	if statusCode < 100 || statusCode > 999 {
-		slog.Error("Internal server error", "error", "invalid WriteHeader code", "statusCode", statusCode, xRequestIDStr, getRequestID(ctx))
+		slog.ErrorContext(ctx, "Internal server error", "error", "invalid WriteHeader code", "statusCode", statusCode)
 		statusCode = http.StatusInternalServerError
 	}
 	if mType != mimeNone {

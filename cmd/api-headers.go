@@ -31,7 +31,7 @@ func encodeResponse(ctx context.Context, response interface{}) []byte {
 	var buf bytes.Buffer
 	buf.WriteString(xml.Header)
 	if err := xml.NewEncoder(&buf).Encode(response); err != nil {
-		slog.Error("Could not encode xml response", " error", err, xRequestIDStr, getRequestID(ctx))
+		slog.ErrorContext(ctx, "Could not encode xml response", " error", err)
 		return nil
 	}
 	return buf.Bytes()

@@ -119,7 +119,7 @@ func getTestBucketObjectContentReadLength(t testing.TB, client s3.Client, object
 
 
 func BenchmarkFakeS3Proxy(b *testing.B) {
-	initializeLogging()
+	initializeTestLogging()
 	tearDown, getSignedToken := testingFixture(b)
 	defer tearDown()
 	token := getSignedToken("mySubject", time.Minute * 20, AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})

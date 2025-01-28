@@ -4,6 +4,8 @@ import (
 	"errors"
 	"net/http"
 	"testing"
+
+	"github.com/VITObelgium/fakes3pp/requestctx"
 )
 
 
@@ -20,7 +22,7 @@ func (p *StubJustReturnApiAction) Build(action S3ApiAction, presigned bool) http
 		//of the api action
 		globalLastApiActionStubJustReturnApiAction = action
 		writeS3ErrorResponse(
-			buildContextWithRequestID(r),
+			requestctx.NewContextFromHttpRequest(r),
 			w,
 			ErrS3AccessDenied,
 			errors.New(string(action)),

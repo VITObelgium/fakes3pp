@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/VITObelgium/fakes3pp/requestctx"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/micahhausler/aws-iam-policy/policy"
@@ -40,7 +41,7 @@ func (p *StubJustReturnIamAction) Build(action S3ApiAction, presigned bool) http
 		//of the api action. This works often quite well but some operations 
 		//intervene client-side of the SDK
 		writeS3ErrorResponse(
-			buildContextWithRequestID(r),
+			requestctx.NewContextFromHttpRequest(r),
 			w,
 			ErrS3AccessDenied,
 			errors.New(string(bytes)),

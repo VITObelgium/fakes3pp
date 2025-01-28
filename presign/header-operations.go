@@ -73,6 +73,6 @@ func CleanHeadersTo(ctx context.Context, req *http.Request, toKeep map[string]st
 		}
 	}
 	if riskySkips > 0 {
-		slog.Warn("Cleaning of headers done but some where skipped.", "cleaned", cleaned, "skipped", skipped, "toKeep", signed)
+		slog.WarnContext(ctx, "Cleaning of headers done but some where skipped.", "cleaned", cleaned, "skipped", skipped, "toKeep", signed)
 	}
 }

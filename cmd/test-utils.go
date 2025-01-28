@@ -2,12 +2,18 @@ package cmd
 
 import (
 	"encoding/json"
+	"log/slog"
 	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/VITObelgium/fakes3pp/logging"
 )
 
+func initializeTestLogging() {
+	logging.InitializeLogging(nil, slog.LevelError)
+}
 
 func printPointerAndJSONStringComparison(t *testing.T, description string, expected, got any) {
 		//Different amount of actions returned so should be rather obvious

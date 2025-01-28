@@ -16,8 +16,8 @@ import (
 
 	"github.com/VITObelgium/fakes3pp/constants"
 	"github.com/VITObelgium/fakes3pp/presign"
+	"github.com/VITObelgium/fakes3pp/requestctx"
 	"github.com/VITObelgium/fakes3pp/requestutils"
-	"github.com/google/uuid"
 )
 
 type handlerBuilderI interface {
@@ -51,11 +51,11 @@ func getSignedHeadersFromRequest(ctx context.Context, req *http.Request) (signed
 	}
 	authorizationParts := strings.Split(ah, ", ")
 	if len(authorizationParts) != 3 {
-		slog.Warn("Signature not as expected", "got", ah, xRequestIDStr, getRequestID(ctx))
+		slog.WarnContext(ctx, "Signature not as expected", "got", ah)
 	}
 	signedHeadersPart := authorizationParts[1]
 	if !strings.HasPrefix(signedHeadersPart, signedHeadersPrefix) {
-		slog.Warn("Signature did not have expected signed headers prefix", "got", ah, xRequestIDStr, getRequestID(ctx))
+		slog.WarnContext(ctx, "Signature did not have expected signed headers prefix", "got", ah)
 	}
 	signedHeadersPart = signedHeadersPart[len(signedHeadersPrefix):]
 	for _, signedHeader := range strings.Split(signedHeadersPart, ";") {
@@ -95,18 +95,18 @@ func authorizeS3Action(ctx context.Context, sessionToken, targetRegion string, a
 	allowed = false
 	sessionClaims, err := ExtractTokenClaims(sessionToken, s3ProxyKeyFunc)
 	if err != nil {
-		slog.Info("Could not get claims from session token", "error", err, xRequestIDStr, getRequestID(ctx))
+		slog.InfoContext(ctx, "Could not get claims from session token", "error", err)
 		writeS3ErrorResponse(ctx, w, ErrS3InvalidSecurity, nil)
 		return
 	}
 	expiresJwt, err := sessionClaims.GetExpirationTime()
 	if err != nil {
-		slog.Warn("Could not get expires claim from session token", "error", err, "claims", sessionClaims, xRequestIDStr, getRequestID(ctx))
+		slog.WarnContext(ctx, "Could not get expires claim from session token", "error", err, "claims", sessionClaims)
 		writeS3ErrorResponse(ctx, w, ErrS3InvalidSecurity, nil)
 		return
 	}
 	if expiresJwt.Time.Before(maxExpiryTime) {
-		slog.Warn("Credentials are passed expiry", "error", err, "claims", sessionClaims, "cutoff", maxExpiryTime, "expires", expiresJwt, xRequestIDStr, getRequestID(ctx))
+		slog.WarnContext(ctx, "Credentials are passed expiry", "error", err, "claims", sessionClaims, "cutoff", maxExpiryTime, "expires", expiresJwt)
 		writeS3ErrorResponse(ctx, w, ErrS3InvalidSignature, errors.New("expired credentials"))
 		return
 	}
@@ -115,35 +115,35 @@ func authorizeS3Action(ctx context.Context, sessionToken, targetRegion string, a
 	policySessionData.RequestedRegion = targetRegion
 	policyStr, err := pm.GetPolicy(sessionClaims.RoleARN, policySessionData)
 	if err != nil {
-		slog.Error("Could not get policy for temporary credentials", "error", err, xRequestIDStr, getRequestID(ctx), "role_arn", sessionClaims.RoleARN)
+		slog.ErrorContext(ctx, "Could not get policy for temporary credentials", "error", err, "role_arn", sessionClaims.RoleARN)
 		writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
 		return
 	}
-	slog.Info("Policy retrieved", "policy", policyStr, xRequestIDStr, getRequestID(ctx))
+	slog.InfoContext(ctx, "Policy retrieved", "policy", policyStr)
 	pe, err := NewPolicyEvaluatorFromStr(policyStr)
 	if err != nil {
-		slog.Error("Could not create policy generator", "error", err, xRequestIDStr, getRequestID(ctx), "policy", sessionClaims.RoleARN)
+		slog.ErrorContext(ctx, "Could not create policy generator", "error", err, "policy", sessionClaims.RoleARN)
 		writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
 		return
 	}
 	iamActions, err := newIamActionsFromS3Request(action, r, policySessionData)
 	if err != nil {
-		slog.Error("Could not get IAM actions from request", "error", err, xRequestIDStr, getRequestID(ctx), "policy", sessionClaims.RoleARN)
+		slog.ErrorContext(ctx, "Could not get IAM actions from request", "error", err, "policy", sessionClaims.RoleARN)
 		writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
 		return
 	}
 	isAllowed, reason, err := pe.EvaluateAll(iamActions)
 	if err != nil {
-		slog.Error("Could not evaluate policy", "error", err, xRequestIDStr, getRequestID(ctx), "policy", sessionClaims.RoleARN)
+		slog.ErrorContext(ctx, "Could not evaluate policy", "error", err, "policy", sessionClaims.RoleARN)
 		writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
 		return
 	}
 
 	if isAllowed {
-		slog.Debug("Allowed access", "reason", reason, xRequestIDStr, getRequestID(ctx))
+		slog.DebugContext(ctx, "Allowed access", "reason", reason)
 		return true
 	} else {
-		slog.Info("Denied access", "reason", reason, "actions", iamActions, xRequestIDStr, getRequestID(ctx))
+		slog.InfoContext(ctx, "Denied access", "reason", reason, "actions", iamActions)
 		writeS3ErrorResponse(ctx, w, ErrS3AccessDenied, nil)
 		return false
 	}
@@ -169,7 +169,7 @@ func (hb handlerBuilder) Build(action S3ApiAction, presigned bool) (http.Handler
 		}
 
 		//First make sure signature if valid
-		ctx := buildContextWithRequestID(r)
+		ctx := requestctx.NewContextFromHttpRequest(r)
 
 		var loggedAction string = string(action)
 		if presigned {
@@ -184,7 +184,7 @@ func (hb handlerBuilder) Build(action S3ApiAction, presigned bool) (http.Handler
 
 			signingKey, err := getSigningKey()
 			if err != nil {
-				slog.Error("Could not get signing key", "error", err)
+				slog.ErrorContext(ctx, "Could not get signing key", "error", err)
 				writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
 				return
 			}
@@ -195,20 +195,20 @@ func (hb handlerBuilder) Build(action S3ApiAction, presigned bool) (http.Handler
 
 			presignedUrl, err := presign.MakePresignedUrl(r)
 			if err != nil {
-				slog.Error("Could not get presigned url", "error", err, xRequestIDStr, getRequestID(ctx))
+				slog.ErrorContext(ctx, "Could not get presigned url", "error", err)
 				writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
 				return
 			}
 			isValid, creds, expires, err:= presignedUrl.GetPresignedUrlDetails(ctx, secretDeriver)
 			if err != nil {
-				slog.Error("Error geting details of presigned url", "error", err, xRequestIDStr, getRequestID(ctx))
+				slog.ErrorContext(ctx, "Error geting details of presigned url", "error", err)
 				writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
 				return
 			}
 
 			// If url has gone passed expiry time (under user control)
 			if expires.Before(time.Now().UTC()) {
-				slog.Info("Encountered expired URL", "expires", expires, xRequestIDStr, getRequestID(ctx))
+				slog.InfoContext(ctx, "Encountered expired URL", "expires", expires)
 				writeS3ErrorResponse(ctx, w, ErrS3InvalidSignature, errors.New("expired URL"))
 				return
 			}
@@ -229,20 +229,20 @@ func (hb handlerBuilder) Build(action S3ApiAction, presigned bool) (http.Handler
 				}
 				return
 			}
-			slog.Info("Invalid S3 signature", xRequestIDStr, getRequestID(ctx))
+			slog.InfoContext(ctx, "Invalid S3 signature")
 			writeS3ErrorAccessDeniedResponse(ctx, w)
 			return
 	
 		} else {
 			accessKeyId, sessionToken, err := getCredentialsFromRequest(r)
 			if err != nil {
-				slog.Info("Could not get credentials from request", "error", err, xRequestIDStr, getRequestID(ctx))
+				slog.InfoContext(ctx, "Could not get credentials from request", "error", err)
 				writeS3ErrorResponse(ctx, w, ErrS3InvalidAccessKeyId, err)
 				return
 			}
 			signingKey, err := getSigningKey()
 			if err != nil {
-				slog.Error("Could not get signing key", "error", err, xRequestIDStr, getRequestID(ctx))
+				slog.ErrorContext(ctx, "Could not get signing key", "error", err)
 				writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
 				return
 			}
@@ -258,14 +258,14 @@ func (hb handlerBuilder) Build(action S3ApiAction, presigned bool) (http.Handler
 			}
 			err = presign.SignWithCreds(ctx, clonedReq, creds, "ThisShouldNotBeUsedForSigv4Requests258")
 			if err != nil {
-				slog.Error("Could not sign request", "error", err, xRequestIDStr, getRequestID(ctx))
+				slog.ErrorContext(ctx, "Could not sign request", "error", err)
 				writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
 				return
 			}
 			calculatedSignature := clonedReq.Header.Get(constants.AuthorizationHeader) 
 			passedSignature := r.Header.Get(constants.AuthorizationHeader)
 			if calculatedSignature == passedSignature {
-				slog.Debug("Valid signature", xRequestIDStr, getRequestID(ctx))
+				slog.DebugContext(ctx, "Valid signature")
 				//Cleaning could have removed content length
 				r.ContentLength = backupContentLength
 
@@ -277,9 +277,9 @@ func (hb handlerBuilder) Build(action S3ApiAction, presigned bool) (http.Handler
 				}
 				return
 			} else {
-				slog.Debug(
+				slog.DebugContext(
+					ctx,
 					"Invalid signature", 
-					xRequestIDStr, getRequestID(ctx), 
 					"calculated", calculatedSignature, 
 					"received", passedSignature,
 				)
@@ -290,84 +290,54 @@ func (hb handlerBuilder) Build(action S3ApiAction, presigned bool) (http.Handler
 	}
 }
 
-type RequestID string
-const xRequestID RequestID = "X-Request-ID"
-const xRequestIDStr string = string(xRequestID)
-const dummyRequestID string = "00000000-0000-0000-0000-000000000000"
-
-func buildContextWithRequestID(req *http.Request) (context.Context) {
-	id := uuid.New()
-	return buildContextWithChosenRequestId(req, id.String())
-}
-
-func buildContextWithChosenRequestId(req *http.Request, requestId string) (context.Context) {
-	if reqID, ok := req.Header[http.CanonicalHeaderKey(xRequestIDStr)]; ok {
-		return context.WithValue(req.Context(), xRequestID, reqID)
-	}
-	return context.WithValue(req.Context(), xRequestID, requestId)
-}
-
-
-func getRequestID(ctx context.Context) (string) {
-	val := ctx.Value(xRequestID)
-	s, ok := val.(string)
-	if !ok {
-		slog.Info(
-			fmt.Sprintf("Invalid type for %s that is a programming error if not an invocation by tests", xRequestID),
-		)
-		return dummyRequestID
-	}
-	return s
-}
-
 //Log request information with the api action if apiAction is unknown just
 //leave as an empty string.
 func logRequest(ctx context.Context, apiAction string, r *http.Request) {
-	slog.Info(
+	slog.InfoContext(
+		ctx, 
 		"Request start", 
 		"action", apiAction, 
 		"method", r.Method,
 		"host", r.Host,
 		"url", r.URL.String(), 
-		xRequestIDStr, getRequestID(ctx),
 		"headers", r.Header,
 	)
 }
 
 func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request, targetBackendId string) {
-	err := reTargetRequest(r, targetBackendId)
+	err := reTargetRequest(ctx, r, targetBackendId)
 	if err == errInvalidBackendErr {
-		slog.Warn("Invalid region was specified in the request", "error", err, xRequestIDStr, getRequestID(ctx), "backendId", targetBackendId)
+		slog.WarnContext(ctx, "Invalid region was specified in the request", "error", err, "backendId", targetBackendId)
 		writeS3ErrorResponse(ctx, w, ErrS3InvalidRegion, nil)
 		return
 	} else if err != nil {
-		slog.Error("Could not re-target request with permanent credentials", "error", err, xRequestIDStr, getRequestID(ctx), "backendId", targetBackendId)
+		slog.ErrorContext(ctx, "Could not re-target request with permanent credentials", "error", err, "backendId", targetBackendId)
 		writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
 		return
 	}
 	creds, err := getBackendCredentials(targetBackendId)
 	if err != nil {
-		slog.Error("Could not get credentials for request", "error", err, xRequestIDStr, getRequestID(ctx), "backendId", targetBackendId)
+		slog.ErrorContext(ctx, "Could not get credentials for request", "error", err, "backendId", targetBackendId)
 		writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
 		return
 	}
 	err = presign.SignWithCreds(ctx, r, creds, targetBackendId)
 	if err != nil {
-		slog.Error("Could not sign request with permanent credentials", "error", err, xRequestIDStr, getRequestID(ctx), "backendId", targetBackendId)
+		slog.ErrorContext(ctx, "Could not sign request with permanent credentials", "error", err, "backendId", targetBackendId)
 		writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
 		return
 	}
 
 	client := &http.Client{}
-	slog.Debug("Going to perform request", "method", r.Method, "host", r.Host, "url", r.URL, "headers", r.Header, xRequestIDStr, getRequestID(ctx))
+	slog.DebugContext(ctx, "Going to perform request", "method", r.Method, "host", r.Host, "url", r.URL, "headers", r.Header)
 	resp, err := client.Do(r)
 	if err != nil {
-		slog.Error("Error making request", "error", err, xRequestIDStr, getRequestID(ctx))
+		slog.ErrorContext(ctx, "Error making request", "error", err)
 		return
 	}
 	defer resp.Body.Close()
 
-	slog.Debug("Response status", "status", resp.StatusCode, xRequestIDStr, getRequestID(ctx))
+	slog.DebugContext(ctx, "Response status", "status", resp.StatusCode)
 	for hk, hvs := range resp.Header {
 		for _, hv := range hvs {
 			w.Header().Add(hk, hv)
@@ -376,9 +346,9 @@ func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request, targ
 	w.WriteHeader(resp.StatusCode)
 	i, err := io.Copy(w, resp.Body)
 	if err != nil {
-		slog.Error("Context had error", "error", err, "context_error", ctx.Err(), xRequestIDStr, getRequestID(ctx))
+		slog.ErrorContext(ctx, "Context had error", "error", err, "context_error", ctx.Err())
 	} else {
-		slog.Info("End of proxying", "bytes", i, "error", err, xRequestIDStr, getRequestID(ctx), "status", resp.Status, "headers", resp.Header)
+		slog.InfoContext(ctx, "End of proxying", "bytes", i, "error", err, "status", resp.Status, "headers", resp.Header)
 	}
 }
 
@@ -387,7 +357,7 @@ func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request, targ
 // Adapt Host to the new target
 // We also have to clear RequestURI and set URL appropriately as explained in
 // https://stackoverflow.com/questions/19595860/http-request-requesturi-field-when-making-request-in-go
-func reTargetRequest(r *http.Request, backendId string) (error) {
+func reTargetRequest(ctx context.Context, r *http.Request, backendId string) (error) {
 	// Old signature
 	r.Header.Del("Authorization")
 	// Old session token
@@ -400,7 +370,7 @@ func reTargetRequest(r *http.Request, backendId string) (error) {
 	r.Header.Add("Host", endpoint.getHost())
 	r.Host = endpoint.getHost()
 	origRawQuery := r.URL.RawQuery
-	slog.Debug("Stored orig RawQuery", "raw_query", origRawQuery)
+	slog.DebugContext(ctx, "Stored orig RawQuery", "raw_query", origRawQuery)
 
 	u, err := url.Parse(fmt.Sprintf("%s%s", endpoint.getBaseURI(), r.RequestURI))
     if err != nil {
@@ -411,6 +381,6 @@ func reTargetRequest(r *http.Request, backendId string) (error) {
     r.URL = u
 
 	r.URL.RawQuery = origRawQuery
-	slog.Debug("RawQuery that is put in place", "raw_query", r.URL.RawQuery)
+	slog.DebugContext(ctx, "RawQuery that is put in place", "raw_query", r.URL.RawQuery)
 	return nil
 }

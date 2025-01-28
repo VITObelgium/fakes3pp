@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/VITObelgium/fakes3pp/logging"
 	"github.com/joho/godotenv"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -39,7 +40,7 @@ func Execute() {
 }
 
 func init() {
-	initializeLogging()
+	logging.InitializeLogging(nil, logging.EnvironmentLvl)
 	rootCmd.PersistentFlags().StringVar(&envFiles, "dot-env", "etc/.env", "File paths to .env files comma separated")
 
 	cobra.OnInitialize(initConfig)

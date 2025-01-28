@@ -1,4 +1,4 @@
-package cmd
+package logging
 
 import (
 	"log/slog"
@@ -15,13 +15,18 @@ func getLogLevel() (lvl slog.Level) {
 		slog.Warn("Invalid log level", "environ_value", logLevelOS)
 	}
 	return 
-
 }
 
-func initializeLogging() {
-	options := slog.HandlerOptions{
-		Level: getLogLevel(),
+var EnvironmentLvl slog.Level = -2147483648
+
+
+func InitializeLogging(forceEnabler ForceEnabler, lvl slog.Level) {
+	if lvl == EnvironmentLvl {
+		lvl = getLogLevel()
 	}
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &options))
+	options := slog.HandlerOptions{
+		Level: lvl,
+	}
+	logger := slog.New(NewJSONRequestCtxHandler(os.Stdout, &options, forceEnabler))
 	slog.SetDefault(logger)
 }

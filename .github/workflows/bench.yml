@@ -43,14 +43,26 @@ jobs:
           echo "SCRIPT_OUTPUT<<EOF" >> $GITHUB_ENV
           echo "$SCRIPT_OUTPUT" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
-      - name: Add benchmark report to PR
-        uses: actions/github-script@v7
+    #   Requires enablement at organization level
+    #   - name: Add benchmark report to PR
+    #     uses: actions/github-script@v7
+    #     with:
+    #         github-token: ${{secrets.GITHUB_TOKEN}}
+    #         script: |
+    #             github.rest.issues.createComment({
+    #                 issue_number: context.issue.number,
+    #                 owner: context.repo.owner,
+    #                 repo: context.repo.repo,
+    #                 body: `${{env.SCRIPT_OUTPUT}}`
+    #             })
+      - uses: actions/upload-artifact@v4
         with:
-            github-token: ${{secrets.GITHUB_TOKEN}}
-            script: |
-                github.rest.issues.createComment({
-                    issue_number: context.issue.number,
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    body: `${{env.SCRIPT_OUTPUT}}`
-                })
+            name: latest-benchmark-files
+            path: cmd/bench-*.txt
+            overwrite: true
+      - uses: actions/upload-artifact@v4
+        with:
+            name: benchmark-report
+            path: cmd/bench-*-master-report.txt
+            compression-level: 0 # no compression
+            overwrite: true

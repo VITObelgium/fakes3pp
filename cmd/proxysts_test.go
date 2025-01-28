@@ -26,7 +26,7 @@ func buildAssumeRoleWithIdentityTokenUrl(duration int, roleSessionName, roleArn,
 	)
 }
 
-func getTestingToken(t *testing.T) string{
+func getTestingToken(t testing.TB) string{
 	token, err := CreateSignedTestingToken()
 	if err != nil {
 		t.Errorf("Could not create a testing token %s", err)
@@ -164,8 +164,8 @@ func TestProxyStsAssumeRoleWithWebIdentitySessionTagsToken(t *testing.T) {
 
 
 // This works like a fixture see https://medium.com/nerd-for-tech/setup-and-teardown-unit-test-in-go-bd6fa1b785cd
-func setupSuiteProxySTS(t *testing.T) func(t *testing.T) {
-	// Make sure OIDC config is for testing 
+func setupSuiteProxySTS(t testing.TB) func(t testing.TB) {
+	// Make sure OIDC config is for testing
 	_, err := loadOidcConfig([]byte(testConfigAll))
 	if err != nil {
 		t.Errorf("Failed to load OIDC config due to %s", err)
@@ -179,7 +179,7 @@ func setupSuiteProxySTS(t *testing.T) func(t *testing.T) {
 	}
 
 	// Return a function to teardown the test
-	return func(t *testing.T) {
+	return func(t testing.TB) {
 		if err := stsProxySrv.Shutdown(context.Background()); err != nil {
 			panic(err)
 		}
@@ -191,7 +191,7 @@ func setupSuiteProxySTS(t *testing.T) func(t *testing.T) {
 //Just get basic config but disable TLS verification
 //As for tests we use self-signed requests and all is
 //on localhost anyway
-func getTestAwsConfig(t *testing.T) (aws.Config) {
+func getTestAwsConfig(t testing.TB) (aws.Config) {
 	cfg, err := config.LoadDefaultConfig(context.Background())
 	if err != nil {
 		t.Error(err)
@@ -213,7 +213,7 @@ func getStsProxyUrl() string {
 	return fmt.Sprintf("%s:%d/", getStsProxyUrlWithoutPort(), viper.GetInt(stsProxyPort))
 }
 
-func assumeRoleWithWebIdentityAgainstTestStsProxy(t *testing.T, token, roleSessionName, roleArn string) (*sts.AssumeRoleWithWebIdentityOutput, error) {
+func assumeRoleWithWebIdentityAgainstTestStsProxy(t testing.TB, token, roleSessionName, roleArn string) (*sts.AssumeRoleWithWebIdentityOutput, error) {
 	cfg := getTestAwsConfig(t)
 
 

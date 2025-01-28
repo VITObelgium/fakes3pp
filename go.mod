@@ -8,6 +8,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.62.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.30.8
 	github.com/aws/smithy-go v1.20.4
+	github.com/fsnotify/fsnotify v1.7.0
 	github.com/go-http-utils/headers v0.0.0-20181008091004-fed159eddc2a
 	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/google/uuid v1.6.0
@@ -33,7 +34,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.17.17 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.22.8 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.26.8 // indirect
-	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect

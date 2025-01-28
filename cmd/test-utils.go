@@ -2,12 +2,19 @@ package cmd
 
 import (
 	"encoding/json"
+	"log/slog"
+	"net/http"
 	"os"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/VITObelgium/fakes3pp/logging"
 )
 
+func initializeTestLogging() {
+	logging.InitializeLogging(slog.LevelError, nil, nil)
+}
 
 func printPointerAndJSONStringComparison(t *testing.T, description string, expected, got any) {
 		//Different amount of actions returned so should be rather obvious
@@ -24,7 +31,7 @@ func printPointerAndJSONStringComparison(t *testing.T, description string, expec
 
 
 //utility function to not run a test if there are no testing backends in the build environment.
-func skipIfNoTestingBackends(t *testing.T) {
+func skipIfNoTestingBackends(t testing.TB) {
   if os.Getenv("NO_TESTING_BACKENDS") != "" {
     t.Skip("Skipping this test because no testing backends and that is a dependency for thist test.")
   }
@@ -72,4 +79,10 @@ func isTrueWithinDueTime(callable predicateFunction, waitTimes ...time.Duration)
 		time.Sleep(waitTimeBetweenChecks)
 	}
 
+}
+
+func assertHttpRequestOK(tb testing.TB, resp *http.Response) {
+	if resp.StatusCode != http.StatusOK {
+		tb.Errorf("Should have gotten succesful request")
+	}
 }

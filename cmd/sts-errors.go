@@ -24,6 +24,8 @@ import (
 	"encoding/xml"
 	"log/slog"
 	"net/http"
+
+	"github.com/VITObelgium/fakes3pp/requestctx"
 )
 
 // writeSTSErrorResponse writes error headers
@@ -33,14 +35,14 @@ func writeSTSErrorResponse(ctx context.Context, w http.ResponseWriter, errCode S
 	// Generate error response.
 	stsErrorResponse := STSErrorResponse{}
 	stsErrorResponse.Error.Code = stsErr.Code
-	stsErrorResponse.RequestID = getRequestID(ctx)
+	stsErrorResponse.RequestID = requestctx.GetRequestID(ctx)
 	stsErrorResponse.Error.Message = stsErr.Description
 	if err != nil {
 		stsErrorResponse.Error.Message = err.Error()
 	}
 	switch errCode {
 	case ErrSTSInternalError, ErrSTSUpstreamError:
-		slog.Error("STS error", "error", err, xRequestIDStr, stsErrorResponse.RequestID)
+		slog.ErrorContext(ctx, "STS error", "error", err)
 	}
 	encodedErrorResponse := encodeResponse(ctx, stsErrorResponse)
 	writeResponse(ctx, w, stsErr.HTTPStatusCode, encodedErrorResponse, mimeXML)

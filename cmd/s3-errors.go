@@ -27,6 +27,8 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+
+	"github.com/VITObelgium/fakes3pp/requestctx"
 )
 
 // writeS3ErrorResponse writes error headers
@@ -36,7 +38,7 @@ func writeS3ErrorResponse(ctx context.Context, w http.ResponseWriter, errCode S3
 	// Generate error response.
 	s3ErrorResponse := S3ErrorResponse{}
 	s3ErrorResponse.Code = s3Err.Code
-	s3ErrorResponse.RequestID = getRequestID(ctx)
+	s3ErrorResponse.RequestID = requestctx.GetRequestID(ctx)
 	s3ErrorResponse.Message = s3Err.Description
 	if err != nil {
 		//Golang doesn't like capitalized error strings but AWS errors seem to prefer it
@@ -44,7 +46,7 @@ func writeS3ErrorResponse(ctx context.Context, w http.ResponseWriter, errCode S3
 	}
 	switch errCode {
 	case ErrS3InternalError, ErrS3UpstreamError:
-		slog.Error("S3 error", "error", err, xRequestIDStr, s3ErrorResponse.RequestID)
+		slog.ErrorContext(ctx, "S3 error", "error", err)
 	}
 	encodedErrorResponse := encodeResponse(ctx, s3ErrorResponse)
 	writeResponse(ctx, w, s3Err.HTTPStatusCode, encodedErrorResponse, mimeXML)

@@ -83,7 +83,7 @@ func SignWithCreds(ctx context.Context, req *http.Request, creds aws.Credentials
 		var err error
 		signingTime, err = XAmzDateToTime(amzDate)
 		if err != nil {
-			slog.Warn("Could not handle X-amz-date", constants.AmzDateKey, amzDate, "error", err)
+			slog.WarnContext(ctx, "Could not handle X-amz-date", constants.AmzDateKey, amzDate, "error", err)
 			signingTime = time.Now()
 		}	
 	}

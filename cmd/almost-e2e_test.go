@@ -23,6 +23,10 @@ var defaultBakendIdAlmostE2ETests = testRegion2
 var backendTestRegions = []string{testRegion1, testRegion2}
 var testingBucketNameBackenddetails = "backenddetails"
 var testingRegionTxtObjectKey = "region.txt"
+var fakeTestBackends = map[string]string{
+	testRegion1: "http://localhost:5000",
+	testRegion2: "http://localhost:5001",
+}
 
 var testingBackendsConfig = []byte(fmt.Sprintf(`
 # This is a test file check backend-config.yaml if you want to create a configuration
@@ -30,18 +34,18 @@ s3backends:
   - region: %s
     credentials:
       file: ../etc/creds/cfc_creds.yaml
-    endpoint: http://localhost:5000
+    endpoint: %s
   - region: %s
     credentials:
       file: ../etc/creds/otc_creds.yaml
-    endpoint: http://localhost:5001
+    endpoint: %s
 default: %s
-`, testRegion1, testRegion2, defaultBakendIdAlmostE2ETests))
+`, testRegion1, fakeTestBackends[testRegion1], testRegion2, fakeTestBackends[testRegion2], defaultBakendIdAlmostE2ETests))
 
 
 //Set the configurations as expected for the testingbackends
 //See testing/README.md for details on testing setup
-func setTestingBackendsConfig(t *testing.T) {
+func setTestingBackendsConfig(t testing.TB) {
 	cfg, err := getBackendsConfigFromBytes(testingBackendsConfig)
 	if err != nil {
 		t.Error(err)
@@ -52,7 +56,7 @@ func setTestingBackendsConfig(t *testing.T) {
 
 //This is the testing fixture. It starts an sts and s3 proxy which
 //are configured with the S3 backends detailed in testing/README.md.
-func testingFixture(t *testing.T) (tearDown func ()(), getToken func(subject string, d time.Duration, tags AWSSessionTags) string){
+func testingFixture(t testing.TB) (tearDown func ()(), getToken func(subject string, d time.Duration, tags AWSSessionTags) string){
 	skipIfNoTestingBackends(t)
 	//Configure backends to be the testing S3 backends
 	setTestingBackendsConfig(t)
@@ -91,7 +95,7 @@ func testingFixture(t *testing.T) (tearDown func ()(), getToken func(subject str
 	return tearDownProxies, getSignedToken
 }
 
-func getCredentialsFromTestStsProxy(t *testing.T, token, sessionName, roleArn string) aws.Credentials {
+func getCredentialsFromTestStsProxy(t testing.TB, token, sessionName, roleArn string) aws.Credentials {
 	result, err := assumeRoleWithWebIdentityAgainstTestStsProxy(t, token, sessionName, roleArn)
 	if err != nil {
 		t.Errorf("encountered error when assuming role: %s", err)
@@ -113,7 +117,7 @@ func getRegionObjectContent(t *testing.T, region string, creds aws.Credentials) 
 }
 
 
-func getTestBucketObjectContent(t *testing.T, region, objectKey string, creds aws.Credentials) (string, smithy.APIError){
+func getTestBucketObjectContent(t testing.TB, region, objectKey string, creds aws.Credentials) (string, smithy.APIError){
 
 	client := getS3ClientAgainstS3Proxy(t, region, creds)
 	
@@ -404,10 +408,7 @@ func TestPolicyAllowAllInRegion1ConditionsOnRegionAreEnforced(t *testing.T) {
   }
 }
 
-func listTestBucketObjects(t *testing.T, region, prefix string, creds aws.Credentials) (*s3.ListObjectsV2Output, smithy.APIError){
-
-	client := getS3ClientAgainstS3Proxy(t, region, creds)
-	
+func _listTestBucketObjects(t testing.TB, prefix string, client *s3.Client) (*s3.ListObjectsV2Output, smithy.APIError){	
 	max1Sec, cancel := context.WithTimeout(context.Background(), 1000 * time.Second)
 
 	input := s3.ListObjectsV2Input{
@@ -427,8 +428,14 @@ func listTestBucketObjects(t *testing.T, region, prefix string, creds aws.Creden
 	return s3ListObjectsOutput, nil
 }
 
+func listTestBucketObjects(t testing.TB, region, prefix string, creds aws.Credentials) (*s3.ListObjectsV2Output, smithy.APIError){
+	client := getS3ClientAgainstS3Proxy(t, region, creds)
+
+	return _listTestBucketObjects(t, prefix, client)
+}
+
 //Make sure that needleObjectKey exists in the object Listing objectsList
-func assertObjectInBucketListing(t *testing.T, objectsList *s3.ListObjectsV2Output, needleObjectKey string) {
+func assertObjectInBucketListing(t testing.TB, objectsList *s3.ListObjectsV2Output, needleObjectKey string) {
 	for _, s3Object := range objectsList.Contents {
 		if needleObjectKey == *s3Object.Key {
 			return

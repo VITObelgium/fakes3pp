@@ -72,6 +72,6 @@ func capitalizeFirstLetter(s string) string {
 func WriteButLogOnError(ctx context.Context, w http.ResponseWriter, bytes []byte) {
 	_, err := w.Write(bytes)
 	if err != nil {
-		slog.Warn("Could not write HTTP response body", "error", err, xRequestIDStr, getRequestID(ctx))
+		slog.WarnContext(ctx, "Could not write HTTP response body", "error", err)
 	}
 }

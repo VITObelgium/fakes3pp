@@ -1,4 +1,4 @@
-BENCH_COUNT ?= 1
+BENCH_COUNT ?= 10
 
 
 build-container:

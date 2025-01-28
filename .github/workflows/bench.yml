@@ -31,7 +31,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: cmd/bench-main.txt
-          key: ${{ runner.os }}-bench-${{ (github.event.pull_request.base.sha != github.event.after) && github.event.pull_request.base.sha || github.event.after }}
+          key: ${{ runner.os }}-bench10-${{ (github.event.pull_request.base.sha != github.event.after) && github.event.pull_request.base.sha || github.event.after }}
       - name: Benchmark
         run: |
           make setup-test-dependencies

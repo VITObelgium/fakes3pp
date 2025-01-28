@@ -1,6 +1,7 @@
 package logging
 
 import (
+	"io"
 	"log/slog"
 	"os"
 )
@@ -20,13 +21,22 @@ func getLogLevel() (lvl slog.Level) {
 var EnvironmentLvl slog.Level = -2147483648
 
 
-func InitializeLogging(forceEnabler ForceEnabler, lvl slog.Level) {
+//Configure logging
+//forceEnabler and sink can be nil and they will get sane defaults based on the environment.
+func InitializeLogging(lvl slog.Level, forceEnabler ForceEnabler,  sink io.Writer) {
 	if lvl == EnvironmentLvl {
 		lvl = getLogLevel()
 	}
 	options := slog.HandlerOptions{
 		Level: lvl,
 	}
-	logger := slog.New(NewJSONRequestCtxHandler(os.Stdout, &options, forceEnabler))
+	if sink == nil {
+		sink = os.Stdout
+	}
+	logger := slog.New(NewJSONRequestCtxHandler(sink, &options, forceEnabler))
 	slog.SetDefault(logger)
+	if lvl == EnvironmentLvl {
+		//Still the place holder value probably misconfiguration of environment
+		slog.Warn("LOG_LEVEL environment variable not set! Using sentinel logLvl", "logLvl", lvl)
+	}
 }

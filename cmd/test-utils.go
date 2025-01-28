@@ -12,7 +12,7 @@ import (
 )
 
 func initializeTestLogging() {
-	logging.InitializeLogging(nil, slog.LevelError)
+	logging.InitializeLogging(slog.LevelError, nil, nil)
 }
 
 func printPointerAndJSONStringComparison(t *testing.T, description string, expected, got any) {

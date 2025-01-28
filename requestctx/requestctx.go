@@ -3,6 +3,7 @@ package requestctx
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"github.com/google/uuid"
 )
@@ -25,12 +26,28 @@ func getRandomRequestId() string {
 
 const XRequestID string = "X-Request-ID"
 
+//A heuristic to cheaply check whether a structure is UUID4-like
+//version info is not checked as the goal is mostly to have consistent
+//logging format and lengths
+func hasUUID4Format(s string) bool {
+	if len(s) != 36 {
+		return false
+	}
+	if s[8] != '-' || s[13] != '-' || s[23] != '-' {
+		return false
+	}
+	return true
+}
+
+//Get the RequestId for a request. If none is provided a Unique uuid4
+//will be generated and provided lower case. If the request provided
+//it via the X-Request-ID 
 func getRequestIdFromHttpRequest(req *http.Request) string {
 	reqId := req.Header.Get(XRequestID)
-	if reqId == "" {
-		return getRandomRequestId()
+	if reqId == "" || ! hasUUID4Format(reqId) {
+		return getRandomRequestId()  //This is a lower case string
 	} else {
-		return reqId
+		return strings.ToUpper(reqId) //We force this to be upper case
 	}
 }
 

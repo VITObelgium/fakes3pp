@@ -20,7 +20,7 @@ type JSONRequestCtxHandler struct {
 func NewJSONRequestCtxHandler(w io.Writer, opts *slog.HandlerOptions, forceEnabler ForceEnabler) *JSONRequestCtxHandler {
 	h := slog.NewJSONHandler(w, opts)
 	if forceEnabler == nil {
-		forceEnabler = &neverForce{}
+		forceEnabler = getDefaultForceEnableLoggingStrategy()
 	}
 	return &JSONRequestCtxHandler{h, forceEnabler}
 }

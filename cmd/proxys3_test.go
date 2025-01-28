@@ -3,15 +3,20 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/VITObelgium/fakes3pp/logging"
 	"github.com/VITObelgium/fakes3pp/presign"
+	"github.com/VITObelgium/fakes3pp/requestctx"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/google/uuid"
 	"github.com/spf13/viper"
 )
 
@@ -487,7 +492,7 @@ func TestWithValidCredsButUntrustedHeaders(t *testing.T) {
 		t.Error(err)
 		t.FailNow()
 	}
-	//Given headers are headed by a proxy component
+	//Given headers are added by a proxy component
 	req.Header.Add("allYourBases", "belongToUs")
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -498,5 +503,108 @@ func TestWithValidCredsButUntrustedHeaders(t *testing.T) {
 
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("Should have gotten a bad signature ")
+	}
+}
+
+
+func getTestUUID4WithPrefix(prefix string) string {
+	fully_random := uuid.New().String()
+	if prefix > fully_random {
+		panic("Impossible to use a prefix longer than the actual uuid4")
+	}
+	return strings.Join([]string{prefix, fully_random[len(prefix):]}, "")
+}
+
+
+//When having other headers added that might influence the behavior
+func TestAllowEnablingTracingAtClientSide(t *testing.T) {
+	//Given the provider of the S3 proxy has configured a prefix to force logging
+	os.Setenv(logging.ENV_FORCE_LOGGING_FOR_REQUEST_ID_PREFIX, "00AABBCC")
+	
+	//Given a way to capture logs
+	stopLogCapture, getLogLines := captureLogFixture(t, slog.LevelError, nil)
+	defer stopLogCapture()
+
+	//Given a uuid4 that starts with the prefix
+	userChosenUuid4 := getTestUUID4WithPrefix("00aabbcc")
+
+	//Given a test environment
+	teardownSuite := setupSuiteProxyS3(t, testStubJustProxy)
+	defer teardownSuite(t)
+
+	//Given helper functions
+	doNotAddAnyHeader := func (header http.Header) {}
+	
+	addUserChosenUUID4 := func (header http.Header) {
+		header.Add(requestctx.XRequestID, userChosenUuid4)
+	}
+
+	performValidRequest := func (headerModifier func (http.Header) ()) {
+		ctx := context.Background()
+		//Given valid credentials
+		token := CreateTestingToken()
+		cred, err := NewAWSCredentials(token, time.Hour)
+		if err != nil {
+			t.Error(err)
+		}
+		awsCred, err := cred.Retrieve(ctx)
+		if err != nil {
+			t.Error(err)
+		}
+
+		//Given a valid request
+		baseUrl := getS3ProxyUrl()
+		bucketName := "my-test-bucket"
+		queryPart := "list-type=2&prefix=&delimiter=%2F&encoding-type=url"
+		requestUrl := fmt.Sprintf("%s%s?%s", baseUrl, bucketName, queryPart)
+		req, err := http.NewRequest(http.MethodGet, requestUrl, nil)
+		if err != nil {
+			t.Errorf("Could not create request: %s", err)
+		}
+		req.Header.Add("User-Agent", "aws-cli/2.15.40 Python/3.11.8 Linux/6.8.0-40-generic exe/x86_64.ubuntu.12 prompt/off command/s3.ls")
+		req.Header.Add("X-Amz-Content-SHA256", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+		headerModifier(req.Header)
+
+		err = presign.SignWithCreds(ctx, req, awsCred, testDefaultBackendRegion)
+		if err != nil {
+			t.Error(err)
+			t.FailNow()
+		}
+
+		client := &http.Client{}
+		resp, err := client.Do(req)
+		if err != nil {
+			t.Errorf("Could not perform request: %s", err)
+			t.FailNow()
+		}
+		defer resp.Body.Close()
+
+
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("Should have gotten succesful request")
+		}
+	}
+
+	//When performing a valid request but without picking a request id
+	performValidRequest(doNotAddAnyHeader)
+
+	//Then limited logging should have happend.
+	logLines := getLogLines()
+	logLinesWithoutDebug := len(logLines)
+	if strings.Contains(strings.Join(logLines, "\n"), "DEBUG") {
+		t.Errorf("There should not be debug statements in the log if we do not use a special request ID")
+	}
+
+	//When performing a valid request but without picking a request id
+	performValidRequest(addUserChosenUUID4)
+	logLines = getLogLines()
+
+	//Then there should be more logging
+	logLinesWithDebug := len(logLines)
+	if logLinesWithDebug <= logLinesWithoutDebug {
+		t.Errorf("Log length with debug %d must be bigger than log length without debug %d", logLinesWithDebug, logLinesWithoutDebug)
+	}
+	if !strings.Contains(strings.Join(logLines, "\n"), "DEBUG") {
+		t.Errorf("There should be debug statements in the log if we do use a special request ID")
 	}
 }

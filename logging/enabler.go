@@ -3,6 +3,7 @@ package logging
 import (
 	"context"
 	"log/slog"
+	"os"
 	"strings"
 
 	"github.com/VITObelgium/fakes3pp/requestctx"
@@ -36,5 +37,22 @@ func (f forceForRequestIdPrefix) IsForceEnabled(ctx context.Context, _ slog.Leve
 func NewForceForRequestIdPrefix(Prefix string) *forceForRequestIdPrefix{
 	return &forceForRequestIdPrefix{
 		Prefix: Prefix,
+	}
+}
+
+
+const ENV_FORCE_LOGGING_FOR_REQUEST_ID_PREFIX = "FORCE_LOGGING_FOR_REQUEST_ID_PREFIX"
+
+//The exection environment decides when to force logging. If it an environment variable
+//FORCE_LOGGING_FOR_REQUEST_ID_PREFIX is set then logging will be forced for requests that
+//have a request ID that start with that value.
+func getDefaultForceEnableLoggingStrategy() ForceEnabler {
+	prefix := os.Getenv(ENV_FORCE_LOGGING_FOR_REQUEST_ID_PREFIX)
+	if prefix != "" {
+		slog.Debug("Enable force logging for prefix", "prefix", prefix)
+		return NewForceForRequestIdPrefix(prefix)
+	} else {
+		slog.Debug("Never force logging.")
+		return &neverForce{}
 	}
 }

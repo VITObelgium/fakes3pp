@@ -40,7 +40,7 @@ func Execute() {
 }
 
 func init() {
-	logging.InitializeLogging(nil, logging.EnvironmentLvl)
+	logging.InitializeLogging(logging.EnvironmentLvl, nil, nil)
 	rootCmd.PersistentFlags().StringVar(&envFiles, "dot-env", "etc/.env", "File paths to .env files comma separated")
 
 	cobra.OnInitialize(initConfig)

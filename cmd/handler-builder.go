@@ -269,7 +269,13 @@ func (hb handlerBuilder) Build(action S3ApiAction, presigned bool) (http.Handler
 				//Cleaning could have removed content length
 				r.ContentLength = backupContentLength
 
-	            targetRegion := requestutils.GetRegionFromRequest(r, globalBackendsConfig.defaultBackend)
+				var defaultBackend = ""
+				if globalBackendsConfig != nil {
+					defaultBackend = globalBackendsConfig.defaultBackend
+				} else {
+					slog.ErrorContext(ctx, "globalBackendsConfig is expected to be always initialized")
+				}
+	            targetRegion := requestutils.GetRegionFromRequest(r, defaultBackend)
 
 				//Authn done time to perform authorization				
 				if authorizeS3Action(ctx, creds.SessionToken, targetRegion, action, w, r, time.Now().UTC()){

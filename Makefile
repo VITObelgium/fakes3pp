@@ -33,7 +33,7 @@ bench-main: bench-dependencies
 	git branch -d "before_going_to_main" || echo "If there was no branch before_going_to_main then this is ok"
 	git checkout -b "before_going_to_main"
 	git checkout origin/main
-	test -e bench-master.txt || (cd cmd && go test -bench=. -benchtime=5s -run "FakeS3Proxy" -benchmem -count=$(BENCH_COUNT) | tee bench-main.txt && cd ..)
+	test -e cmd/bench-main.txt || (cd cmd && go test -bench=. -benchtime=5s -run "FakeS3Proxy" -benchmem -count=$(BENCH_COUNT) | tee bench-main.txt && cd ..)
 	git checkout "before_going_to_main"
 
 bench-current: bench-dependencies

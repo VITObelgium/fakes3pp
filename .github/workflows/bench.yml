@@ -57,12 +57,6 @@ jobs:
     #             })
       - uses: actions/upload-artifact@v4
         with:
-            name: latest-benchmark-files
+            name: benchmark-report-${{ github.ref }}
             path: cmd/bench-*.txt
-            overwrite: true
-      - uses: actions/upload-artifact@v4
-        with:
-            name: benchmark-report
-            path: cmd/bench-*-master-report.txt
-            compression-level: 0 # no compression
             overwrite: true

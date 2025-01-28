@@ -1,0 +1,48 @@
+# As inspired by https://dev.to/vearutop/continuous-benchmarking-with-go-and-github-actions-41ok
+name: bench
+on:
+  pull_request:
+env:
+  GO111MODULE: "on"
+permissions:
+  pull-requests: write
+jobs:
+  bench:
+    strategy:
+      matrix:
+        go-version: [ 1.22.x ]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.go-version }}
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: ~/go/pkg
+          key: ${{ runner.os }}-go-pkg-${{ hashFiles('**/go.mod') }}
+      - uses: actions/cache@v4
+        with:
+          path: testing/venv
+          key: ${{ runner.os }}-py-venv-${{ hashFiles('**/requirements.txt') }}
+      - name: Benchmark
+        run: |
+          make setup-test-dependencies
+          make start-test-s3-servers
+          make bench-main
+          REF_NAME=${GITHUB_REF##*/} make bench-current
+          echo "\n\n\n"
+          export SCRIPT_OUTPUT="$(make bench-report)"
+      - name: Add benchmark report to PR
+        uses: actions/github-script@v7
+        with:
+            github-token: ${{secrets.GITHUB_TOKEN}}
+            script: |
+                github.rest.issues.createComment({
+                    issue_number: context.issue.number,
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    body: `${{env.SCRIPT_OUTPUT}}`
+                })

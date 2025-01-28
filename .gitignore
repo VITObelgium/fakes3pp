@@ -6,3 +6,5 @@
 testing/venv/**
 testing/**.err
 testing/**.log
+
+cmd/bench-*.txt

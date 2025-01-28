@@ -1,5 +1,4 @@
 BENCH_COUNT ?= 1
-REF_NAME ?= $(shell git rev-parse --short HEAD 2>/dev/null)
 
 
 build-container:
@@ -38,7 +37,7 @@ bench-main: bench-dependencies
 	git checkout "before_going_to_main"
 
 bench-current: bench-dependencies
-	cd cmd && go test -bench=. -benchtime=5s -run "FakeS3Proxy" -benchmem -count=$(BENCH_COUNT) | tee bench-$(REF_NAME).txt && cd ..
+	cd cmd && go test -bench=. -benchtime=5s -run "FakeS3Proxy" -benchmem -count=$(BENCH_COUNT) | tee bench-$(shell git rev-parse --short HEAD 2>/dev/null).txt && cd ..
 
 bench-report: bench-dependencies
-	benchstat cmd/bench-main.txt cmd/bench-$(REF_NAME).txt | tee cmd/bench-$(REF_NAME)-master-report.txt
+	benchstat cmd/bench-main.txt cmd/bench-$(shell git rev-parse --short HEAD 2>/dev/null).txt | tee cmd/bench-$(shell git rev-parse --short HEAD 2>/dev/null)-master-report.txt

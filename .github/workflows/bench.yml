@@ -8,6 +8,7 @@ jobs:
   bench:
     permissions:
         pull-requests: write
+        issues: write 
     strategy:
       matrix:
         go-version: [ 1.22.x ]
@@ -38,7 +39,10 @@ jobs:
           make bench-main
           REF_NAME=${GITHUB_REF##*/} make bench-current
           echo "\n\n\n"
-          export SCRIPT_OUTPUT="$(make bench-report)"
+          SCRIPT_OUTPUT="$(make bench-report)"
+          echo "SCRIPT_OUTPUT<<EOF" >> $GITHUB_ENV
+          echo "$SCRIPT_OUTPUT" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
       - name: Add benchmark report to PR
         uses: actions/github-script@v7
         with:

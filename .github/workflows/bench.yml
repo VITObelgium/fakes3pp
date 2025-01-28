@@ -57,6 +57,6 @@ jobs:
     #             })
       - uses: actions/upload-artifact@v4
         with:
-            name: benchmark-report-${{ github.ref }}
+            name: benchmark-report-pr-${{ github.event.number }}
             path: cmd/bench-*.txt
             overwrite: true

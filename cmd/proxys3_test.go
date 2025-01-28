@@ -410,97 +410,50 @@ func TestWithValidCredsButProxyHeaders(t *testing.T) {
 	teardownSuite := setupSuiteProxyS3(t, testStubJustProxy)
 	defer teardownSuite(t)
 
-	ctx := context.Background()
-	//Given valid credentials
-	token := CreateTestingToken()
-	cred, err := NewAWSCredentials(token, time.Hour)
-	if err != nil {
-		t.Error(err)
-	}
-	awsCred, err := cred.Retrieve(ctx)
-	if err != nil {
-		t.Error(err)
-	}
+	//Given headers that are added by a proxy component
+	proxyHeaderAdder := createHeaderAdder(map[string]string {
+		"accept-encoding": "gzip",
+		"x-forwarded-for": "",
+		"x-forwarded-host": "",
+		"x-forwarded-port": "443",
+		"x-forwarded-proto": "https",
+		"x-forwarded-server": "",
+		"x-real-ip": "",
+	})
 
-	//Given a valid request
-	baseUrl := getS3ProxyUrl()
-	bucketName := "my-test-bucket"
-	queryPart := "list-type=2&prefix=&delimiter=%2F&encoding-type=url"
-	requestUrl := fmt.Sprintf("%s%s?%s", baseUrl, bucketName, queryPart)
-	req, err := http.NewRequest(http.MethodGet, requestUrl, nil)
-	if err != nil {
-		t.Errorf("Could not create request: %s", err)
-	}
-	req.Header.Add("User-Agent", "aws-cli/2.15.40 Python/3.11.8 Linux/6.8.0-40-generic exe/x86_64.ubuntu.12 prompt/off command/s3.ls")
-	req.Header.Add("X-Amz-Content-SHA256", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
-	err = presign.SignWithCreds(ctx, req, awsCred, testDefaultBackendRegion)
-	if err != nil {
-		t.Error(err)
-		t.FailNow()
-	}
-	//Given headers are headed by a proxy component
-	req.Header.Add("accept-encoding", "gzip")
-	req.Header.Add("x-forwarded-for", "")
-	req.Header.Add("x-forwarded-host", "")
-	req.Header.Add("x-forwarded-port", "443")
-	req.Header.Add("x-forwarded-proto", "https")
-	req.Header.Add("x-forwarded-server", "")
-	req.Header.Add("x-real-ip", "")
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		t.Errorf("Could not perform request: %s", err)
-	}
-	defer resp.Body.Close()
+	//When doing a valid request where headers are added by an intermediate stop (post-signing)
+	resp := performValidListObjectTestRequest(t, doNotAddAnyHeader, proxyHeaderAdder)
 
-
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Should have gotten an OK ")
-	}
+	//Then the result should be valid
+	assertHttpRequestOK(t, resp)
 }
+
+//Create a function which adds headers to a http.Header object
+func createHeaderAdder(headersToAdd map[string]string) (func (http.Header) ()) {
+	var adder = func (header http.Header) {
+		for headerName, headerValue := range headersToAdd {
+			header.Add(headerName, headerValue)
+		}
+	}
+
+	return adder
+}
+
+//helper to not manipulate headers
+var doNotAddAnyHeader = createHeaderAdder(map[string]string{})
 
 //When having other headers added that might influence the behavior
 func TestWithValidCredsButUntrustedHeaders(t *testing.T) {
 	teardownSuite := setupSuiteProxyS3(t, testStubJustProxy)
 	defer teardownSuite(t)
 
-	ctx := context.Background()
-	//Given valid credentials
-	token := CreateTestingToken()
-	cred, err := NewAWSCredentials(token, time.Hour)
-	if err != nil {
-		t.Error(err)
-	}
-	awsCred, err := cred.Retrieve(ctx)
-	if err != nil {
-		t.Error(err)
-	}
-
-	//Given a valid request
-	baseUrl := getS3ProxyUrl()
-	bucketName := "my-test-bucket"
-	queryPart := "list-type=2&prefix=&delimiter=%2F&encoding-type=url"
-	requestUrl := fmt.Sprintf("%s%s?%s", baseUrl, bucketName, queryPart)
-	req, err := http.NewRequest(http.MethodGet, requestUrl, nil)
-	if err != nil {
-		t.Errorf("Could not create request: %s", err)
-	}
-	req.Header.Add("User-Agent", "aws-cli/2.15.40 Python/3.11.8 Linux/6.8.0-40-generic exe/x86_64.ubuntu.12 prompt/off command/s3.ls")
-	req.Header.Add("X-Amz-Content-SHA256", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
-	err = presign.SignWithCreds(ctx, req, awsCred, testDefaultBackendRegion)
-	if err != nil {
-		t.Error(err)
-		t.FailNow()
-	}
 	//Given headers are added by a proxy component
-	req.Header.Add("allYourBases", "belongToUs")
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		t.Errorf("Could not perform request: %s", err)
-	}
-	defer resp.Body.Close()
+	maliciousHeaderAdder := createHeaderAdder(map [string]string{"allYourBases": "belongToUs"})
 
+	//When doing a valid request where headers are added by an intermediate stop
+	resp := performValidListObjectTestRequest(t, doNotAddAnyHeader, maliciousHeaderAdder)
+
+	//Then the result should be a bad request
 	if resp.StatusCode != http.StatusBadRequest {
 		t.Errorf("Should have gotten a bad signature ")
 	}
@@ -513,6 +466,50 @@ func getTestUUID4WithPrefix(prefix string) string {
 		panic("Impossible to use a prefix longer than the actual uuid4")
 	}
 	return strings.Join([]string{prefix, fully_random[len(prefix):]}, "")
+}
+
+//Perform a valid ListObject request for testing and allow manipulation of headers using callbacks before (pre) and after (post) signing
+//and return the response of the request
+func performValidListObjectTestRequest(t testing.TB, headerModifierPreSign func (http.Header) (), headerModifierPostSign func (http.Header) ()) (*http.Response) {
+	ctx := context.Background()
+	//Given valid credentials
+	token := CreateTestingToken()
+	cred, err := NewAWSCredentials(token, time.Hour)
+	if err != nil {
+		t.Error(err)
+	}
+	awsCred, err := cred.Retrieve(ctx)
+	if err != nil {
+		t.Error(err)
+	}
+
+	//Given a valid request
+	baseUrl := getS3ProxyUrl()
+	bucketName := "my-test-bucket"
+	queryPart := "list-type=2&prefix=&delimiter=%2F&encoding-type=url"
+	requestUrl := fmt.Sprintf("%s%s?%s", baseUrl, bucketName, queryPart)
+	req, err := http.NewRequest(http.MethodGet, requestUrl, nil)
+	if err != nil {
+		t.Errorf("Could not create request: %s", err)
+	}
+	req.Header.Add("User-Agent", "aws-cli/2.15.40 Python/3.11.8 Linux/6.8.0-40-generic exe/x86_64.ubuntu.12 prompt/off command/s3.ls")
+	req.Header.Add("X-Amz-Content-SHA256", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
+	headerModifierPreSign(req.Header)
+
+	err = presign.SignWithCreds(ctx, req, awsCred, testDefaultBackendRegion)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+	headerModifierPostSign(req.Header)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Errorf("Could not perform request: %s", err)
+		t.FailNow()
+	}
+	return resp
 }
 
 
@@ -532,61 +529,12 @@ func TestAllowEnablingTracingAtClientSide(t *testing.T) {
 	teardownSuite := setupSuiteProxyS3(t, testStubJustProxy)
 	defer teardownSuite(t)
 
-	//Given helper functions
-	doNotAddAnyHeader := func (header http.Header) {}
-	
-	addUserChosenUUID4 := func (header http.Header) {
-		header.Add(requestctx.XRequestID, userChosenUuid4)
-	}
-
-	performValidRequest := func (headerModifier func (http.Header) ()) {
-		ctx := context.Background()
-		//Given valid credentials
-		token := CreateTestingToken()
-		cred, err := NewAWSCredentials(token, time.Hour)
-		if err != nil {
-			t.Error(err)
-		}
-		awsCred, err := cred.Retrieve(ctx)
-		if err != nil {
-			t.Error(err)
-		}
-
-		//Given a valid request
-		baseUrl := getS3ProxyUrl()
-		bucketName := "my-test-bucket"
-		queryPart := "list-type=2&prefix=&delimiter=%2F&encoding-type=url"
-		requestUrl := fmt.Sprintf("%s%s?%s", baseUrl, bucketName, queryPart)
-		req, err := http.NewRequest(http.MethodGet, requestUrl, nil)
-		if err != nil {
-			t.Errorf("Could not create request: %s", err)
-		}
-		req.Header.Add("User-Agent", "aws-cli/2.15.40 Python/3.11.8 Linux/6.8.0-40-generic exe/x86_64.ubuntu.12 prompt/off command/s3.ls")
-		req.Header.Add("X-Amz-Content-SHA256", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855")
-		headerModifier(req.Header)
-
-		err = presign.SignWithCreds(ctx, req, awsCred, testDefaultBackendRegion)
-		if err != nil {
-			t.Error(err)
-			t.FailNow()
-		}
-
-		client := &http.Client{}
-		resp, err := client.Do(req)
-		if err != nil {
-			t.Errorf("Could not perform request: %s", err)
-			t.FailNow()
-		}
-		defer resp.Body.Close()
-
-
-		if resp.StatusCode != http.StatusOK {
-			t.Errorf("Should have gotten succesful request")
-		}
-	}
+	//Given helper function that adds the chosen UUID4 as the X-Request-ID header
+	addUserChosenUUID4 := createHeaderAdder(map [string]string{requestctx.XRequestID: userChosenUuid4})
 
 	//When performing a valid request but without picking a request id
-	performValidRequest(doNotAddAnyHeader)
+	resp := performValidListObjectTestRequest(t, doNotAddAnyHeader, doNotAddAnyHeader)
+	assertHttpRequestOK(t, resp)
 
 	//Then limited logging should have happend.
 	logLines := getLogLines()
@@ -596,7 +544,8 @@ func TestAllowEnablingTracingAtClientSide(t *testing.T) {
 	}
 
 	//When performing a valid request but without picking a request id
-	performValidRequest(addUserChosenUUID4)
+	resp = performValidListObjectTestRequest(t, addUserChosenUUID4, doNotAddAnyHeader)
+	assertHttpRequestOK(t, resp)
 	logLines = getLogLines()
 
 	//Then there should be more logging

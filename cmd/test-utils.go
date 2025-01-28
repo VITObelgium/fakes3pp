@@ -3,6 +3,7 @@ package cmd
 import (
 	"encoding/json"
 	"log/slog"
+	"net/http"
 	"os"
 	"strings"
 	"testing"
@@ -78,4 +79,10 @@ func isTrueWithinDueTime(callable predicateFunction, waitTimes ...time.Duration)
 		time.Sleep(waitTimeBetweenChecks)
 	}
 
+}
+
+func assertHttpRequestOK(tb testing.TB, resp *http.Response) {
+	if resp.StatusCode != http.StatusOK {
+		tb.Errorf("Should have gotten succesful request")
+	}
 }

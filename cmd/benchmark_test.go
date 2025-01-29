@@ -117,10 +117,26 @@ func getTestBucketObjectContentReadLength(t testing.TB, client s3.Client, object
 	return written, nil
 }
 
+//This is a testing fixture but where sts and s3 proxy are running in plaintext mode
+//This is not really a common deployment setup but if we use TLS for our proxy but not for our testing backend
+//Then we get misleading performance metrics as mentioned in https://github.com/VITObelgium/fakes3pp/pull/21#issuecomment-2620902233
+//Using plain text will be a fairer comparison.
+func testingFixturePlainTextProxy(t testing.TB) (tearDown func ()(), getToken func(subject string, d time.Duration, tags AWSSessionTags) string){
+	resetEnv := fixture_with_environment_values(t, map[string]string{
+		FAKES3PP_SECURE: "false",
+	})
+	tearDown1, getToken := testingFixture(t)
+	tearDown = func() {
+		tearDown1()
+		resetEnv()
+	}
+	return tearDown, getToken
+}
+
 
 func BenchmarkFakeS3Proxy(b *testing.B) {
 	initializeTestLogging()
-	tearDown, getSignedToken := testingFixture(b)
+	tearDown, getSignedToken := testingFixturePlainTextProxy(b)
 	defer tearDown()
 	token := getSignedToken("mySubject", time.Minute * 20, AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
 	//Given the policy Manager that has our test policies

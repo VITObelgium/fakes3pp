@@ -1,3 +1,6 @@
+BENCH_COUNT ?= 10
+
+
 build-container:
 	podman build -t fakes3pp -f Dockerfile .
 
@@ -19,3 +22,22 @@ start-test-s3-servers:
 
 stop-test-s3-servers:
 	for pid in `ps -ef | grep testing/venv/moto/bin/python3 | grep -v grep | awk '{print $$2}'`; do kill "$${pid}"; done
+
+bench-dependencies:
+	@test -s $(GOPATH)/bin/benchstat || go install golang.org/x/perf/cmd/benchstat@latest
+
+bench-main: bench-dependencies
+	git remote -v
+	git fetch origin
+	git rev-parse --short HEAD 2>/dev/null | tr -d '\n' | tee cmd/bench-current_ref.txt
+	git branch -d "before_going_to_main" || echo "If there was no branch before_going_to_main then this is ok"
+	git checkout -b "before_going_to_main"
+	git checkout origin/main
+	test -e cmd/bench-main.txt || (cd cmd && go test -bench=. -benchtime=5s -run "FakeS3Proxy" -benchmem -count=$(BENCH_COUNT) | tee bench-main.txt && cd ..)
+	git checkout "before_going_to_main"
+
+bench-current: bench-dependencies
+	cd cmd && go test -bench=. -benchtime=5s -run "FakeS3Proxy" -benchmem -count=$(BENCH_COUNT) | tee bench-$(shell git rev-parse --short HEAD 2>/dev/null).txt && cd ..
+
+bench-report: bench-dependencies
+	benchstat cmd/bench-main.txt cmd/bench-$(shell git rev-parse --short HEAD 2>/dev/null).txt | tee cmd/bench-$(shell git rev-parse --short HEAD 2>/dev/null)-master-report.txt

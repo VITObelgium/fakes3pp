@@ -1,0 +1,62 @@
+# As inspired by https://dev.to/vearutop/continuous-benchmarking-with-go-and-github-actions-41ok
+name: bench
+on:
+  pull_request:
+env:
+  GO111MODULE: "on"
+jobs:
+  bench:
+    permissions:
+        pull-requests: write
+        issues: write 
+    strategy:
+      matrix:
+        go-version: [ 1.22.x ]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: ${{ matrix.go-version }}
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: ~/go/pkg
+          key: ${{ runner.os }}-go-pkg-${{ hashFiles('**/go.mod') }}
+      - uses: actions/cache@v4
+        with:
+          path: testing/venv
+          key: ${{ runner.os }}-py-venv-${{ hashFiles('**/requirements.txt') }}
+      - uses: actions/cache@v4
+        with:
+          path: cmd/bench-main.txt
+          key: ${{ runner.os }}-bench10-${{ (github.event.pull_request.base.sha != github.event.after) && github.event.pull_request.base.sha || github.event.after }}
+      - name: Benchmark
+        run: |
+          make setup-test-dependencies
+          make start-test-s3-servers
+          make bench-main
+          REF_NAME=${GITHUB_REF##*/} make bench-current
+          echo "\n\n\n"
+          SCRIPT_OUTPUT="$(make bench-report)"
+          echo "SCRIPT_OUTPUT<<EOF" >> $GITHUB_ENV
+          echo "$SCRIPT_OUTPUT" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+    #   Requires enablement at organization level
+    #   - name: Add benchmark report to PR
+    #     uses: actions/github-script@v7
+    #     with:
+    #         github-token: ${{secrets.GITHUB_TOKEN}}
+    #         script: |
+    #             github.rest.issues.createComment({
+    #                 issue_number: context.issue.number,
+    #                 owner: context.repo.owner,
+    #                 repo: context.repo.repo,
+    #                 body: `${{env.SCRIPT_OUTPUT}}`
+    #             })
+      - uses: actions/upload-artifact@v4
+        with:
+            name: benchmark-report-pr-${{ github.event.number }}
+            path: cmd/bench-*.txt
+            overwrite: true

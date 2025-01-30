@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/VITObelgium/fakes3pp/middleware"
+	"github.com/VITObelgium/fakes3pp/s3/api"
 	"github.com/minio/mux"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -56,7 +58,10 @@ func createAndStartS3Proxy(proxyHB handlerBuilderI) (*sync.WaitGroup, *http.Serv
 	slog.Debug("Started listening", "port", portNr)
 
 	srv := &http.Server{Addr: listenAddress}
-	srv.Handler = router
+	srv.Handler = middleware.NewMiddlewarePrefixedHandler(
+		router, 
+		middleware.LogMiddleware(slog.LevelInfo, middleware.NewPingPongHealthCheck(slog.LevelDebug),),
+	)
 
 	// Start proxy in the background but manage waitgroup
 	go func() {
@@ -115,34 +120,32 @@ const SlashSeparator = "/"
 func registerS3Router(router *mux.Router, proxyHB handlerBuilderI) {
 	s3Router := router.NewRoute().PathPrefix(SlashSeparator).Subrouter()
 
-	registerHealthEndpoint(s3Router)
-
-	s3Router.Methods(http.MethodGet).Queries("list-type", "2").HandlerFunc(proxyHB.Build(apiS3ListObjectsV2, false))
+	s3Router.Methods(http.MethodGet).Queries("list-type", "2").HandlerFunc(proxyHB.Build(api.ListObjectsV2, false)	)
 	s3Router.Methods(http.MethodGet).Queries(
 		"Signature", "{sig:.*}",
 		"x-amz-security-token", "{xast:.*}",
 		"AWSAccessKeyId", "{akid:.*}",
-	).HandlerFunc(proxyHB.Build(apiS3GetObject, true))
+	).HandlerFunc(proxyHB.Build(api.GetObject, true))
 	s3Router.Methods(http.MethodGet).Queries("X-Amz-Algorithm", "{alg:.*}", "X-Amz-Signature", "{sig:.*}").HandlerFunc(
-		proxyHB.Build(apiS3GetObject, true)) //TODO: Fix matching to really be GetObject
-	s3Router.Methods(http.MethodGet).Path("/").HandlerFunc(proxyHB.Build(apiS3ListBuckets, false))
-	s3Router.Methods(http.MethodGet).HandlerFunc(proxyHB.Build(apiS3GetObject, false))
-	s3Router.Methods(http.MethodHead).Path("/").HandlerFunc(proxyHB.Build(apiS3HeadBucket, false))
-	s3Router.Methods(http.MethodHead).HandlerFunc(proxyHB.Build(apiS3HeadObject, false))
+		proxyHB.Build(api.GetObject, true)) //TODO: Fix matching to really be GetObject
+	s3Router.Methods(http.MethodGet).Path("/").HandlerFunc(proxyHB.Build(api.ListBuckets, false))
+	s3Router.Methods(http.MethodGet).HandlerFunc(proxyHB.Build(api.GetObject, false))
+	s3Router.Methods(http.MethodHead).Path("/").HandlerFunc(proxyHB.Build(api.HeadBucket, false))
+	s3Router.Methods(http.MethodHead).HandlerFunc(proxyHB.Build(api.HeadObject, false))
 
-	s3Router.Methods(http.MethodPut).Queries("partNumber", "{pn:.*}", "uploadId", "{ui:.*}").HandlerFunc(proxyHB.Build(apiS3UploadPart, false))
-	s3Router.Methods(http.MethodPut).HandlerFunc(proxyHB.Build(apiS3PutObject, false))
+	s3Router.Methods(http.MethodPut).Queries("partNumber", "{pn:.*}", "uploadId", "{ui:.*}").HandlerFunc(proxyHB.Build(api.UploadPart, false))
+	s3Router.Methods(http.MethodPut).HandlerFunc(proxyHB.Build(api.PutObject, false))
 
 	// https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html
-	s3Router.Methods(http.MethodPost).Queries("uploads", "").HandlerFunc(proxyHB.Build(apiS3CreateMultipartUpload, false))
-	s3Router.Methods(http.MethodPost).Queries("uploadId", "{id:.*}").HandlerFunc(proxyHB.Build(apiS3CompleteMultipartUpload, false))
+	s3Router.Methods(http.MethodPost).Queries("uploads", "").HandlerFunc(proxyHB.Build(api.CreateMultipartUpload, false))
+	s3Router.Methods(http.MethodPost).Queries("uploadId", "{id:.*}").HandlerFunc(proxyHB.Build(api.CompleteMultipartUpload, false))
 
-	s3Router.Methods(http.MethodDelete).Queries("uploadId", "{id:.*}").HandlerFunc(proxyHB.Build(apiS3AbortMultipartUpload, false))
+	s3Router.Methods(http.MethodDelete).Queries("uploadId", "{id:.*}").HandlerFunc(proxyHB.Build(api.AbortMultipartUpload, false))
 
 	s3Router.PathPrefix("/").HandlerFunc(justLog)
 	s3Router.NewRoute().HandlerFunc(justLog)
 }
 
 func justLog(w http.ResponseWriter, r *http.Request) {
-	logRequest(r.Context(), "Unknown/Unsupported", r)
+	slog.InfoContext(r.Context(), "Unknown/Unsupported type of operation")
 }

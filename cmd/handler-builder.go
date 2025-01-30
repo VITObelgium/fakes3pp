@@ -18,11 +18,12 @@ import (
 	"github.com/VITObelgium/fakes3pp/presign"
 	"github.com/VITObelgium/fakes3pp/requestctx"
 	"github.com/VITObelgium/fakes3pp/requestutils"
+	"github.com/VITObelgium/fakes3pp/s3/api"
 )
 
 type handlerBuilderI interface {
 	//Takes S3ApiAction and whether it is a presigned request
-	Build(S3ApiAction, bool) http.HandlerFunc
+	Build(api.S3Operation, bool) http.HandlerFunc
 }
 
 // A handler builder builds http handlers
@@ -91,7 +92,7 @@ func cleanHeadersThatAreNotSignedInAuthHeader(ctx context.Context, req *http.Req
 
 // Authorize an S3 action
 // maxExpiryTime is an upperbound for the expiry of the session token
-func authorizeS3Action(ctx context.Context, sessionToken, targetRegion string, action S3ApiAction, w http.ResponseWriter, r *http.Request, maxExpiryTime time.Time) (allowed bool) {
+func authorizeS3Action(ctx context.Context, sessionToken, targetRegion string, action api.S3Operation, w http.ResponseWriter, r *http.Request, maxExpiryTime time.Time) (allowed bool) {
 	allowed = false
 	sessionClaims, err := ExtractTokenClaims(sessionToken, s3ProxyKeyFunc)
 	if err != nil {
@@ -159,23 +160,18 @@ func getCutoffForPresignedUrl() time.Time {
 }
 
 
-func (hb handlerBuilder) Build(action S3ApiAction, presigned bool) (http.HandlerFunc) {
+func (hb handlerBuilder) Build(action api.S3Operation, presigned bool) (http.HandlerFunc) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		//At the final end discard what is being sent.
-		//If not some clients might not check the response that is being sent and hang untill timeout
-		//An example is boto3 where urllib3 won't check the response if it is still sending data
-		if r.Body != nil {
-			defer r.Body.Close()
+		ctx := r.Context()
+		if presigned { //TODO: will become cleaner after refactoring and breaking up this method
+			requestctx.AddAccessLogInfo(r, "s3", slog.String("AuthType", "QueryString"))
+		} else {
+			if r.Header.Get(constants.AuthorizationHeader) == "" {
+				requestctx.AddAccessLogInfo(r, "s3", slog.String("AuthType", "-"))
+			} else {
+				requestctx.AddAccessLogInfo(r, "s3", slog.String("AuthType", "AuthHeader"))
+			}
 		}
-
-		//First make sure signature if valid
-		ctx := requestctx.NewContextFromHttpRequest(r)
-
-		var loggedAction string = string(action)
-		if presigned {
-			loggedAction = fmt.Sprintf("%s<presigned>", loggedAction)
-		}
-		logRequest(ctx, loggedAction, r)
 
 		if presigned {
 			//bool to track whether signature was ok
@@ -294,20 +290,6 @@ func (hb handlerBuilder) Build(action S3ApiAction, presigned bool) (http.Handler
 			}
 		}
 	}
-}
-
-//Log request information with the api action if apiAction is unknown just
-//leave as an empty string.
-func logRequest(ctx context.Context, apiAction string, r *http.Request) {
-	slog.InfoContext(
-		ctx, 
-		"Request start", 
-		"action", apiAction, 
-		"method", r.Method,
-		"host", r.Host,
-		"url", r.URL.String(), 
-		"headers", r.Header,
-	)
 }
 
 func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request, targetBackendId string) {

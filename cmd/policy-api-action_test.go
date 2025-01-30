@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/VITObelgium/fakes3pp/requestctx"
+	"github.com/VITObelgium/fakes3pp/s3/api"
 )
 
 
@@ -13,9 +14,9 @@ type StubJustReturnApiAction struct{
 	t *testing.T
 }
 
-var globalLastApiActionStubJustReturnApiAction S3ApiAction = ""
+var globalLastApiActionStubJustReturnApiAction api.S3Operation = api.UnknownOperation
 
-func (p *StubJustReturnApiAction) Build(action S3ApiAction, presigned bool) http.HandlerFunc{
+func (p *StubJustReturnApiAction) Build(action api.S3Operation, presigned bool) http.HandlerFunc{
 	return func (w http.ResponseWriter, r *http.Request)  {
 		//AWS CLI expects certain structure for ok responses
 		//For error we could use the message field to pass a message regardless
@@ -25,7 +26,7 @@ func (p *StubJustReturnApiAction) Build(action S3ApiAction, presigned bool) http
 			requestctx.NewContextFromHttpRequest(r),
 			w,
 			ErrS3AccessDenied,
-			errors.New(string(action)),
+			errors.New(action.String()),
 		)
 	}
 }
@@ -47,7 +48,7 @@ func TestExpectedAPIActionIdentified(t *testing.T) {
 			t.Errorf("%s: an error should have been returned", tc.ApiAction)
 		}
 
-		if tc.ApiAction != string(globalLastApiActionStubJustReturnApiAction) {
+		if tc.ApiAction != globalLastApiActionStubJustReturnApiAction.String() {
 			t.Errorf("wrong APIAction identified; expected %s, got %s", tc.ApiAction, globalLastApiActionStubJustReturnApiAction)
 		}
 	}

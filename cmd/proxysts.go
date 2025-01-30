@@ -32,6 +32,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/VITObelgium/fakes3pp/middleware"
 	"github.com/VITObelgium/fakes3pp/requestctx"
 	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/minio/mux"
@@ -118,7 +119,10 @@ func createAndStartStsProxy() (*sync.WaitGroup, *http.Server, error) {
 	slog.Info("Started listening", "port", portNr)
 
 	srv := &http.Server{Addr: listenAddress}
-	srv.Handler = router
+	srv.Handler = middleware.NewMiddlewarePrefixedHandler(
+		router, 
+		middleware.LogMiddleware(slog.LevelInfo, middleware.NewPingPongHealthCheck(slog.LevelDebug),),
+	)
 	
 	// Start proxy in the background but manage waitgroup
 	go func() {
@@ -155,19 +159,9 @@ func stsProxy() {
 	
 }
 
-func registerHealthEndpoint(router *mux.Router) {
-	router.Methods(http.MethodGet).Path("/ping").HandlerFunc(
-		func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusOK)
-			WriteButLogOnError(r.Context(), w, []byte("pong"))
-		},
-	)
-}
-
 func registerStsRouter(router *mux.Router) {
 	stsRouter := router.NewRoute().PathPrefix(SlashSeparator).Subrouter()
 
-	registerHealthEndpoint(stsRouter)
 	stsRouter.Methods(http.MethodPost).HandlerFunc(processSTSPost)
 
 	stsRouter.PathPrefix("/").HandlerFunc(justLog)

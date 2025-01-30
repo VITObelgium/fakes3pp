@@ -18,11 +18,12 @@ import (
 	"github.com/VITObelgium/fakes3pp/presign"
 	"github.com/VITObelgium/fakes3pp/requestctx"
 	"github.com/VITObelgium/fakes3pp/requestutils"
+	"github.com/VITObelgium/fakes3pp/s3/api"
 )
 
 type handlerBuilderI interface {
 	//Takes S3ApiAction and whether it is a presigned request
-	Build(S3ApiAction, bool) http.HandlerFunc
+	Build(api.S3Operation, bool) http.HandlerFunc
 }
 
 // A handler builder builds http handlers
@@ -91,7 +92,7 @@ func cleanHeadersThatAreNotSignedInAuthHeader(ctx context.Context, req *http.Req
 
 // Authorize an S3 action
 // maxExpiryTime is an upperbound for the expiry of the session token
-func authorizeS3Action(ctx context.Context, sessionToken, targetRegion string, action S3ApiAction, w http.ResponseWriter, r *http.Request, maxExpiryTime time.Time) (allowed bool) {
+func authorizeS3Action(ctx context.Context, sessionToken, targetRegion string, action api.S3Operation, w http.ResponseWriter, r *http.Request, maxExpiryTime time.Time) (allowed bool) {
 	allowed = false
 	sessionClaims, err := ExtractTokenClaims(sessionToken, s3ProxyKeyFunc)
 	if err != nil {
@@ -159,7 +160,7 @@ func getCutoffForPresignedUrl() time.Time {
 }
 
 
-func (hb handlerBuilder) Build(action S3ApiAction, presigned bool) (http.HandlerFunc) {
+func (hb handlerBuilder) Build(action api.S3Operation, presigned bool) (http.HandlerFunc) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		if presigned { //TODO: will become cleaner after refactoring and breaking up this method

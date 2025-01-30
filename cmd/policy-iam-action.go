@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/VITObelgium/fakes3pp/s3/api"
 	"github.com/micahhausler/aws-iam-policy/policy"
 )
 
@@ -89,11 +90,11 @@ func addAwsRequestedRegionConditionKey(context map[string]*policy.ConditionValue
 
 //Buid a new IAM action based out of an HTTP Request. The IAM action should resemble the required
 //Permissions. The api_action is passed in as a string argument
-func newIamActionsFromS3Request(api_action S3ApiAction, req *http.Request, session *PolicySessionData) (actions []iamAction, err error) {
+func newIamActionsFromS3Request(api_action api.S3Operation, req *http.Request, session *PolicySessionData) (actions []iamAction, err error) {
 	actions = []iamAction{}
 	switch api_action {
 	// https://docs.aws.amazon.com/AmazonS3/latest/userguide/mpuoverview.html
-	case apiS3PutObject, apiS3CreateMultipartUpload, apiS3CompleteMultipartUpload, apiS3UploadPart:
+	case api.PutObject, api.CreateMultipartUpload, api.CompleteMultipartUpload, api.UploadPart:
 		bucket, key, err := getS3ObjectFromRequest(req)
 		if err != nil {
 			return nil, err
@@ -104,7 +105,7 @@ func newIamActionsFromS3Request(api_action S3ApiAction, req *http.Request, sessi
 			session,
 		)
 		actions = append(actions, a)
-	case apiS3GetObject, apiS3HeadObject:
+	case api.GetObject, api.HeadObject:
 		bucket, key, err := getS3ObjectFromRequest(req)
 		if err != nil {
 			return nil, err
@@ -115,7 +116,7 @@ func newIamActionsFromS3Request(api_action S3ApiAction, req *http.Request, sessi
 			session,
 		)
 		actions = append(actions, a)
-	case apiS3ListObjectsV2:
+	case api.ListObjectsV2:
 		bucket, _, err := getS3ObjectFromRequest(req)
 		if err != nil {
 			return nil, err
@@ -130,7 +131,7 @@ func newIamActionsFromS3Request(api_action S3ApiAction, req *http.Request, sessi
 			},
 		)
 		actions = append(actions, a)
-	case apiS3AbortMultipartUpload:
+	case api.AbortMultipartUpload:
 		bucket, key, err := getS3ObjectFromRequest(req)
 		if err != nil {
 			return nil, err
@@ -141,7 +142,7 @@ func newIamActionsFromS3Request(api_action S3ApiAction, req *http.Request, sessi
 			session,
 		)
 		actions = append(actions, a)
-	case apiS3ListBuckets:
+	case api.ListBuckets:
 		a := newIamAction(
 			IAMActionS3ListAllMyBuckets,
 			"*",  //Can only be granted on *

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/VITObelgium/fakes3pp/requestctx"
+	"github.com/VITObelgium/fakes3pp/s3/api"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/micahhausler/aws-iam-policy/policy"
@@ -23,7 +24,7 @@ type StubJustReturnIamAction struct{
 
 var latestIamActionInStubReturnIamAction []iamAction = nil
 
-func (p *StubJustReturnIamAction) Build(action S3ApiAction, presigned bool) http.HandlerFunc{
+func (p *StubJustReturnIamAction) Build(action api.S3Operation, presigned bool) http.HandlerFunc{
 	return func (w http.ResponseWriter, r *http.Request)  {
 		actions, err := newIamActionsFromS3Request(action, r, nil)
 		if err != nil {

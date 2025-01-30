@@ -16,7 +16,6 @@ import (
 
 	"github.com/VITObelgium/fakes3pp/constants"
 	"github.com/VITObelgium/fakes3pp/presign"
-	"github.com/VITObelgium/fakes3pp/requestctx"
 	"github.com/VITObelgium/fakes3pp/requestutils"
 )
 
@@ -161,21 +160,13 @@ func getCutoffForPresignedUrl() time.Time {
 
 func (hb handlerBuilder) Build(action S3ApiAction, presigned bool) (http.HandlerFunc) {
 	return func(w http.ResponseWriter, r *http.Request) {
-		//At the final end discard what is being sent.
-		//If not some clients might not check the response that is being sent and hang untill timeout
-		//An example is boto3 where urllib3 won't check the response if it is still sending data
-		if r.Body != nil {
-			defer r.Body.Close()
-		}
-
-		//First make sure signature if valid
-		ctx := requestctx.NewContextFromHttpRequest(r)
+		ctx := r.Context()
 
 		var loggedAction string = string(action)
 		if presigned {
 			loggedAction = fmt.Sprintf("%s<presigned>", loggedAction)
 		}
-		logRequest(ctx, loggedAction, r)
+		
 
 		if presigned {
 			//bool to track whether signature was ok
@@ -294,20 +285,6 @@ func (hb handlerBuilder) Build(action S3ApiAction, presigned bool) (http.Handler
 			}
 		}
 	}
-}
-
-//Log request information with the api action if apiAction is unknown just
-//leave as an empty string.
-func logRequest(ctx context.Context, apiAction string, r *http.Request) {
-	slog.InfoContext(
-		ctx, 
-		"Request start", 
-		"action", apiAction, 
-		"method", r.Method,
-		"host", r.Host,
-		"url", r.URL.String(), 
-		"headers", r.Header,
-	)
 }
 
 func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request, targetBackendId string) {

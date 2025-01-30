@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/VITObelgium/fakes3pp/middleware"
 	"github.com/minio/mux"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -56,7 +57,10 @@ func createAndStartS3Proxy(proxyHB handlerBuilderI) (*sync.WaitGroup, *http.Serv
 	slog.Debug("Started listening", "port", portNr)
 
 	srv := &http.Server{Addr: listenAddress}
-	srv.Handler = router
+	srv.Handler = middleware.NewMiddlewarePrefixedHandler(
+		router, 
+		middleware.LogMiddleware(slog.LevelInfo, middleware.NewPingPongHealthCheck(slog.LevelDebug),),
+	)
 
 	// Start proxy in the background but manage waitgroup
 	go func() {
@@ -115,8 +119,6 @@ const SlashSeparator = "/"
 func registerS3Router(router *mux.Router, proxyHB handlerBuilderI) {
 	s3Router := router.NewRoute().PathPrefix(SlashSeparator).Subrouter()
 
-	registerHealthEndpoint(s3Router)
-
 	s3Router.Methods(http.MethodGet).Queries("list-type", "2").HandlerFunc(proxyHB.Build(apiS3ListObjectsV2, false))
 	s3Router.Methods(http.MethodGet).Queries(
 		"Signature", "{sig:.*}",
@@ -144,5 +146,5 @@ func registerS3Router(router *mux.Router, proxyHB handlerBuilderI) {
 }
 
 func justLog(w http.ResponseWriter, r *http.Request) {
-	logRequest(r.Context(), "Unknown/Unsupported", r)
+	slog.InfoContext(r.Context(), "Unknown/Unsupported type of operation")
 }

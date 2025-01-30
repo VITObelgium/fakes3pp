@@ -40,7 +40,7 @@ type RequestCtx struct{
 	Host       string
 
 	//  - HTTP Status: The numeric HTTP status code of the response
-	HTTPStatus int16
+	HTTPStatus int
 
 	//  - Bytes Sent: The number of response bytes sent, excluding HTTP protocol overhead, or - if zero.
 	BytesSent  uint64
@@ -56,6 +56,7 @@ type RequestCtx struct{
     //  - Operation: the type of action that was performed
     //  - Error Code: The S3 Error response or - if no error occured
 	//  - Requester: The ARN used by the requester (e.g. role ARN)
+	//  - Authentication Type: AuthHeader for authentication headers, QueryString for query string (presigned URL), or a -
 	accessLogAttrs map [string]LogAttrs
 
 	//miscData to track data that is set by certain middleware and consumed by
@@ -63,12 +64,36 @@ type RequestCtx struct{
 	data map[string]any
 }
 
-func (c *RequestCtx)AddAdditionalLogInfo(groupName string, attrs... slog.Attr) {
+func (c *RequestCtx)AddAccessLogInfo(groupName string, attrs... slog.Attr) {
 	existing_group, ok := c.accessLogAttrs[groupName]
 	if !ok {
 		existing_group = []slog.Attr{}
 	}
 	c.accessLogAttrs[groupName] = append(existing_group, attrs...)
+}
+
+func get(r *http.Request) *RequestCtx {
+	rCtx, ok := FromContext(r.Context())
+	if !ok {
+		return nil
+	}
+	return rCtx
+}
+
+//Add information for access log for an HTTP request.
+//This request expects that a requestCtx was already created and is part of
+//the context of the HTTP request
+func AddAccessLogInfo(r *http.Request, groupName string, attrs... slog.Attr) {
+	if rCtx := get(r); rCtx != nil {
+		rCtx.AddAccessLogInfo(groupName, attrs...)
+		return		
+	}
+	slog.Error(
+		"Attempting to add access log info without request context",
+		"group_name", groupName,
+		"attributes", attrs,
+		"request", r,
+	)
 }
 
 func (c *RequestCtx)GetAccessLogInfo() (LogAttrs) {

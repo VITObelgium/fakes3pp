@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/VITObelgium/fakes3pp/httptracking"
 	"github.com/VITObelgium/fakes3pp/requestctx"
 )
 
@@ -33,11 +34,12 @@ func LogMiddleware(requestLogLvl slog.Level, hc HealthChecker) Middleware {
 			if !ok {
 				panic("Programmer going crazy this cannot happen requestctx must be extractable.")
 			}
-
 			r = r.WithContext(ctx)
+			trackingW := httptracking.NewTrackingResponseWriter(w, rCtx)
+			r.Body = httptracking.NewTrackingBody(r.Body, rCtx)
 
 			logLvl := requestLogLvl
-			wasHealthCheck := hc.DoHealthcheckIfNeeded(w, r)
+			wasHealthCheck := hc.DoHealthcheckIfNeeded(trackingW, r)
 			if wasHealthCheck {
 				//For health checks there might be a different level at which logging should occur
 				logLvl = hc.GetHCLogLvl()
@@ -52,7 +54,7 @@ func LogMiddleware(requestLogLvl slog.Level, hc HealthChecker) Middleware {
 			defer logFinalRequestDetails(ctx, logLvl, startTime, rCtx)
 
 			if !wasHealthCheck{
-				next.ServeHTTP(w, r.WithContext(ctx))
+				next.ServeHTTP(trackingW, r.WithContext(ctx))
 			}
         }
     }
@@ -61,6 +63,8 @@ func LogMiddleware(requestLogLvl slog.Level, hc HealthChecker) Middleware {
 func logFinalRequestDetails(ctx context.Context, lvl slog.Level, startTime time.Time, rCtx *requestctx.RequestCtx) {
 	requestLogAttrs := getRequestCtxLogAttrs(rCtx)
 	requestLogAttrs = append(requestLogAttrs, slog.Int64("Total ms", time.Since(startTime).Milliseconds()))
+	requestLogAttrs = append(requestLogAttrs, slog.Uint64("Bytes sent", rCtx.BytesSent))
+	requestLogAttrs = append(requestLogAttrs, slog.Int("HTTP status", rCtx.HTTPStatus))
 	requestLogAttrs = append(requestLogAttrs, rCtx.GetAccessLogInfo()...)
 	slog.LogAttrs(
 		ctx,

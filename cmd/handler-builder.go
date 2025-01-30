@@ -16,6 +16,7 @@ import (
 
 	"github.com/VITObelgium/fakes3pp/constants"
 	"github.com/VITObelgium/fakes3pp/presign"
+	"github.com/VITObelgium/fakes3pp/requestctx"
 	"github.com/VITObelgium/fakes3pp/requestutils"
 )
 
@@ -161,12 +162,15 @@ func getCutoffForPresignedUrl() time.Time {
 func (hb handlerBuilder) Build(action S3ApiAction, presigned bool) (http.HandlerFunc) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
-
-		var loggedAction string = string(action)
-		if presigned {
-			loggedAction = fmt.Sprintf("%s<presigned>", loggedAction)
+		if presigned { //TODO: will become cleaner after refactoring and breaking up this method
+			requestctx.AddAccessLogInfo(r, "s3", slog.String("AuthType", "QueryString"))
+		} else {
+			if r.Header.Get(constants.AuthorizationHeader) == "" {
+				requestctx.AddAccessLogInfo(r, "s3", slog.String("AuthType", "-"))
+			} else {
+				requestctx.AddAccessLogInfo(r, "s3", slog.String("AuthType", "AuthHeader"))
+			}
 		}
-		
 
 		if presigned {
 			//bool to track whether signature was ok

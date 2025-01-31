@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/VITObelgium/fakes3pp/aws/service/s3/api"
 	"github.com/VITObelgium/fakes3pp/requestctx"
-	"github.com/VITObelgium/fakes3pp/s3/api"
 )
 
 

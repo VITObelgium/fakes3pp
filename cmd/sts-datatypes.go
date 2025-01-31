@@ -21,6 +21,8 @@ package cmd
 
 import (
 	"encoding/xml"
+
+	"github.com/VITObelgium/fakes3pp/aws/credentials"
 )
 
 // AssumedRoleUser - The identifiers for the temporary security credentials that
@@ -71,7 +73,7 @@ type WebIdentityResult struct {
 	// strongly recommend that you make no assumptions about the maximum size. As
 	// of this writing, the typical size is less than 4096 bytes, but that can vary.
 	// Also, future updates to AWS might require larger sizes.
-	Credentials AWSCredentials `xml:",omitempty"`
+	Credentials credentials.AWSCredentials `xml:",omitempty"`
 
 	// A percentage value that indicates the size of the policy in packed form.
 	// The service rejects any policy with a packed size greater than 100 percent,

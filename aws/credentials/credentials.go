@@ -1,4 +1,4 @@
-package cmd
+package credentials
 
 import (
 	"context"
@@ -16,6 +16,8 @@ import (
 )
 
 // AWSCredentials holds access and secret keys.
+// These are different from aws.Credentials because these are actually credentials that only
+// live in the realm of our Proxy (STS+S3 environment) and they are not actual AWS credentials
 type AWSCredentials struct {
 	AccessKey    string                 `xml:"AccessKeyId" json:"accessKey,omitempty" yaml:"accessKey"`
 	SecretKey    string                 `xml:"SecretAccessKey" json:"secretKey,omitempty" yaml:"secretKey"`
@@ -23,19 +25,19 @@ type AWSCredentials struct {
 	Expiration   time.Time              `xml:"Expiration" json:"expiration,omitempty" yaml:"-"`
 }
 
-var errInvalidSecretKey = errors.New("invalid secret access key")
-var errExpiredAwsCredentials = errors.New("expired credentials")
+var ErrInvalidSecretKey = errors.New("invalid secret access key")
+var ErrExpiredAwsCredentials = errors.New("expired credentials")
 
 //Check whether an AWSCredential for the proxy is valid
 func (cred *AWSCredentials) isValid(signingKey *rsa.PrivateKey) (error) {
 	if cred.Expiration.Before(time.Now().UTC()) {
-		return errExpiredAwsCredentials
+		return ErrExpiredAwsCredentials
 	}
 
 	//Are credentials itself valid
 	calculatedSecretKey := CalculateSecretKey(cred.AccessKey, signingKey)
 	if calculatedSecretKey != cred.SecretKey {
-		return errInvalidSecretKey
+		return ErrInvalidSecretKey
 	}
 
 	//Is SessionToken valid
@@ -50,6 +52,15 @@ func (cred *AWSCredentials) isValid(signingKey *rsa.PrivateKey) (error) {
 
 	return nil
 }
+
+func (cred *AWSCredentials) IsValid(getSigningKey getSigningKey) (error) {
+	key, err := getSigningKey()
+	if err != nil {
+		return err
+	}
+	return cred.isValid(key)
+}
+
 
 func NewAccessKey() (string) {
 	uuidString := uuid.New().String()
@@ -66,8 +77,10 @@ func CalculateSecretKey(accessKey string, signingkey *rsa.PrivateKey) (string) {
     return base64.URLEncoding.EncodeToString(hasher.Sum([]byte(toHash)))[0:secretKeyLength]
 }
 
+type getSigningKey func() (*rsa.PrivateKey, error)
+
 //Generate New AWS Credentials out of a JWT and a specified duration
-func NewAWSCredentials(token *jwt.Token, expiry time.Duration) (*AWSCredentials, error) {
+func NewAWSCredentials(token *jwt.Token, expiry time.Duration, getSigningKey getSigningKey) (*AWSCredentials, error) {
 	key, err := getSigningKey()
 	if err != nil {
 		return nil, err

@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/VITObelgium/fakes3pp/aws/service/sts/session"
 )
 
 
@@ -79,7 +81,7 @@ type policyGenerationTestCase struct {
 }
 
 func buildTestSessionClaimsNoTags(issuer, subject string) (*SessionClaims) {
-	idpClaims := newIDPClaims(issuer, subject, time.Hour * 1, AWSSessionTags{})
+	idpClaims := newIDPClaims(issuer, subject, time.Hour * 1, session.AWSSessionTags{})
 	return &SessionClaims{
 		RoleARN: "",
 		IIssuer: "",

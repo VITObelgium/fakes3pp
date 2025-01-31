@@ -8,6 +8,7 @@ import (
 	"sync"
 	"text/template"
 
+	"github.com/VITObelgium/fakes3pp/aws/service/sts/session"
 	"github.com/fsnotify/fsnotify"
 )
 
@@ -225,7 +226,7 @@ type PolicySessionClaims struct {
 //thus is available to be used in policies.
 type PolicySessionData struct {
 	Claims PolicySessionClaims
-	Tags AWSSessionTags
+	Tags session.AWSSessionTags
 	RequestedRegion string
 }
 

@@ -12,6 +12,7 @@ import (
 	"github.com/VITObelgium/fakes3pp/presign"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/VITObelgium/fakes3pp/aws/service/sts/session"
 	"github.com/aws/smithy-go"
 	"github.com/spf13/viper"
 )
@@ -56,7 +57,7 @@ func setTestingBackendsConfig(t testing.TB) {
 
 //This is the testing fixture. It starts an sts and s3 proxy which
 //are configured with the S3 backends detailed in testing/README.md.
-func testingFixture(t testing.TB) (tearDown func ()(), getToken func(subject string, d time.Duration, tags AWSSessionTags) string){
+func testingFixture(t testing.TB) (tearDown func ()(), getToken func(subject string, d time.Duration, tags session.AWSSessionTags) string){
 	skipIfNoTestingBackends(t)
 	//Configure backends to be the testing S3 backends
 	setTestingBackendsConfig(t)
@@ -82,7 +83,7 @@ func testingFixture(t testing.TB) (tearDown func ()(), getToken func(subject str
 	}
 
 	//function to get a valid token that can be exchanged for credentials
-	getSignedToken := func(subject string, d time.Duration, tags AWSSessionTags) string {
+	getSignedToken := func(subject string, d time.Duration, tags session.AWSSessionTags) string {
 		token, err := CreateSignedToken(createRS256PolicyTokenWithSessionTags(testFakeIssuer, subject, d, tags), signingKey)
 		if err != nil {
 			t.Errorf("Could create signed token with subject %s and tags %v: %s", subject, tags, err)
@@ -153,7 +154,7 @@ func getTestBucketObjectContent(t testing.TB, region, objectKey string, creds aw
 func TestMakeSureCorrectBackendIsSelected(t *testing.T) {
 	tearDown, getSignedToken := testingFixture(t)
 	defer tearDown()
-	token := getSignedToken("mySubject", time.Minute * 20, AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
+	token := getSignedToken("mySubject", time.Minute * 20, session.AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
 	//Given the policy Manager that has roleArn for the testARN
 	pm = *NewTestPolicyManagerAllowAll()
 	//Given credentials for that role
@@ -181,7 +182,7 @@ func TestAllowFallbackToDefaultBackend(t *testing.T) {
 	
 	tearDown, getSignedToken := testingFixture(t)
 	defer tearDown()
-	token := getSignedToken("mySubject", time.Minute * 20, AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
+	token := getSignedToken("mySubject", time.Minute * 20, session.AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
 	//Given the policy Manager that has roleArn for the testARN
 	pm = *NewTestPolicyManagerAllowAll()
 	//Given credentials for that role
@@ -204,7 +205,7 @@ func TestIfNoFallbackToDefaultBackendBadRequestShouldBeReturned(t *testing.T) {
 	
 	tearDown, getSignedToken := testingFixture(t)
 	defer tearDown()
-	token := getSignedToken("mySubject", time.Minute * 20, AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
+	token := getSignedToken("mySubject", time.Minute * 20, session.AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
 	//Given the policy Manager that has roleArn for the testARN
 	pm = *NewTestPolicyManagerAllowAll()
 	//Given credentials for that role
@@ -226,7 +227,7 @@ func TestSigv4PresignedUrlsWork(t *testing.T) {
 	//Given a running proxy and credentials against that proxy that allow access for the get operation
 	tearDown, getSignedToken := testingFixture(t)
 	defer tearDown()
-	token := getSignedToken("mySubject", time.Minute * 20, AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
+	token := getSignedToken("mySubject", time.Minute * 20, session.AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
 	pm = *NewTestPolicyManagerAllowAll()
 	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowAllARN)
 
@@ -321,7 +322,7 @@ func TestPolicyAllowTeamFolderIDPClaimsCanBeUsedInPolicyEvaluationPrincipalWithC
 	tearDown, getSignedToken := testingFixture(t)
 	defer tearDown()
 	// GIVEN token for team that does have access
-	token := getSignedToken("mySubject", time.Minute * 20, AWSSessionTags{PrincipalTags: map[string][]string{testTeamTag: {testAllowedTeam}}})
+	token := getSignedToken("mySubject", time.Minute * 20, session.AWSSessionTags{PrincipalTags: map[string][]string{testTeamTag: {testAllowedTeam}}})
 	pm = *NewTestPolicyManagerAlmostE2EPolicies()
 	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowTeamFolderARN)
 
@@ -342,7 +343,7 @@ func TestPolicyAllowTeamFolderIDPClaimsCanBeUsedInPolicyEvaluationPrincipalWithI
 	tearDown, getSignedToken := testingFixture(t)
 	defer tearDown()
 	// GIVEN token for team that does not have access
-	token := getSignedToken("mySubject", time.Minute * 20, AWSSessionTags{PrincipalTags: map[string][]string{testTeamTag: {testDisallowedTeam}}})
+	token := getSignedToken("mySubject", time.Minute * 20, session.AWSSessionTags{PrincipalTags: map[string][]string{testTeamTag: {testDisallowedTeam}}})
 	pm = *NewTestPolicyManagerAlmostE2EPolicies()
 	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowTeamFolderARN)
 
@@ -362,7 +363,7 @@ func TestPolicyAllowTeamFolderIDPClaimsCanBeUsedInPolicyEvaluationPrincipalWitho
 	tearDown, getSignedToken := testingFixture(t)
 	defer tearDown()
 	// GIVEN token with no team information
-	token := getSignedToken("mySubject", time.Minute * 20, AWSSessionTags{PrincipalTags: map[string][]string{}})
+	token := getSignedToken("mySubject", time.Minute * 20, session.AWSSessionTags{PrincipalTags: map[string][]string{}})
 	pm = *NewTestPolicyManagerAlmostE2EPolicies()
 	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowTeamFolderARN)
 
@@ -381,7 +382,7 @@ func TestPolicyAllowTeamFolderIDPClaimsCanBeUsedInPolicyEvaluationPrincipalWitho
 func TestPolicyAllowAllInRegion1ConditionsOnRegionAreEnforced(t *testing.T) {
 	tearDown, getSignedToken := testingFixture(t)
 	defer tearDown()
-	token := getSignedToken("mySubject", time.Minute * 20, AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
+	token := getSignedToken("mySubject", time.Minute * 20, session.AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
 	//Given the policy Manager that has our test policies
 	pm = *NewTestPolicyManagerAlmostE2EPolicies()
 	//Given credentials that use the policy that allow everything in Region1
@@ -447,7 +448,7 @@ func assertObjectInBucketListing(t testing.TB, objectsList *s3.ListObjectsV2Outp
 func TestListingOfS3BucketHasExpectedObjects(t *testing.T) {
 	tearDown, getSignedToken := testingFixture(t)
 	defer tearDown()
-	token := getSignedToken("mySubject", time.Minute * 20, AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
+	token := getSignedToken("mySubject", time.Minute * 20, session.AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
 	//Given the policy Manager that has our test policies
 	pm = *NewTestPolicyManagerAlmostE2EPolicies()
 	//Given credentials that use the policy that allow everything in Region1

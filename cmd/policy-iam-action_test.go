@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/VITObelgium/fakes3pp/aws/service/sts/session"
 	"github.com/VITObelgium/fakes3pp/requestctx"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
@@ -258,7 +259,7 @@ type apiAndIAMActionTestCase struct {
 
 var testSessionDataTestDepartment = &PolicySessionData{
 	Claims: PolicySessionClaims{},
-	Tags: AWSSessionTags{
+	Tags: session.AWSSessionTags{
 		PrincipalTags: map[string][]string{
 			"department": {"test"},
 		},
@@ -268,7 +269,7 @@ var testSessionDataTestDepartment = &PolicySessionData{
 
 var testSessionDataQaDeparment = &PolicySessionData{
 	Claims: PolicySessionClaims{},
-	Tags: AWSSessionTags{
+	Tags: session.AWSSessionTags{
 		PrincipalTags: map[string][]string{
 			"department": {"qa"},
 		},

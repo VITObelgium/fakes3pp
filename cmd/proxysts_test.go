@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/VITObelgium/fakes3pp/aws/service/sts/session"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
@@ -111,14 +112,14 @@ func TestProxyStsAssumeRoleWithWebIdentityBasicToken(t *testing.T) {
 	}
 }
 
-var testSessionTagsCustomIdA = AWSSessionTags{
+var testSessionTagsCustomIdA = session.AWSSessionTags{
 	PrincipalTags: map[string][]string{
 		"custom_id": {"idA"},
 	},
 	TransitiveTagKeys: []string{"custom_id"},
 }
 
-func createRS256PolicyTokenWithSessionTags(issuer, subject string, expiry time.Duration, tags AWSSessionTags) (*jwt.Token) { 
+func createRS256PolicyTokenWithSessionTags(issuer, subject string, expiry time.Duration, tags session.AWSSessionTags) (*jwt.Token) { 
 	claims := newIDPClaims(issuer, subject, expiry, tags)
 
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)

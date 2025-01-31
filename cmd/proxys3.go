@@ -6,8 +6,8 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/VITObelgium/fakes3pp/aws/service/s3/api"
 	"github.com/VITObelgium/fakes3pp/middleware"
-	"github.com/VITObelgium/fakes3pp/s3/api"
 	"github.com/minio/mux"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -126,9 +126,9 @@ func registerS3Router(router *mux.Router, proxyHB handlerBuilderI) {
 		"Signature", "{sig:.*}",
 		"x-amz-security-token", "{xast:.*}",
 		"AWSAccessKeyId", "{akid:.*}",
-	).HandlerFunc(middleware.Chain(proxyHB.Build(true), middleware.RegisterOperation(api.GetObject)))
+	).HandlerFunc(middleware.Chain(proxyHB.Build(true), middleware.RegisterOperation(api.GetObject), middleware.AuthNPresigned()))
 	s3Router.Methods(http.MethodGet).Queries("X-Amz-Algorithm", "{alg:.*}", "X-Amz-Signature", "{sig:.*}").HandlerFunc(
-		middleware.Chain(proxyHB.Build(true), middleware.RegisterOperation(api.GetObject))) //TODO: Fix matching to really be GetObject
+		middleware.Chain(proxyHB.Build(true), middleware.RegisterOperation(api.GetObject), middleware.AuthNPresigned())) //TODO: Fix matching to really be GetObject
 	s3Router.Methods(http.MethodGet).Path("/").HandlerFunc(
 		middleware.Chain(proxyHB.Build(false), middleware.RegisterOperation(api.ListBuckets)))
 	s3Router.Methods(http.MethodGet).HandlerFunc(

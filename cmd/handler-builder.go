@@ -14,11 +14,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	jwt "github.com/golang-jwt/jwt/v5"
 
+	"github.com/VITObelgium/fakes3pp/aws/credentials"
 	"github.com/VITObelgium/fakes3pp/constants"
 	"github.com/VITObelgium/fakes3pp/presign"
 	"github.com/VITObelgium/fakes3pp/requestctx"
 	"github.com/VITObelgium/fakes3pp/requestutils"
-	"github.com/VITObelgium/fakes3pp/s3/api"
+	"github.com/VITObelgium/fakes3pp/aws/service/s3/api"
 )
 
 type handlerBuilderI interface {
@@ -171,9 +172,7 @@ func getS3Action(r *http.Request) (api.S3Operation) {
 func (hb handlerBuilder) Build(presigned bool) (http.HandlerFunc) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
-		if presigned { //TODO: will become cleaner after refactoring and breaking up this method
-			requestctx.AddAccessLogInfo(r, "s3", slog.String("AuthType", "QueryString"))
-		} else {
+		if !presigned { //TODO: will become cleaner after refactoring and breaking up this method
 			if r.Header.Get(constants.AuthorizationHeader) == "" {
 				requestctx.AddAccessLogInfo(r, "s3", slog.String("AuthType", "-"))
 			} else {
@@ -194,7 +193,7 @@ func (hb handlerBuilder) Build(presigned bool) (http.HandlerFunc) {
 			}
 
 			var secretDeriver = func(accessKeyId string) (secretAccessKey string, err error) {
-				return CalculateSecretKey(accessKeyId, signingKey), nil
+				return credentials.CalculateSecretKey(accessKeyId, signingKey), nil
 			}
 
 			presignedUrl, err := presign.MakePresignedUrl(r)
@@ -232,11 +231,11 @@ func (hb handlerBuilder) Build(presigned bool) (http.HandlerFunc) {
 					hb.proxyFunc(ctx, w, r, targetBackendId)
 				}
 				return
+			} else {
+				slog.InfoContext(ctx, "Invalid S3 signature")
+				writeS3ErrorAccessDeniedResponse(ctx, w)
+				return
 			}
-			slog.InfoContext(ctx, "Invalid S3 signature")
-			writeS3ErrorAccessDeniedResponse(ctx, w)
-			return
-	
 		} else {
 			accessKeyId, sessionToken, err := getCredentialsFromRequest(r)
 			if err != nil {
@@ -250,7 +249,7 @@ func (hb handlerBuilder) Build(presigned bool) (http.HandlerFunc) {
 				writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
 				return
 			}
-			secretAccessKey := CalculateSecretKey(accessKeyId, signingKey)
+			secretAccessKey := credentials.CalculateSecretKey(accessKeyId, signingKey)
 			backupContentLength := r.ContentLength
 			//There is no use of passing the headers that are set by a proxy and which we haven't verified.
 			cleanHeadersThatAreNotSignedInAuthHeader(ctx, r)
@@ -268,10 +267,11 @@ func (hb handlerBuilder) Build(presigned bool) (http.HandlerFunc) {
 			}
 			calculatedSignature := clonedReq.Header.Get(constants.AuthorizationHeader) 
 			passedSignature := r.Header.Get(constants.AuthorizationHeader)
+			//Cleaning could have removed content length
+			r.ContentLength = backupContentLength
+
 			if calculatedSignature == passedSignature {
 				slog.DebugContext(ctx, "Valid signature")
-				//Cleaning could have removed content length
-				r.ContentLength = backupContentLength
 
 				var defaultBackend = ""
 				if globalBackendsConfig != nil {

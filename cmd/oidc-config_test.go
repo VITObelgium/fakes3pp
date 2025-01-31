@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/VITObelgium/fakes3pp/aws/service/sts/session"
 	"github.com/golang-jwt/jwt/v5"
 )
 
@@ -163,12 +164,12 @@ func NewTestPolicyManagerAllowAll() *PolicyManager {
 
 func CreateTestingToken() (*jwt.Token) {
 	pm = *NewTestPolicyManagerAllowAll()
-	return createRS256PolicyToken(testFakeIssuer, testEgiIssuer, testSubject, testPolicyAllowAllARN,20 * time.Minute, AWSSessionTags{})
+	return createRS256PolicyToken(testFakeIssuer, testEgiIssuer, testSubject, testPolicyAllowAllARN,20 * time.Minute, session.AWSSessionTags{})
 }
 
 func CreateTestingTokenWithNoAccess() (*jwt.Token) {
 	pm = *NewTestPolicyManagerAllowAll()
-	return createRS256PolicyToken(testFakeIssuer, testEgiIssuer, testSubject, testPolicyNoPermissionsARN,20 * time.Minute, AWSSessionTags{})
+	return createRS256PolicyToken(testFakeIssuer, testEgiIssuer, testSubject, testPolicyNoPermissionsARN,20 * time.Minute, session.AWSSessionTags{})
 }
 
 func CreateSignedTestingToken() (string, error) {

@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/VITObelgium/fakes3pp/s3/api"
+	"github.com/VITObelgium/fakes3pp/aws/service/s3/api"
 	"github.com/micahhausler/aws-iam-policy/policy"
 )
 

@@ -32,6 +32,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/VITObelgium/fakes3pp/aws/credentials"
+	"github.com/VITObelgium/fakes3pp/aws/service/sts/session"
 	"github.com/VITObelgium/fakes3pp/middleware"
 	"github.com/VITObelgium/fakes3pp/requestctx"
 	jwt "github.com/golang-jwt/jwt/v5"
@@ -167,7 +169,7 @@ func registerStsRouter(router *mux.Router) {
 	stsRouter.PathPrefix("/").HandlerFunc(justLog)
 }
 
-func newProxyIssuedToken(subject, issuer, roleARN string, expiry time.Duration, tags AWSSessionTags) (token *jwt.Token) {
+func newProxyIssuedToken(subject, issuer, roleARN string, expiry time.Duration, tags session.AWSSessionTags) (token *jwt.Token) {
 	return createRS256PolicyToken(stsProxyIssuer, issuer, subject, roleARN, expiry, tags)
 }
 
@@ -312,7 +314,7 @@ func assumeRoleWithWebIdentity(ctx context.Context, w http.ResponseWriter, r *ht
 	
 	newToken := newProxyIssuedToken(subject, issuer, roleArn, *duration, claimsMap.Tags)
 
-	cred, err := NewAWSCredentials(newToken, *duration)
+	cred, err := credentials.NewAWSCredentials(newToken, *duration, getSigningKey)
 
 	if err != nil {
 		writeSTSErrorResponse(ctx, w, ErrSTSInternalError, err)

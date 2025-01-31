@@ -5,22 +5,20 @@ import (
 	"errors"
 	"time"
 
+	"github.com/VITObelgium/fakes3pp/aws/service/sts/session"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 )
 
-type AWSSessionTags struct {
-	PrincipalTags map[string][]string `json:"principal_tags"`
-	TransitiveTagKeys []string `json:"transitive_tag_keys,omitempty"`
-}
+
 
 type IDPClaims struct {
 	//The optional session tags
-	Tags AWSSessionTags `json:"https://aws.amazon.com/tags,omitempty"` 
+	Tags session.AWSSessionTags `json:"https://aws.amazon.com/tags,omitempty"` 
 	jwt.RegisteredClaims
 }
 
-func newIDPClaims(issuer, subject string, expiry time.Duration, tags AWSSessionTags) (*IDPClaims) {
+func newIDPClaims(issuer, subject string, expiry time.Duration, tags session.AWSSessionTags) (*IDPClaims) {
 	return &IDPClaims{
 		tags,
 		jwt.RegisteredClaims{
@@ -42,7 +40,7 @@ type SessionClaims struct {
 	IDPClaims
 }
 
-func createRS256PolicyToken(issuer, iIssuer, subject, roleARN string, expiry time.Duration, tags AWSSessionTags) (*jwt.Token) {
+func createRS256PolicyToken(issuer, iIssuer, subject, roleARN string, expiry time.Duration, tags session.AWSSessionTags) (*jwt.Token) {
 	claims := &SessionClaims{
 		roleARN,
 		iIssuer,

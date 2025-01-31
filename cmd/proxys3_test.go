@@ -10,12 +10,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/VITObelgium/fakes3pp/aws/credentials"
 	"github.com/VITObelgium/fakes3pp/logging"
 	"github.com/VITObelgium/fakes3pp/presign"
 	"github.com/VITObelgium/fakes3pp/requestctx"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/spf13/viper"
 )
@@ -84,7 +86,7 @@ func TestValidPreSignWithTempCreds(t *testing.T) {
 	}
 	creds := aws.Credentials{
 		AccessKeyID: "myAccessKeyId",
-		SecretAccessKey: CalculateSecretKey(accessKeyId, key),
+		SecretAccessKey: credentials.CalculateSecretKey(accessKeyId, key),
 		SessionToken: "Incredibly secure",
 	}
 
@@ -201,13 +203,7 @@ func adapterCredentialsToCredentialsProvider(creds aws.Credentials) aws.Credenti
 	}
 }
 
-func adapterAwsCredentialsToCredentials(creds AWSCredentials) aws.Credentials {
-	return aws.Credentials{
-		AccessKeyID: creds.AccessKey,
-		SecretAccessKey: creds.SecretKey,
-		SessionToken: creds.SessionToken,
-	}
-}
+
 
 
 func getS3ClientAgainstS3Proxy(t testing.TB, region string, creds aws.Credentials) (*s3.Client) {
@@ -223,6 +219,10 @@ func getS3ClientAgainstS3Proxy(t testing.TB, region string, creds aws.Credential
 	return client
 }
 
+func NewAWSCredentials(t *jwt.Token, d time.Duration) (*credentials.AWSCredentials, error){
+	return credentials.NewAWSCredentials(t, d, getSigningKey)
+}
+
 func TestWithValidCredsButNoAccess(t *testing.T) {
 	teardownSuite := setupSuiteProxyS3(t, testStubJustProxy)
 	defer teardownSuite(t)
@@ -233,7 +233,7 @@ func TestWithValidCredsButNoAccess(t *testing.T) {
 		t.Error(err)
 	}
 
-	client := getS3ClientAgainstS3Proxy(t, "eu-west-1", adapterAwsCredentialsToCredentials(*cred))
+	client := getS3ClientAgainstS3Proxy(t, "eu-west-1", credentials.ToAwsSDKCredentials(*cred))
 	
 	max1Sec, cancel := context.WithTimeout(context.Background(), 1000 * time.Second)
 	testPrefix := testAllowedPrefix

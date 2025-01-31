@@ -3,6 +3,7 @@ package requestctx
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -62,6 +63,9 @@ type RequestCtx struct{
 	//miscData to track data that is set by certain middleware and consumed by
 	//other middleware.
 	data map[string]any
+
+	//The API operation
+	Operation fmt.Stringer
 }
 
 func (c *RequestCtx)AddAccessLogInfo(groupName string, attrs... slog.Attr) {
@@ -70,6 +74,25 @@ func (c *RequestCtx)AddAccessLogInfo(groupName string, attrs... slog.Attr) {
 		existing_group = []slog.Attr{}
 	}
 	c.accessLogAttrs[groupName] = append(existing_group, attrs...)
+}
+
+func SetOperation(r *http.Request, operation fmt.Stringer) {
+	if rCtx := get(r); rCtx != nil {
+		rCtx.Operation = operation
+		return		
+	}
+	slog.Error(
+		"Attempting to set operation without existing request context",
+		"request", r,
+		"operation", operation.String(),
+	)
+}
+
+func GetOperation(r *http.Request) fmt.Stringer{
+	if rCtx := get(r); rCtx != nil {
+		return rCtx.Operation
+	}
+	return nil
 }
 
 func get(r *http.Request) *RequestCtx {

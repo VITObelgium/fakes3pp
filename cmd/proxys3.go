@@ -119,28 +119,38 @@ const SlashSeparator = "/"
 //that sends the request upstream and passes back the response.
 func registerS3Router(router *mux.Router, proxyHB handlerBuilderI) {
 	s3Router := router.NewRoute().PathPrefix(SlashSeparator).Subrouter()
-
-	s3Router.Methods(http.MethodGet).Queries("list-type", "2").HandlerFunc(proxyHB.Build(api.ListObjectsV2, false)	)
+	s3Router.Methods(http.MethodGet).Queries("list-type", "2").HandlerFunc(
+		middleware.Chain(proxyHB.Build(false), middleware.RegisterOperation(api.ListObjectsV2)),	
+	)
 	s3Router.Methods(http.MethodGet).Queries(
 		"Signature", "{sig:.*}",
 		"x-amz-security-token", "{xast:.*}",
 		"AWSAccessKeyId", "{akid:.*}",
-	).HandlerFunc(proxyHB.Build(api.GetObject, true))
+	).HandlerFunc(middleware.Chain(proxyHB.Build(true), middleware.RegisterOperation(api.GetObject)))
 	s3Router.Methods(http.MethodGet).Queries("X-Amz-Algorithm", "{alg:.*}", "X-Amz-Signature", "{sig:.*}").HandlerFunc(
-		proxyHB.Build(api.GetObject, true)) //TODO: Fix matching to really be GetObject
-	s3Router.Methods(http.MethodGet).Path("/").HandlerFunc(proxyHB.Build(api.ListBuckets, false))
-	s3Router.Methods(http.MethodGet).HandlerFunc(proxyHB.Build(api.GetObject, false))
-	s3Router.Methods(http.MethodHead).Path("/").HandlerFunc(proxyHB.Build(api.HeadBucket, false))
-	s3Router.Methods(http.MethodHead).HandlerFunc(proxyHB.Build(api.HeadObject, false))
+		middleware.Chain(proxyHB.Build(true), middleware.RegisterOperation(api.GetObject))) //TODO: Fix matching to really be GetObject
+	s3Router.Methods(http.MethodGet).Path("/").HandlerFunc(
+		middleware.Chain(proxyHB.Build(false), middleware.RegisterOperation(api.ListBuckets)))
+	s3Router.Methods(http.MethodGet).HandlerFunc(
+		middleware.Chain(proxyHB.Build(false), middleware.RegisterOperation(api.GetObject)))
+	s3Router.Methods(http.MethodHead).Path("/").HandlerFunc(
+		middleware.Chain(proxyHB.Build(false), middleware.RegisterOperation(api.HeadBucket)))
+	s3Router.Methods(http.MethodHead).HandlerFunc(
+		middleware.Chain(proxyHB.Build(false), middleware.RegisterOperation(api.HeadObject)))
 
-	s3Router.Methods(http.MethodPut).Queries("partNumber", "{pn:.*}", "uploadId", "{ui:.*}").HandlerFunc(proxyHB.Build(api.UploadPart, false))
-	s3Router.Methods(http.MethodPut).HandlerFunc(proxyHB.Build(api.PutObject, false))
+	s3Router.Methods(http.MethodPut).Queries("partNumber", "{pn:.*}", "uploadId", "{ui:.*}").HandlerFunc(
+		middleware.Chain(proxyHB.Build(false), middleware.RegisterOperation(api.UploadPart)))
+	s3Router.Methods(http.MethodPut).HandlerFunc(
+		middleware.Chain(proxyHB.Build(false), middleware.RegisterOperation(api.PutObject)))
 
 	// https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html
-	s3Router.Methods(http.MethodPost).Queries("uploads", "").HandlerFunc(proxyHB.Build(api.CreateMultipartUpload, false))
-	s3Router.Methods(http.MethodPost).Queries("uploadId", "{id:.*}").HandlerFunc(proxyHB.Build(api.CompleteMultipartUpload, false))
+	s3Router.Methods(http.MethodPost).Queries("uploads", "").HandlerFunc(
+		middleware.Chain(proxyHB.Build(false), middleware.RegisterOperation(api.CreateMultipartUpload)))
+	s3Router.Methods(http.MethodPost).Queries("uploadId", "{id:.*}").HandlerFunc(
+		middleware.Chain(proxyHB.Build(false), middleware.RegisterOperation(api.CompleteMultipartUpload)))
 
-	s3Router.Methods(http.MethodDelete).Queries("uploadId", "{id:.*}").HandlerFunc(proxyHB.Build(api.AbortMultipartUpload, false))
+	s3Router.Methods(http.MethodDelete).Queries("uploadId", "{id:.*}").HandlerFunc(
+		middleware.Chain(proxyHB.Build(false), middleware.RegisterOperation(api.AbortMultipartUpload)))
 
 	s3Router.PathPrefix("/").HandlerFunc(justLog)
 	s3Router.NewRoute().HandlerFunc(justLog)

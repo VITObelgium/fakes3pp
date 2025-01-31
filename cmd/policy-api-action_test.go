@@ -16,11 +16,12 @@ type StubJustReturnApiAction struct{
 
 var globalLastApiActionStubJustReturnApiAction api.S3Operation = api.UnknownOperation
 
-func (p *StubJustReturnApiAction) Build(action api.S3Operation, presigned bool) http.HandlerFunc{
+func (p *StubJustReturnApiAction) Build(presigned bool) http.HandlerFunc{
 	return func (w http.ResponseWriter, r *http.Request)  {
 		//AWS CLI expects certain structure for ok responses
 		//For error we could use the message field to pass a message regardless
 		//of the api action
+		action := getS3Action(r)
 		globalLastApiActionStubJustReturnApiAction = action
 		writeS3ErrorResponse(
 			requestctx.NewContextFromHttpRequest(r),

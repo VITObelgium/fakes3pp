@@ -23,7 +23,7 @@ import (
 
 type handlerBuilderI interface {
 	//Takes S3ApiAction and whether it is a presigned request
-	Build(api.S3Operation, bool) http.HandlerFunc
+	Build(bool) http.HandlerFunc
 }
 
 // A handler builder builds http handlers
@@ -159,8 +159,16 @@ func getCutoffForPresignedUrl() time.Time {
 	)
 }
 
+func getS3Action(r *http.Request) (api.S3Operation) {
+	action, actionOk := requestctx.GetOperation(r).(api.S3Operation)
+	if !actionOk{
+		slog.WarnContext(r.Context(), "Could not get operation for authorization")
+		action = api.UnknownOperation
+	}
+	return action
+}
 
-func (hb handlerBuilder) Build(action api.S3Operation, presigned bool) (http.HandlerFunc) {
+func (hb handlerBuilder) Build(presigned bool) (http.HandlerFunc) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		if presigned { //TODO: will become cleaner after refactoring and breaking up this method
@@ -220,7 +228,7 @@ func (hb handlerBuilder) Build(action api.S3Operation, presigned bool) (http.Han
 
 				//To have a valid signature
 				r.Header.Add(constants.AmzContentSHAKey, constants.EmptyStringSHA256)
-				if authorizeS3Action(ctx, creds.SessionToken, targetBackendId, action, w, r, getCutoffForPresignedUrl()){
+				if authorizeS3Action(ctx, creds.SessionToken, targetBackendId, getS3Action(r), w, r, getCutoffForPresignedUrl()){
 					hb.proxyFunc(ctx, w, r, targetBackendId)
 				}
 				return
@@ -274,7 +282,7 @@ func (hb handlerBuilder) Build(action api.S3Operation, presigned bool) (http.Han
 	            targetRegion := requestutils.GetRegionFromRequest(r, defaultBackend)
 
 				//Authn done time to perform authorization				
-				if authorizeS3Action(ctx, creds.SessionToken, targetRegion, action, w, r, time.Now().UTC()){
+				if authorizeS3Action(ctx, creds.SessionToken, targetRegion, getS3Action(r), w, r, time.Now().UTC()){
 					hb.proxyFunc(ctx, w, r, targetRegion)
 				}
 				return

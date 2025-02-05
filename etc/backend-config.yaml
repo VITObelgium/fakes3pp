@@ -9,11 +9,11 @@ s3backends:
   # * endpoint should be protocol and hostname of how to reach the backend S3 API
   - region: waw3-1
     credentials:
-      file: ../etc/creds/cfc_creds.yaml
+      file: ../../../etc/creds/cfc_creds.yaml
     endpoint: https://s3.waw3-1.cloudferro.com
   - region: eu-nl
     credentials:
-      file: ../etc/creds/otc_creds.yaml
+      file: ../../../etc/creds/otc_creds.yaml
     endpoint: https://obs.eu-nl.otc.t-systems.com
 # The default backend is the backend that will be used if the system cannot determine which backend is intended.
 # When using multiple backends sigv4 presigned URLs should be preferred as they do contain the region in the 

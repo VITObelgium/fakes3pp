@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/VITObelgium/fakes3pp/utils"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	jwt "github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -23,6 +24,15 @@ type AWSCredentials struct {
 	SecretKey    string                 `xml:"SecretAccessKey" json:"secretKey,omitempty" yaml:"secretKey"`
 	SessionToken string                 `xml:"SessionToken" json:"sessionToken,omitempty" yaml:"sessionToken"`
 	Expiration   time.Time              `xml:"Expiration" json:"expiration,omitempty" yaml:"-"`
+}
+
+func FromAwsFormat(creds aws.Credentials) *AWSCredentials {
+	return &AWSCredentials{
+		AccessKey: creds.AccessKeyID,
+		SecretKey: creds.SecretAccessKey,
+		SessionToken: creds.SessionToken,
+		Expiration: creds.Expires,
+	}
 }
 
 var ErrInvalidSecretKey = errors.New("invalid secret access key")
@@ -53,8 +63,8 @@ func (cred *AWSCredentials) isValid(signingKey *rsa.PrivateKey) (error) {
 	return nil
 }
 
-func (cred *AWSCredentials) IsValid(getSigningKey getSigningKey) (error) {
-	key, err := getSigningKey()
+func (cred *AWSCredentials) IsValid(keyStorage utils.PrivateKeyKeeper) (error) {
+	key, err := keyStorage.GetPrivateKey()
 	if err != nil {
 		return err
 	}
@@ -77,11 +87,9 @@ func CalculateSecretKey(accessKey string, signingkey *rsa.PrivateKey) (string) {
     return base64.URLEncoding.EncodeToString(hasher.Sum([]byte(toHash)))[0:secretKeyLength]
 }
 
-type getSigningKey func() (*rsa.PrivateKey, error)
-
 //Generate New AWS Credentials out of a JWT and a specified duration
-func NewAWSCredentials(token *jwt.Token, expiry time.Duration, getSigningKey getSigningKey) (*AWSCredentials, error) {
-	key, err := getSigningKey()
+func NewAWSCredentials(token *jwt.Token, expiry time.Duration, keyStorage utils.PrivateKeyKeeper) (*AWSCredentials, error) {
+	key, err := keyStorage.GetPrivateKey()
 	if err != nil {
 		return nil, err
 	}

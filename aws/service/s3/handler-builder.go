@@ -164,15 +164,8 @@ func (hb handlerBuilder) Build(presigned bool, backendManager interfaces.Backend
 			var isValid bool
 			var expires time.Time
 
-			signingKey, err := keyStorage.GetPrivateKey()
-			if err != nil {
-				slog.ErrorContext(ctx, "Could not get signing key", "error", err)
-				writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
-				return
-			}
-
 			var secretDeriver = func(accessKeyId string) (secretAccessKey string, err error) {
-				return credentials.CalculateSecretKey(accessKeyId, signingKey), nil
+				return credentials.CalculateSecretKey(accessKeyId, keyStorage)
 			}
 
 			presignedUrl, err := presign.MakePresignedUrl(r)
@@ -222,13 +215,12 @@ func (hb handlerBuilder) Build(presigned bool, backendManager interfaces.Backend
 				writeS3ErrorResponse(ctx, w, ErrS3InvalidAccessKeyId, err)
 				return
 			}
-			signingKey, err := keyStorage.GetPrivateKey()
+			secretAccessKey, err := credentials.CalculateSecretKey(accessKeyId, keyStorage)
 			if err != nil {
-				slog.ErrorContext(ctx, "Could not get signing key", "error", err)
+				slog.ErrorContext(ctx, "Could not calculate secret key", "error", err)
 				writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
 				return
 			}
-			secretAccessKey := credentials.CalculateSecretKey(accessKeyId, signingKey)
 			backupContentLength := r.ContentLength
 			//There is no use of passing the headers that are set by a proxy and which we haven't verified.
 			cleanHeadersThatAreNotSignedInAuthHeader(ctx, r)

@@ -2,7 +2,6 @@ package credentials
 
 import (
 	"context"
-	"crypto/rsa"
 	"crypto/sha1"
 	"encoding/base64"
 	"errors"
@@ -39,21 +38,29 @@ var ErrInvalidSecretKey = errors.New("invalid secret access key")
 var ErrExpiredAwsCredentials = errors.New("expired credentials")
 
 //Check whether an AWSCredential for the proxy is valid
-func (cred *AWSCredentials) isValid(signingKey *rsa.PrivateKey) (error) {
+func (cred *AWSCredentials) isValid(keyStorage utils.PrivateKeyKeeper) (error) {
 	if cred.Expiration.Before(time.Now().UTC()) {
 		return ErrExpiredAwsCredentials
 	}
 
 	//Are credentials itself valid
-	calculatedSecretKey := CalculateSecretKey(cred.AccessKey, signingKey)
+	calculatedSecretKey, err := CalculateSecretKey(cred.AccessKey, keyStorage)
+	if err != nil {
+		return err
+	}
 	if calculatedSecretKey != cred.SecretKey {
 		return ErrInvalidSecretKey
+	}
+
+	signingkey, err := keyStorage.GetPrivateKey()
+	if err != nil {
+		return err
 	}
 
 	//Is SessionToken valid
 	claims := jwt.MapClaims{}
 	keyFunc := func (t *jwt.Token) (interface{}, error)  {
-		return &signingKey.PublicKey, nil
+		return &signingkey.PublicKey, nil
 	}
 
 	if _, err := jwt.ParseWithClaims(cred.SessionToken, claims, keyFunc); err != nil {
@@ -64,11 +71,7 @@ func (cred *AWSCredentials) isValid(signingKey *rsa.PrivateKey) (error) {
 }
 
 func (cred *AWSCredentials) IsValid(keyStorage utils.PrivateKeyKeeper) (error) {
-	key, err := keyStorage.GetPrivateKey()
-	if err != nil {
-		return err
-	}
-	return cred.isValid(key)
+	return cred.isValid(keyStorage)
 }
 
 
@@ -80,11 +83,15 @@ func NewAccessKey() (string) {
 //Probably not how AWS or another S3* service calculates the secret key but it doesn't really matter
 //As we never pass this on upstream. But we chose to be able to derive the key using a shared secret
 //since that allows calculation everywhere without keeping state to lookup secret key for an access key
-func CalculateSecretKey(accessKey string, signingkey *rsa.PrivateKey) (string) {
+func CalculateSecretKey(accessKey string, keyStorage utils.PrivateKeyKeeper) (string, error) {
 	secretKeyLength := 42
 	hasher := sha1.New()
+	signingkey, err := keyStorage.GetPrivateKey()
+	if err != nil {
+		return "", err
+	}
 	toHash := fmt.Sprintf("%s%s", accessKey, signingkey.D.String())
-    return base64.URLEncoding.EncodeToString(hasher.Sum([]byte(toHash)))[0:secretKeyLength]
+    return base64.URLEncoding.EncodeToString(hasher.Sum([]byte(toHash)))[0:secretKeyLength], nil
 }
 
 //Generate New AWS Credentials out of a JWT and a specified duration
@@ -98,7 +105,10 @@ func NewAWSCredentials(token *jwt.Token, expiry time.Duration, keyStorage utils.
 		return nil, err
 	}
 	accessKey := NewAccessKey()
-	secretKey := CalculateSecretKey(accessKey, key)
+	secretKey, err := CalculateSecretKey(accessKey, keyStorage)
+	if err != nil {
+		return nil, err
+	}
 	cred := &AWSCredentials{
 		AccessKey: accessKey,
 		SecretKey: secretKey,

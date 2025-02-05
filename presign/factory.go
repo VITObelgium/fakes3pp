@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"time"
 
 	url "github.com/VITObelgium/fakes3pp/requestutils"
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -23,7 +24,7 @@ func MakePresignedUrl(r *http.Request) (u PresignedUrl, err error) {
 	return nil, fmt.Errorf("unsupported presign request; %s", url.FullUrlFromRequest(r))
 }
 
-func IsPresignedUrlWithValidSignature(ctx context.Context, url string, creds aws.Credentials) (isValid bool, err error) {
+func IsPresignedUrlWithValidSignature(ctx context.Context, url string, creds aws.Credentials) (isValid, isExpired bool, err error) {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return
@@ -39,6 +40,7 @@ func IsPresignedUrlWithValidSignature(ctx context.Context, url string, creds aws
 		}
 		return creds.SecretAccessKey, nil
 	} 
-	isValid, _, _, err = purl.GetPresignedUrlDetails(ctx, secretDeriver)
+	isValid, _, expires, err := purl.GetPresignedUrlDetails(ctx, secretDeriver)
+	isExpired = time.Now().UTC().After(expires)
 	return
 }

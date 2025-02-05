@@ -19,6 +19,10 @@ func CreateTempTestCopy(t testing.TB, filepath string) (filepathCopy string) {
 		t.FailNow()
 	}
 	defer copyFile.Close()
-	io.Copy(copyFile, f)
+	_, err = io.Copy(copyFile, f)
+	if err != nil {
+		t.Error("Got an error when copying a test file", "error", err, "filepath", filepath)
+		t.FailNow()
+	}
 	return copyFile.Name()
 }

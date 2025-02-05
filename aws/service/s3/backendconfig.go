@@ -4,16 +4,18 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path"
 	"strings"
 
 	"github.com/VITObelgium/fakes3pp/aws/service/s3/interfaces"
+	"github.com/VITObelgium/fakes3pp/utils"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"sigs.k8s.io/yaml"
 )
 
 type backendConfigFileEntry struct {
   RegionName string             `yaml:"region" json:"region"`
-  Credentials map[string]string `yaml:"credentials" json:"credentials"`
+  Credentials map[string]any `yaml:"credentials" json:"credentials"`
   Endpoint string               `yaml:"endpoint" json:"endpoint"`
 }
 
@@ -24,21 +26,45 @@ type awsBackendCredentialFile struct {
 	SessionToken string                 `yaml:"aws_session_token,omitempty" json:"aws_session_token,omitempty"`
 }
 
+func buildCredentialErrorf(msg string, a... any) (ccreds aws.Credentials, err error) {
+	return aws.Credentials{}, fmt.Errorf(msg, a...)
+}
+
+//Try to get a string out of a map that has any values and return empty string if not a valid string
+func lookupString(m map[string]any, key string) (string) {
+	v, ok := m[key]
+	if !ok {
+		return ""
+	}
+	s, ok := v.(string)
+	if !ok {
+		return ""
+	}
+	return s
+}
+
 //The config file could host different types of credentials. Check cases 1 by one
 //and fail if there was no valid type of credentials found
-func (entry backendConfigFileEntry) getCredentials() (creds aws.Credentials, err error) {
-	filePath, ok := entry.Credentials["file"]
+func (entry backendConfigFileEntry) getCredentials(relativepath string) (creds aws.Credentials, err error) {
+	fileEntry, ok := entry.Credentials["file"]
 	if ok {
+		filePath, ok := fileEntry.(string)
+		if !ok {
+			return buildCredentialErrorf("When providing a credential file it must be a string, got %v", fileEntry)
+		}
 		// We are indeed a file 
+		if !path.IsAbs(filePath) {
+			filePath = path.Join(relativepath, filePath)
+		}
 		buf, err := os.ReadFile(filePath)
 		if err != nil {
-			return creds, fmt.Errorf("could not read credentials file %s; %s", filePath, err)
+			return buildCredentialErrorf("could not read credentials file %s; %s", filePath, err)
 		}
 
 		c := &awsBackendCredentialFile{}
 		err = yaml.Unmarshal(buf, c)
 		if err != nil {
-			return creds, fmt.Errorf("error unmarshalling file %s; %s", filePath, err)
+			return buildCredentialErrorf("error unmarshalling file %s; %s", filePath, err)
 		}
 		if c.AccessKey == "" {
 			return creds, errors.New("invalid credentials file, missing access key")
@@ -54,6 +80,29 @@ func (entry backendConfigFileEntry) getCredentials() (creds aws.Credentials, err
 		}
 		return creds, nil
 	}
+	inlineEntry, ok := entry.Credentials["inline"]
+	if ok {
+		//Credentials will be inline
+		inlineMap, ok := inlineEntry.(map[string]any)
+		if !ok {
+			return buildCredentialErrorf("When providing inline credentials a map must be provided. %v", fileEntry)
+		}
+		accessKey := lookupString(inlineMap, "aws_access_key_id")
+		if accessKey == "" {
+			return buildCredentialErrorf("Must have a non empty access key")	
+		}
+		secretKey := lookupString(inlineMap, "aws_secret_access_key")
+		if secretKey == "" {
+			return buildCredentialErrorf("Must have a non empty secret key")	
+		}
+		sessionToken := lookupString(inlineMap, "aws_session_token")
+		return aws.Credentials{
+			AccessKeyID: accessKey,
+			SecretAccessKey: secretKey,
+			SessionToken: sessionToken,
+		}, nil
+
+	}
 	return creds, errors.New("unable to find a valid type of credentials")
 }
 
@@ -68,11 +117,12 @@ func getBackendsConfig(filename string, legacyBehavior bool) (*backendsConfig, e
 	if err != nil {
 		return nil, err
 	}
-	return getBackendsConfigFromBytes(buf, legacyBehavior)
+	_, relativepath := utils.GetFilenameAndRelativePath(filename)
+	return getBackendsConfigFromBytes(buf, legacyBehavior, relativepath)
 }
 
-//TODO: legacyBehavior
-func getBackendsConfigFromBytes(inputBytes []byte, legacyBehavior bool) (*backendsConfig, error) {
+//Process a backends configuration in bytes. Use the relativepath as a prefix for filepaths
+func getBackendsConfigFromBytes(inputBytes []byte, legacyBehavior bool, relativepath string) (*backendsConfig, error) {
 	c := &backendsConfigFile{}
 	err := yaml.Unmarshal(inputBytes, c)
 	if err != nil {
@@ -85,7 +135,7 @@ func getBackendsConfigFromBytes(inputBytes []byte, legacyBehavior bool) (*backen
 
 	for _, backendRawCfg := range c.Backends {
 		backendCfg := backendConfigEntry{}
-		err = backendCfg.fromBackendConfigFileEntry(backendRawCfg)
+		err = backendCfg.fromBackendConfigFileEntry(backendRawCfg, relativepath)
 		if err != nil {
 			return nil, fmt.Errorf("invalid config %v resulted in %s", backendRawCfg, err)
 		}
@@ -132,14 +182,14 @@ func (e endpoint) GetBaseURI() string {
 	return string(e)
 }
 
-func (bce *backendConfigEntry) fromBackendConfigFileEntry(input backendConfigFileEntry) error {
+func (bce *backendConfigEntry) fromBackendConfigFileEntry(input backendConfigFileEntry, relativepath string) error {
 	endpoint, err := buildEndpoint(input.Endpoint)
 	if err != nil {
 		return err
 	}
 	bce.endpoint = endpoint
 
-	awsCredentials, err := input.getCredentials()
+	awsCredentials, err := input.getCredentials(relativepath)
 	bce.credentials = awsCredentials
 	return err
 }

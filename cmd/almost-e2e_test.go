@@ -49,11 +49,16 @@ var testingBackendsConfig = []byte(fmt.Sprintf(`
 s3backends:
   - region: %s
     credentials:
-      file: ../etc/creds/cfc_creds.yaml
+      inline:
+        aws_access_key_id: fake_key_id
+        aws_secret_access_key: fake_secret
     endpoint: %s
   - region: %s
     credentials:
-      file: ../etc/creds/otc_creds.yaml
+      inline:
+        aws_access_key_id: fake_key_id_otc
+        aws_secret_access_key: fake_secret_otc
+        aws_session_token: fakeSessionTokOtc1
     endpoint: %s
 default: %s
 `, testRegion1, fakeTestBackends[testRegion1], testRegion2, fakeTestBackends[testRegion2], defaultBakendIdAlmostE2ETests))

@@ -13,13 +13,11 @@ import (
 
 	"github.com/VITObelgium/fakes3pp/aws/service/iam"
 	"github.com/VITObelgium/fakes3pp/aws/service/iam/actionnames"
-	iaminterfaces "github.com/VITObelgium/fakes3pp/aws/service/iam/interfaces"
 	"github.com/VITObelgium/fakes3pp/aws/service/s3/interfaces"
 	"github.com/VITObelgium/fakes3pp/middleware"
 	"github.com/VITObelgium/fakes3pp/requestctx"
 	"github.com/VITObelgium/fakes3pp/server"
 	"github.com/VITObelgium/fakes3pp/testutils"
-	"github.com/VITObelgium/fakes3pp/utils"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/micahhausler/aws-iam-policy/policy"
@@ -31,11 +29,17 @@ type StubJustReturnIamAction struct{
 
 var latestIamActionInStubReturnIamAction []iam.IAMAction = nil
 
-func (p *StubJustReturnIamAction) Build( presigned bool, backendManager interfaces.BackendManager, policyRetriever iaminterfaces.PolicyRetriever,
-	keyStorage utils.KeyPairKeeper, presignCutoff interfaces.CutoffDecider, vhi interfaces.VirtualHosterIdentifier) http.HandlerFunc{
+type noVirtualHostRequestsType struct{}
+func (_ *noVirtualHostRequestsType)IsVirtualHostingRequest(req *http.Request) (bool){
+	return false
+}
+
+var noVirtualHostRequests = &noVirtualHostRequestsType{}
+
+func (p *StubJustReturnIamAction) Build(backendManager interfaces.BackendManager) http.HandlerFunc{
 	return func (w http.ResponseWriter, r *http.Request)  {
 		action := getS3Action(r)
-		actions, err := newIamActionsFromS3Request(action, r, nil, vhi)
+		actions, err := newIamActionsFromS3Request(action, r, nil, noVirtualHostRequests)
 		if err != nil {
 			p.t.Error(err)
 			return

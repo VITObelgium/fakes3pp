@@ -34,7 +34,7 @@ func AWSAuthN(keyStorage utils.PrivateKeyKeeper, e service.ErrorReporter, backen
     return func(next http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			var shouldContinue bool
-			if isPresigned(r) {
+			if IsPresignedAWSRequest(r) {
 				shouldContinue = handleAuthNPresigned(w, r, keyStorage, e, backendManager)
 			} else {
 				shouldContinue = handleAuthNNormal(w, r, keyStorage, e, backendManager)
@@ -98,7 +98,7 @@ func handleAuthNPresigned(w http.ResponseWriter, r *http.Request, keyStorage uti
 	return true
 }
 
-func isPresigned(r *http.Request) (bool){
+func IsPresignedAWSRequest(r *http.Request) (bool){
 	queryValues := r.URL.Query()
 	if queryValues.Has("Signature") && queryValues.Has("x-amz-security-token") && queryValues.Has("AWSAccessKeyId") {
 		return true

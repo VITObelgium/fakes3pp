@@ -95,13 +95,6 @@ func newS3Server(
 	if err != nil {
 		return nil, err
 	}
-
-	if mws == nil || len(mws) == 0 {
-		mws = []middleware.Middleware{
-			RegisterOperation(),
-			middleware.AWSAuthN(key, s3ErrorReporterInstance, s3BackendManager),
-		}
-	}
 	
 	s = &S3Server{
 		jwtKeyMaterial: key,
@@ -115,6 +108,15 @@ func newS3Server(
 		s3BackendManager: s3BackendManager,
 		mws: mws,
 	}
+
+	if len(mws) == 0 {
+		mws = []middleware.Middleware{
+			RegisterOperation(),
+			middleware.AWSAuthN(key, s3ErrorReporterInstance, s3BackendManager),
+			AWSAuthZS3(key, s3BackendManager, pm, s, s), 
+		}
+	}
+	s.mws = mws
 	return s, nil
 }
 
@@ -160,62 +162,8 @@ func (s *S3Server) GetTls() (enabled bool, certFile string, keyFile string) {
 //For real cases the proxyHB HandlerBuilder should build a handler function
 //that sends the request upstream and passes back the response.
 func (s *S3Server) RegisterRoutes(router *mux.Router) error {
-	normalAuthHandler := s.proxyHB.Build(
-		false,
-		s.s3BackendManager,
-		s.pm,
-		s.jwtKeyMaterial,
-		s,
-		s,
-	)
-	presignAuthHandler := s.proxyHB.Build(
-		true,
-		s.s3BackendManager,
-		s.pm,
-		s.jwtKeyMaterial,
-		s,
-		s,
-	)
+	h := s.proxyHB.Build(s.s3BackendManager)
 
-	s3Router := router.NewRoute().PathPrefix(server.SlashSeparator).Subrouter()
-	s3Router.Methods(http.MethodGet).Queries("list-type", "2").HandlerFunc(
-		middleware.Chain(normalAuthHandler, s.mws...),	
-	)
-	s3Router.Methods(http.MethodGet).Queries(
-		"Signature", "{sig:.*}",
-		"x-amz-security-token", "{xast:.*}",
-		"AWSAccessKeyId", "{akid:.*}",
-	).HandlerFunc(middleware.Chain(presignAuthHandler, s.mws...))
-	s3Router.Methods(http.MethodGet).Queries("X-Amz-Algorithm", "{alg:.*}", "X-Amz-Signature", "{sig:.*}").HandlerFunc(
-		middleware.Chain(presignAuthHandler, s.mws...)) //TODO: Fix matching to really be GetObject
-	s3Router.Methods(http.MethodGet).Path("/").HandlerFunc(
-		middleware.Chain(normalAuthHandler, s.mws...))
-	s3Router.Methods(http.MethodGet).HandlerFunc(
-		middleware.Chain(normalAuthHandler, s.mws...))
-	s3Router.Methods(http.MethodHead).Path("/").HandlerFunc(
-		middleware.Chain(normalAuthHandler, s.mws...))
-	s3Router.Methods(http.MethodHead).HandlerFunc(
-		middleware.Chain(normalAuthHandler, s.mws...))
-
-	s3Router.Methods(http.MethodPut).Queries("partNumber", "{pn:.*}", "uploadId", "{ui:.*}").HandlerFunc(
-		middleware.Chain(normalAuthHandler, s.mws...))
-	s3Router.Methods(http.MethodPut).HandlerFunc(
-		middleware.Chain(normalAuthHandler, s.mws...))
-
-	// https://docs.aws.amazon.com/AmazonS3/latest/API/API_CreateMultipartUpload.html
-	s3Router.Methods(http.MethodPost).Queries("uploads", "").HandlerFunc(
-		middleware.Chain(normalAuthHandler, s.mws...))
-	s3Router.Methods(http.MethodPost).Queries("uploadId", "{id:.*}").HandlerFunc(
-		middleware.Chain(normalAuthHandler, s.mws...))
-
-	s3Router.Methods(http.MethodDelete).Queries("uploadId", "{id:.*}").HandlerFunc(
-		middleware.Chain(normalAuthHandler, s.mws...))
-
-	s3Router.PathPrefix("/").HandlerFunc(justLog)
-	s3Router.NewRoute().HandlerFunc(justLog)
+	router.NewRoute().HandlerFunc(middleware.Chain(h, s.mws...))
 	return nil
-}
-
-func justLog(w http.ResponseWriter, r *http.Request) {
-	slog.InfoContext(r.Context(), "Unknown/Unsupported type of operation")
 }

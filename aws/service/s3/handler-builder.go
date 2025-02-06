@@ -8,10 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
-
-	"github.com/aws/aws-sdk-go-v2/aws"
 
 	"github.com/VITObelgium/fakes3pp/aws/credentials"
 	"github.com/VITObelgium/fakes3pp/aws/service/iam"
@@ -21,7 +18,6 @@ import (
 	"github.com/VITObelgium/fakes3pp/constants"
 	"github.com/VITObelgium/fakes3pp/presign"
 	"github.com/VITObelgium/fakes3pp/requestctx"
-	"github.com/VITObelgium/fakes3pp/requestutils"
 	"github.com/VITObelgium/fakes3pp/utils"
 )
 
@@ -32,46 +28,6 @@ type handlerBuilder struct {
 }
 
 var justProxied interfaces.HandlerBuilderI = handlerBuilder{proxyFunc: justProxy}
-
-
-//For requests the access key and token are send over the wire
-func getCredentialsFromRequest(r *http.Request) (accessKeyId, sessionToken string, err error) {
-	sessionToken = r.Header.Get(constants.AmzSecurityTokenKey)
-	accessKeyId, err = requestutils.GetSignatureCredentialPartFromRequest(r, requestutils.CredentialPartAccessKeyId)
-	return
-}
-
-const signedHeadersPrefix = "SignedHeaders="
-
-func getSignedHeadersFromRequest(ctx context.Context, req *http.Request) (signedHeaders map[string]string) {
-	signedHeaders = map[string]string{}
-	ah := req.Header.Get(constants.AuthorizationHeader)
-	if ah == "" {
-		return
-	}
-	authorizationParts := strings.Split(ah, ", ")
-	if len(authorizationParts) != 3 {
-		slog.WarnContext(ctx, "Signature not as expected", "got", ah)
-	}
-	signedHeadersPart := authorizationParts[1]
-	if !strings.HasPrefix(signedHeadersPart, signedHeadersPrefix) {
-		slog.WarnContext(ctx, "Signature did not have expected signed headers prefix", "got", ah)
-	}
-	signedHeadersPart = signedHeadersPart[len(signedHeadersPrefix):]
-	for _, signedHeader := range strings.Split(signedHeadersPart, ";") {
-		signedHeaders[signedHeader] = ""
-	}
-	return signedHeaders
-}
-
-//cleanHeadersThatAreNotSignedInAuthHeader removes headers which are potentially added along the way
-//
-func cleanHeadersThatAreNotSignedInAuthHeader(ctx context.Context, req *http.Request) {
-	signedHeaders := getSignedHeadersFromRequest(ctx, req)
-
-	presign.CleanHeadersTo(ctx, req, signedHeaders)
-}
-
 
 
 // Authorize an S3 action
@@ -151,116 +107,44 @@ func (hb handlerBuilder) Build(presigned bool, backendManager interfaces.Backend
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
-		if !presigned { //TODO: will become cleaner after refactoring and breaking up this method
-			if r.Header.Get(constants.AuthorizationHeader) == "" {
-				requestctx.AddAccessLogInfo(r, "s3", slog.String("AuthType", "-"))
-			} else {
-				requestctx.AddAccessLogInfo(r, "s3", slog.String("AuthType", "AuthHeader"))
-			}
+
+		targetRegion, err := requestctx.GetTargetRegion(r)
+		if err != nil {
+			writeS3ErrorResponse(ctx, w, ErrS3InternalError, errors.New("could not get target region from requestctx"))
+			return
 		}
-
 		if presigned {
-			//bool to track whether signature was ok
-			var isValid bool
-			var expires time.Time
-
-			var secretDeriver = func(accessKeyId string) (secretAccessKey string, err error) {
-				return credentials.CalculateSecretKey(accessKeyId, keyStorage)
-			}
-
-			presignedUrl, err := presign.MakePresignedUrl(r)
-			if err != nil {
-				slog.ErrorContext(ctx, "Could not get presigned url", "error", err)
-				writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
-				return
-			}
-			isValid, creds, expires, err:= presignedUrl.GetPresignedUrlDetails(ctx, secretDeriver)
-			if err != nil {
-				slog.ErrorContext(ctx, "Error geting details of presigned url", "error", err)
-				writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
-				return
-			}
-
-			// If url has gone passed expiry time (under user control)
-			if expires.Before(time.Now().UTC()) {
-				slog.InfoContext(ctx, "Encountered expired URL", "expires", expires)
-				writeS3ErrorResponse(ctx, w, ErrS3InvalidSignature, errors.New("expired URL"))
-				return
-			}
 			
-			if isValid{
-				targetBackendId := requestutils.GetRegionFromRequest(r, backendManager.GetDefaultBackend())
-				//Then make sure query parameters are no longer passed otherwise you can get 'InvalidAccessKeyId'
-				queryPart := fmt.Sprintf("?%s", r.URL.RawQuery)
-				r.RequestURI = strings.Replace(r.RequestURI, queryPart, "", 1)
-				r.URL.RawQuery = ""
+				// if isValid{
 
-				cleanHeadersThatAreNotSignedInAuthHeader(ctx, r)
 
-				//To have a valid signature
-				r.Header.Add(constants.AmzContentSHAKey, constants.EmptyStringSHA256)
-				if authorizeS3Action(ctx, creds.SessionToken, targetBackendId, getS3Action(r), w, r, presignCutoff.GetCutoffForPresignedUrl(), keyStorage, policyRetriever, vhi){
-					hb.proxyFunc(ctx, w, r, targetBackendId, backendManager)
+				sessionToken, err := requestctx.GetSessionToken(r)
+				if err != nil {
+					writeS3ErrorResponse(ctx, w, ErrS3InternalError, errors.New("could not get session token from requestctx"))
+					return
 				}
-				return
-			} else {
-				slog.InfoContext(ctx, "Invalid S3 signature")
-				writeS3ErrorAccessDeniedResponse(ctx, w)
-				return
-			}
-		} else {
-			accessKeyId, sessionToken, err := getCredentialsFromRequest(r)
-			if err != nil {
-				slog.InfoContext(ctx, "Could not get credentials from request", "error", err)
-				writeS3ErrorResponse(ctx, w, ErrS3InvalidAccessKeyId, err)
-				return
-			}
-			secretAccessKey, err := credentials.CalculateSecretKey(accessKeyId, keyStorage)
-			if err != nil {
-				slog.ErrorContext(ctx, "Could not calculate secret key", "error", err)
-				writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
-				return
-			}
-			backupContentLength := r.ContentLength
-			//There is no use of passing the headers that are set by a proxy and which we haven't verified.
-			cleanHeadersThatAreNotSignedInAuthHeader(ctx, r)
-			clonedReq := r.Clone(ctx)
-			creds := aws.Credentials{
-				AccessKeyID: accessKeyId,
-				SecretAccessKey: secretAccessKey,
-				SessionToken: sessionToken,
-			}
-			err = presign.SignWithCreds(ctx, clonedReq, creds, "ThisShouldNotBeUsedForSigv4Requests258")
-			if err != nil {
-				slog.ErrorContext(ctx, "Could not sign request", "error", err)
-				writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
-				return
-			}
-			calculatedSignature := clonedReq.Header.Get(constants.AuthorizationHeader) 
-			passedSignature := r.Header.Get(constants.AuthorizationHeader)
-			//Cleaning could have removed content length
-			r.ContentLength = backupContentLength
-
-			if calculatedSignature == passedSignature {
-				slog.DebugContext(ctx, "Valid signature")
-
-	            targetRegion := requestutils.GetRegionFromRequest(r, backendManager.GetDefaultBackend())
-
-				//Authn done time to perform authorization				
-				if authorizeS3Action(ctx, creds.SessionToken, targetRegion, getS3Action(r), w, r, time.Now().UTC(), keyStorage ,policyRetriever, vhi){
+				//To have a valid signature
+				if authorizeS3Action(ctx, sessionToken, targetRegion, getS3Action(r), w, r, presignCutoff.GetCutoffForPresignedUrl(), keyStorage, policyRetriever, vhi){
 					hb.proxyFunc(ctx, w, r, targetRegion, backendManager)
 				}
 				return
-			} else {
-				slog.DebugContext(
-					ctx,
-					"Invalid signature", 
-					"calculated", calculatedSignature, 
-					"received", passedSignature,
-				)
-				writeS3ErrorResponse(ctx, w, ErrS3InvalidSignature, nil)
+
+		} else {
+				sessionToken, err := requestctx.GetSessionToken(r)
+				if err != nil {
+					writeS3ErrorResponse(ctx, w, ErrS3InternalError, errors.New("could not get session token from requestctx"))
+					return
+				}
+
+				slog.DebugContext(ctx, "Valid signature")
+
+
+				//Authn done time to perform authorization				
+				if authorizeS3Action(ctx, sessionToken, targetRegion, getS3Action(r), w, r, time.Now().UTC(), keyStorage ,policyRetriever, vhi){
+					hb.proxyFunc(ctx, w, r, targetRegion, backendManager)
+				}
 				return
-			}
+
 		}
 	}
 }

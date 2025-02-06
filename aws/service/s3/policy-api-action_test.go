@@ -8,6 +8,7 @@ import (
 	iaminterfaces "github.com/VITObelgium/fakes3pp/aws/service/iam/interfaces"
 	"github.com/VITObelgium/fakes3pp/aws/service/s3/api"
 	"github.com/VITObelgium/fakes3pp/aws/service/s3/interfaces"
+	"github.com/VITObelgium/fakes3pp/middleware"
 	"github.com/VITObelgium/fakes3pp/requestctx"
 	"github.com/VITObelgium/fakes3pp/utils"
 )
@@ -44,7 +45,7 @@ func newStubJustReturnApiAction(ti *testing.T) interfaces.HandlerBuilderI {
 }
 
 func TestExpectedAPIActionIdentified(t *testing.T) {
-	teardownSuite, s := setupSuiteProxyS3(t, newStubJustReturnApiAction(t), nil, nil, true)
+	teardownSuite, s := setupSuiteProxyS3(t, newStubJustReturnApiAction(t), nil, nil, []middleware.Middleware{RegisterOperation()},true)
 	defer teardownSuite(t)
 
 	for _, tc := range getApiAndIAMActionTestCases() { //see policy_iam_action_test

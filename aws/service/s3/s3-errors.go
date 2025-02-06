@@ -30,10 +30,38 @@ import (
 
 	"github.com/VITObelgium/fakes3pp/aws/service"
 	"github.com/VITObelgium/fakes3pp/requestctx"
+	"github.com/VITObelgium/fakes3pp/usererror"
 	"github.com/VITObelgium/fakes3pp/utils"
 )
 
+type s3ErrorReporter struct {}
+var s3ErrorReporterInstance = &s3ErrorReporter{}
+
+func (er * s3ErrorReporter) WriteErrorResponse(ctx context.Context, w http.ResponseWriter, errCode service.AWSErrorCode, err error) {
+	s3ErrCode := toS3ErrorCode(ctx, errCode)
+	writeS3ErrorResponse(ctx, w, s3ErrCode, err)
+
+}
+
+var awsToS3ErrorCode = map[service.AWSErrorCode]S3ErrorCode {
+	service.ErrAWSAccessDenied: ErrS3AccessDenied,
+	service.ErrAWSInternalError: ErrS3InternalError,
+	service.ErrAWSInvalidSignature: ErrS3InvalidSignature,
+	service.ErrInvalidAccessKeyId: ErrS3InvalidAccessKeyId,
+	service.ErrAuthorizationHeaderMalformed: ErrS3AuthorizationHeaderMalformed,
+}
+
+func toS3ErrorCode(ctx context.Context, awsE service.AWSErrorCode) (s3E S3ErrorCode) {
+	s3E, ok := awsToS3ErrorCode[awsE]
+	if !ok {
+		slog.ErrorContext(ctx, "Unsupported error code for S3", "AWSErrorCode", awsE)
+		return ErrS3InternalError
+	}
+	return s3E
+}
+
 // writeS3ErrorResponse writes error headers
+// If err is a UserError then we return the user error as a description
 func writeS3ErrorResponse(ctx context.Context, w http.ResponseWriter, errCode S3ErrorCode, err error) {
 	s3Err := s3ErrCodes.ToS3Err(errCode)
 
@@ -42,13 +70,16 @@ func writeS3ErrorResponse(ctx context.Context, w http.ResponseWriter, errCode S3
 	s3ErrorResponse.Code = s3Err.Code
 	s3ErrorResponse.RequestID = requestctx.GetRequestID(ctx)
 	s3ErrorResponse.Message = s3Err.Description
-	if err != nil {
+
+	if userFacing := usererror.Get(err); userFacing != nil {
 		//Golang doesn't like capitalized error strings but AWS errors seem to prefer it
-		s3ErrorResponse.Message = utils.CapitalizeFirstLetter(err.Error())
+		s3ErrorResponse.Message = utils.CapitalizeFirstLetter(userFacing.Error())
 	}
 	switch errCode {
 	case ErrS3InternalError, ErrS3UpstreamError:
-		slog.ErrorContext(ctx, "S3 error", "error", err)
+		slog.ErrorContext(ctx, "Sending S3 error response", "error", err)
+	default:
+		slog.InfoContext(ctx, "Sending S3 error response", "error", err)
 	}
 	encodedErrorResponse := service.EncodeResponse(ctx, s3ErrorResponse)
 	service.WriteResponse(ctx, w, s3Err.HTTPStatusCode, encodedErrorResponse, service.MimeXML)
@@ -87,6 +118,7 @@ const (
 	ErrS3InvalidSignature
 	ErrS3InvalidSecurity
 	ErrS3InvalidRegion
+	ErrS3AuthorizationHeaderMalformed
 )
 
 
@@ -104,7 +136,7 @@ func (e s3ErrorCodeMap) ToS3Err(errCode S3ErrorCode) S3Error {
 var s3ErrCodes = s3ErrorCodeMap{
 	ErrS3AccessDenied: {
 		Code:           "AccessDenied",
-		Description:    "Credentials did not allow the request.",
+		Description:    "Access Denied",
 		HTTPStatusCode: http.StatusForbidden,
 	},
 	ErrS3UpstreamError: {
@@ -135,6 +167,11 @@ var s3ErrCodes = s3ErrorCodeMap{
 	ErrS3InvalidRegion: {
 		Code:           "InvalidRegion",
 		Description:    "The provided region is not valid.",
+		HTTPStatusCode: http.StatusBadRequest,
+	},
+	ErrS3AuthorizationHeaderMalformed: {
+		Code:           "AuthorizationHeaderMalformed",
+		Description:    "The authorization header that you provided is not valid.",
 		HTTPStatusCode: http.StatusBadRequest,
 	},
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/VITObelgium/fakes3pp/aws/service/iam/actionnames"
 	iaminterfaces "github.com/VITObelgium/fakes3pp/aws/service/iam/interfaces"
 	"github.com/VITObelgium/fakes3pp/aws/service/s3/interfaces"
+	"github.com/VITObelgium/fakes3pp/middleware"
 	"github.com/VITObelgium/fakes3pp/requestctx"
 	"github.com/VITObelgium/fakes3pp/server"
 	"github.com/VITObelgium/fakes3pp/testutils"
@@ -366,7 +367,7 @@ func getApiAndIAMActionTestCases() ([]apiAndIAMActionTestCase) {
 //Removing/changing context values (e.g. if there are bugs) are breaking changes and should be
 //treated as such.
 func TestExpectedIamActionsAreReturned(t *testing.T) {
-	teardownSuite, s := setupSuiteProxyS3(t, newStubJustReturnIamAction(t), nil, nil, true)
+	teardownSuite, s := setupSuiteProxyS3(t, newStubJustReturnIamAction(t), nil, nil, []middleware.Middleware{RegisterOperation()}, true)
 	defer teardownSuite(t)
 
 	for _, tc := range getApiAndIAMActionTestCases() {

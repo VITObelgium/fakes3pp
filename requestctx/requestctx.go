@@ -66,6 +66,12 @@ type RequestCtx struct{
 
 	//The API operation
 	Operation fmt.Stringer
+
+	//Session token
+	SessionToken string
+
+	//Target region
+	TargetRegion string
 }
 
 func (c *RequestCtx)AddAccessLogInfo(groupName string, attrs... slog.Attr) {
@@ -74,6 +80,56 @@ func (c *RequestCtx)AddAccessLogInfo(groupName string, attrs... slog.Attr) {
 		existing_group = []slog.Attr{}
 	}
 	c.accessLogAttrs[groupName] = append(existing_group, attrs...)
+}
+
+func SetTargetRegion(r *http.Request, region string) {
+	if rCtx := get(r); rCtx != nil {
+		if rCtx.TargetRegion != "" {
+			if rCtx.TargetRegion == region {
+				return
+			}
+			slog.WarnContext(r.Context(), "Overriding target region this should not happen", "Old region", rCtx.TargetRegion, "New region", region)
+		}
+		rCtx.TargetRegion = region
+		return		
+	}
+	slog.Error(
+		"Attempting to set Region without existing request context",
+		"request", r,
+		"TargetRegion", region,
+	)
+}
+
+func GetTargetRegion(r *http.Request) (string, error) {
+	if rCtx := get(r); rCtx != nil {
+		return rCtx.TargetRegion, nil
+	}
+	return "", errors.New("no target region stored in requestctx")
+}
+
+func SetSessionToken(r *http.Request, token string) {
+	if rCtx := get(r); rCtx != nil {
+		if rCtx.SessionToken != "" {
+			if rCtx.SessionToken == token {
+				return
+			}
+			slog.WarnContext(r.Context(), "Overriding SessionToken this should not happen", "Old token", rCtx.SessionToken, "New token", token)
+		}
+		rCtx.SessionToken = token
+		return		
+	}
+	slog.Error(
+		"Attempting to set SessionToken without existing request context",
+		"request", r,
+		"session token", token,
+	)
+}
+
+func GetSessionToken(r *http.Request) (string, error) {
+	if rCtx := get(r); rCtx != nil {
+		return rCtx.SessionToken, nil
+	}
+	return "", errors.New("No session token stored in requestctx")
 }
 
 func SetOperation(r *http.Request, operation fmt.Stringer) {

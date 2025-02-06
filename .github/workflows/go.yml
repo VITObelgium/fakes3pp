@@ -63,4 +63,5 @@ jobs:
 
     - name: Test
       # As we use config files from time to time we always want to run without cache
-      run: go clean -testcache && go test -coverprofile cover.out -v ./...
+      # We avoid parallelism as otherwise we risk conflicts on ports for sockets
+      run: go clean -testcache && go test -p 1 -coverprofile cover.out -v ./...

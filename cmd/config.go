@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"crypto/rsa"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -208,27 +207,6 @@ var envVarDefs = []envVarDef{
 	},
 }
 
-func getSignedUrlGraceTimeSeconds() time.Duration {
-	n_sec := viper.GetInt(signedUrlGraceTimeSeconds)
-
-	return time.Second * time.Duration(n_sec)
-}
-
-var stsProxyIssuer string
-
-var signingKey *rsa.PrivateKey
-func getSigningKey() (*rsa.PrivateKey, error) {
-	if signingKey == nil {
-		privateKeyPath := viper.GetString(s3ProxyJwtPrivateRSAKey)
-		key, err := PrivateKeyFromPemFile(privateKeyPath)
-		if err != nil {
-			return nil, err
-		}
-		signingKey = key
-	}
-	return signingKey, nil
-}
-
 func getMaxStsDurationSeconds() int {
 	maxDurationSeconds := viper.GetInt(stsMaxDurationSeconds)
 	if maxDurationSeconds == 0 {
@@ -244,11 +222,29 @@ func getMaxStsDuration() (time.Duration) {
 //The Fully Qualified Domain names for the S3 proxy
 var s3ProxyFQDNs []string
 
-//get all the FQDNs associated with the S3 Proxy
+func getStsProxyFQDNs() ([]string, error) {
+	var fqdns []string
+	err := viper.UnmarshalKey(stsProxyFQDN, &fqdns)
+	if err != nil {
+		return nil, err
+	}
+	return fqdns, nil
+}
+
 func getS3ProxyFQDNs() ([]string, error) {
+	var fqdns []string
+	err := viper.UnmarshalKey(s3ProxyFQDN, &fqdns)
+	if err != nil {
+		return nil, err
+	}
+	return fqdns, nil
+}
+
+//TODO: make sure same is used for STS
+//get all the FQDNs associated with the S3 Proxy
+func getS3ProxyLCFQDNs() ([]string, error) {
 	if s3ProxyFQDNs == nil {
-		var tmpS3ProxyFQDNS []string
-		err := viper.UnmarshalKey(s3ProxyFQDN, &tmpS3ProxyFQDNS)
+		tmpS3ProxyFQDNS, err := getS3ProxyFQDNs()
 		if err != nil {
 			return nil, err
 		}
@@ -260,23 +256,9 @@ func getS3ProxyFQDNs() ([]string, error) {
 	return s3ProxyFQDNs, nil
 }
 
-//Check whether a given hostname is one of the possible FQDNs.
-func isAS3ProxyFQDN(hostname string) bool{
-	fqdns, err := getS3ProxyFQDNs()
-	if err != nil {
-		slog.Error("Could not get S3ProxyFQDNS", "error", err)
-	}
-	for _, fqdn := range fqdns {
-		if fqdn == strings.ToLower(hostname) {
-			return true
-		}
-	}
-	return false
-}
-
 //get the main FQDN associated with the S3 proxy
 func getMainS3ProxyFQDN() (string, error) {
-	fqdns, err := getS3ProxyFQDNs()
+	fqdns, err := getS3ProxyLCFQDNs()
 	if err != nil {
 		return "", err
 	}
@@ -297,7 +279,6 @@ func BindEnvVariables(cmd string) {
 			checkViperVarNotEmpty(evd)
 		}
 	}
-	stsProxyIssuer = viper.GetString(stsProxyFQDN)
 }
 
 func checkViperVarNotEmpty(evd envVarDef) {

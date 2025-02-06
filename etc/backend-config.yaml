@@ -5,15 +5,16 @@ s3backends:
   # A mapping of the region name to the details required to use the backend: 
   # * Credentials could over time be provided in different ways. Available are:
   #   * A yaml file that contains a map with aws_access_key_id, aws_secret_access_key and optionally aws_session_token
-  #     given that the contents of this file is sensitive it should be exclusive to the user running the s3proxy
+  #     given that the contents of this file is sensitive it should be exclusive to the user running the s3proxy.
+  #     Relative paths are relative to the location of this file.
   # * endpoint should be protocol and hostname of how to reach the backend S3 API
   - region: waw3-1
     credentials:
-      file: ../etc/creds/cfc_creds.yaml
+      file: ./creds/cfc_creds.yaml
     endpoint: https://s3.waw3-1.cloudferro.com
   - region: eu-nl
     credentials:
-      file: ../etc/creds/otc_creds.yaml
+      file: ./creds/otc_creds.yaml
     endpoint: https://obs.eu-nl.otc.t-systems.com
 # The default backend is the backend that will be used if the system cannot determine which backend is intended.
 # When using multiple backends sigv4 presigned URLs should be preferred as they do contain the region in the 

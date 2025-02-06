@@ -9,6 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/VITObelgium/fakes3pp/aws/credentials"
+	"github.com/VITObelgium/fakes3pp/aws/service/sts/session"
+	"github.com/VITObelgium/fakes3pp/server"
+	"github.com/VITObelgium/fakes3pp/testutils"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/smithy-go"
@@ -18,21 +22,9 @@ import (
 
 
 func getS3ClientAgainstFakeS3Backend(t testing.TB, region string, creds aws.Credentials) (*s3.Client) {
-	cfg := getTestAwsConfig(t)
 
-	endpoint, ok := fakeTestBackends[region]
-	if !ok {
-		t.Errorf("Got invalid region %s which does not have a fake test backend", region)
-	}
-
-	client := s3.NewFromConfig(cfg, func (o *s3.Options) {
-		o.BaseEndpoint = aws.String(endpoint)
-		o.Credentials = adapterCredentialsToCredentialsProvider(creds)
-		o.Region = region
-		o.UsePathStyle = true
-	})
-
-	return client
+	backendServer := server.NewHttpDummyServer(fakeTestBackendPorts[region], fakeTestBackendHostnames[region])
+	return testutils.GetTestClientS3(t, region, credentials.FromAwsFormat(creds), backendServer)
 }
 
 //This is a helper to be able to read a random string limited to a size while making it seekable.
@@ -121,31 +113,30 @@ func getTestBucketObjectContentReadLength(t testing.TB, client s3.Client, object
 //This is not really a common deployment setup but if we use TLS for our proxy but not for our testing backend
 //Then we get misleading performance metrics as mentioned in https://github.com/VITObelgium/fakes3pp/pull/21#issuecomment-2620902233
 //Using plain text will be a fairer comparison.
-func testingFixturePlainTextProxy(t testing.TB) (tearDown func ()(), getToken func(subject string, d time.Duration, tags AWSSessionTags) string){
+func testingFixturePlainTextProxy(t testing.TB) (
+	tearDown func ()(), getToken func(subject string, d time.Duration, tags session.AWSSessionTags) string, stsServer server.Serverable, s3Server server.Serverable){
 	resetEnv := fixture_with_environment_values(t, map[string]string{
 		FAKES3PP_SECURE: "false",
 	})
-	tearDown1, getToken := testingFixture(t)
+	tearDown1, getSignedToken, stsServer, s3Server := testingFixture(t)
 	tearDown = func() {
 		tearDown1()
 		resetEnv()
 	}
-	return tearDown, getToken
+	return tearDown, getSignedToken, stsServer, s3Server
 }
 
 
 func BenchmarkFakeS3Proxy(b *testing.B) {
 	initializeTestLogging()
-	tearDown, getSignedToken := testingFixturePlainTextProxy(b)
+	tearDown, getSignedToken, stsServer, s3Server := testingFixturePlainTextProxy(b)
 	defer tearDown()
-	token := getSignedToken("mySubject", time.Minute * 20, AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
-	//Given the policy Manager that has our test policies
-	pm = *NewTestPolicyManagerAlmostE2EPolicies()
+	token := getSignedToken("mySubject", time.Minute * 20, session.AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
 	//Given credentials that use the policy that allow everything in Region1
-	creds := getCredentialsFromTestStsProxy(b, token, "my-session", testPolicyAllowAllInRegion1ARN)
+	creds := getCredentialsFromTestStsProxy(b, token, "my-session", testPolicyAllowAllInRegion1ARN, stsServer)
 
 	backendClient := getS3ClientAgainstFakeS3Backend(b, testRegion1, creds)
-	proxyClient := getS3ClientAgainstS3Proxy(b, testRegion1, creds)
+	proxyClient := testutils.GetTestClientS3(b, testRegion1, credentials.FromAwsFormat(creds), s3Server)
 
 	testObject128MBName := "BenchmarkRandomS3Object"
 	testObject128MBSize := int64(128*1024*1024)

@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"crypto/tls"
 	"fmt"
 	"log/slog"
@@ -63,7 +64,11 @@ func CreateAndAwaitHealthy(s Serverable) (*sync.WaitGroup, *http.Server, error) 
 	tlsEnabled, _, _ := s.GetTls()
 	err = awaitServerOnPort(s.GetPort(), tlsEnabled)
 	if err != nil {
-		serverDone.Done()
+		err2 := srv.Shutdown(context.Background())
+		if err2 != nil {
+			err = fmt.Errorf("error shutting down unhealthy server: %w", err2)
+		}
+		serverDone.Wait()
 		return nil, nil, err
 	}
 

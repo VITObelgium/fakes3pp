@@ -30,7 +30,7 @@ type StubJustReturnIamAction struct{
 var latestIamActionInStubReturnIamAction []iam.IAMAction = nil
 
 type noVirtualHostRequestsType struct{}
-func (_ *noVirtualHostRequestsType)IsVirtualHostingRequest(req *http.Request) (bool){
+func (*noVirtualHostRequestsType)IsVirtualHostingRequest(req *http.Request) (bool){
 	return false
 }
 

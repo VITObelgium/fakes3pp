@@ -53,7 +53,7 @@ var proxys3Cmd = &cobra.Command{
 	Long: `Spawn a server process that listens for requests and takes API calls
 	that follow the S3 API.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		server.CreateAndStartSync(buildS3Server())
+		server.CreateAndStartSync(buildS3Server(), server.ServerOpts{})
 	},
 }
 

@@ -23,7 +23,7 @@ import (
 
 func getS3ClientAgainstFakeS3Backend(t testing.TB, region string, creds aws.Credentials) (*s3.Client) {
 
-	backendServer := server.NewHttpDummyServer(fakeTestBackendPorts[region], fakeTestBackendHostnames[region])
+	backendServer := server.NewBasicServer(fakeTestBackendPorts[region], fakeTestBackendHostnames[region], "", "", nil)
 	return testutils.GetTestClientS3(t, region, credentials.FromAwsFormat(creds), backendServer)
 }
 

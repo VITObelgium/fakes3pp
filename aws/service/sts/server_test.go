@@ -211,7 +211,7 @@ func TestProxyStsAssumeRoleWithWebIdentitySessionTagsToken(t *testing.T) {
 // This works like a fixture see https://medium.com/nerd-for-tech/setup-and-teardown-unit-test-in-go-bd6fa1b785cd
 func setupSuiteProxySTS(t testing.TB, pm *iam.PolicyManager, oidcConfig string, tlsEnabled bool) (func(t testing.TB), *STSServer) {
 	s := NewTestSTSServer(t, pm, 3600, oidcConfig, tlsEnabled)
-	stsProxyDone, stsProxySrv, err := server.CreateAndStart(s)
+	stsProxyDone, stsProxySrv, err := server.CreateAndStart(s, server.ServerOpts{})
 	if err != nil {
 		t.Errorf("Could not spawn fake STS server %s", err)
 	}

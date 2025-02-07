@@ -85,10 +85,10 @@ func TestMain(m *testing.M) {
 }
 
 func setupSuiteProxyS3(
-	t testing.TB,
+	t testing.TB, opts server.ServerOpts,
 ) (func(t testing.TB), *s3proxy.S3Server) {
 	s := buildS3Server()
-	s3ProxyDone, s3ProxySrv, err := server.CreateAndStart(s)
+	s3ProxyDone, s3ProxySrv, err := server.CreateAndStart(s, opts)
 	if err != nil {
 		t.Errorf("Could not spawn fake STS server %s", err)
 	}
@@ -109,10 +109,10 @@ func setupSuiteProxyS3(
 }
 
 func setupSuiteProxySTS(
-	t testing.TB,
+	t testing.TB, opts server.ServerOpts,
 ) (func(t testing.TB), *stsproxy.STSServer) {
 	s := buildSTSServer()
-	stsProxyDone, stsProxySrv, err := server.CreateAndStart(s)
+	stsProxyDone, stsProxySrv, err := server.CreateAndStart(s, opts)
 	if err != nil {
 		t.Errorf("Could not spawn fake STS server %s", err)
 	}
@@ -189,9 +189,30 @@ func defaultPolicyFixture(t testing.TB) (teardown func ()()) {
 	)
 }
 
+
+
 //This is the testing fixture. It starts an sts and s3 proxy which
 //are configured with the S3 backends detailed in testing/README.md.
-func testingFixture(t testing.TB) (tearDown func ()(), getToken func(subject string, d time.Duration, tags session.AWSSessionTags) string, stsServer server.Serverable, s3Server server.Serverable){
+func testingFixture(t testing.TB) (
+	tearDown func ()(), 
+	getToken func(subject string, d time.Duration, tags session.AWSSessionTags) string, 
+	stsServer server.Serverable, 
+	s3Server server.Serverable,
+	){
+	return testingFixtureCustomServerOpts(
+		t,
+		server.ServerOpts{},
+		server.ServerOpts{},
+	)
+}
+
+
+func testingFixtureCustomServerOpts(t testing.TB, stsServerOpts server.ServerOpts, s3ServerOpts server.ServerOpts) (
+	tearDown func ()(), 
+	getToken func(subject string, d time.Duration, tags session.AWSSessionTags) string, 
+	stsServer server.Serverable, 
+	s3Server server.Serverable,
+	){
 	skipIfNoTestingBackends(t)
 	//Configure backends to be the testing S3 backends
 	stageTestingBackendsConfig(t)
@@ -199,10 +220,9 @@ func testingFixture(t testing.TB) (tearDown func ()(), getToken func(subject str
 	teardownPolicies := defaultPolicyFixture(t)
 	defer teardownPolicies()
 
-
 	//Given valid server config
-	teardownSuiteSTS, stsServer := setupSuiteProxySTS(t)
-	teardownSuiteS3, s3Server := setupSuiteProxyS3(t)
+	teardownSuiteSTS, stsServer := setupSuiteProxySTS(t, stsServerOpts)
+	teardownSuiteS3, s3Server := setupSuiteProxyS3(t, s3ServerOpts)
 
 	keyStorage := getTestingKeyStorage(t)
 
@@ -578,3 +598,4 @@ func TestListingOfS3BucketHasExpectedObjects(t *testing.T) {
 	assertObjectInBucketListing(t, listObjects, "region.txt")
 	assertObjectInBucketListing(t, listObjects, "team.txt")
 }
+

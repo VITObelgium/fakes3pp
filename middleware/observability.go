@@ -8,7 +8,19 @@ import (
 
 	"github.com/VITObelgium/fakes3pp/httptracking"
 	"github.com/VITObelgium/fakes3pp/requestctx"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 )
+
+func updateMetrics(requestDuration *prometheus.HistogramVec, requestSize *prometheus.SummaryVec,
+	responseSize *prometheus.SummaryVec, requestsFinished *prometheus.CounterVec, rCtx requestctx.RequestCtx, method string, startTime time.Time) {
+	opLabel := prometheus.Labels{"operation": rCtx.Operation.String()}
+	requestDuration.With(opLabel).Observe(time.Since(startTime).Seconds())
+	requestSize.With(opLabel).Observe(float64(rCtx.BytesReceived))
+	responseSize.With(opLabel).Observe(float64(rCtx.BytesSent))
+	opmetLabels := prometheus.Labels{"operation": rCtx.Operation.String(), "method": method}
+	requestsFinished.With(opmetLabels).Inc()
+}
 
 //The log Middleware has as responsibility to make sure to allow for:
 // 1. tracking requests via an X-Request-ID header
@@ -17,7 +29,49 @@ import (
 //other components can have enriched logging.
 //It takes a healthcheck function because health checks should not follow other log
 //semantics.
-func LogMiddleware(requestLogLvl slog.Level, hc HealthChecker) Middleware {
+func LogMiddleware(requestLogLvl slog.Level, hc HealthChecker, promReg prometheus.Registerer) Middleware {
+	var buckets  []float64
+	var requestsTotal *prometheus.CounterVec
+	var requestDuration *prometheus.HistogramVec
+	var requestSize *prometheus.SummaryVec
+	var responseSize *prometheus.SummaryVec
+	var requestsFinished *prometheus.CounterVec
+	if promReg != nil {
+		requestsTotal = promauto.With(promReg).NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "http_requests_started_total",
+				Help: "Tracks the number of HTTP requests.",
+			}, []string{"method"},
+		)
+		requestDuration = promauto.With(promReg).NewHistogramVec(
+			prometheus.HistogramOpts{
+				Name:    "http_request_duration_seconds",
+				Help:    "Tracks the latencies for HTTP requests.",
+				Buckets: buckets,
+			},
+			[]string{"operation"},
+		)
+		requestSize = promauto.With(promReg).NewSummaryVec(
+			prometheus.SummaryOpts{
+				Name: "http_request_size_bytes",
+				Help: "Tracks the size of HTTP requests.",
+			},
+			[]string{"operation"},
+		)
+		responseSize = promauto.With(promReg).NewSummaryVec(
+			prometheus.SummaryOpts{
+				Name: "http_response_size_bytes",
+				Help: "Tracks the size of HTTP responses.",
+			},
+			[]string{"operation"},
+		)
+		requestsFinished = promauto.With(promReg).NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "http_requests_finished_total",
+				Help: "Tracks the number of HTTP requests.",
+			}, []string{"method", "operation"},
+		)
+	}
     return func(next http.HandlerFunc) http.HandlerFunc {
         return func(w http.ResponseWriter, r *http.Request) {
 			startTime := time.Now()
@@ -27,7 +81,7 @@ func LogMiddleware(requestLogLvl slog.Level, hc HealthChecker) Middleware {
 			if r.Body != nil {
 				defer r.Body.Close()
 			}
-
+			
 			//Make sure we have a requestctx to know about RequestId and to track information
 			ctx := requestctx.NewContextFromHttpRequestWithStartTime(r, startTime)
 			rCtx, ok := requestctx.FromContext(ctx)
@@ -54,6 +108,14 @@ func LogMiddleware(requestLogLvl slog.Level, hc HealthChecker) Middleware {
 			defer logFinalRequestDetails(ctx, logLvl, startTime, rCtx)
 
 			if !wasHealthCheck{
+				if promReg != nil {
+					lbls := prometheus.Labels{"method": r.Method}
+					requestsTotal.With(lbls).Inc()
+					defer func() {
+
+					}()
+					defer updateMetrics(requestDuration, requestSize, responseSize, requestsFinished, *rCtx, r.Method, startTime)
+				}
 				next.ServeHTTP(trackingW, r.WithContext(ctx))
 			}
         }

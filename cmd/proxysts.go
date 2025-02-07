@@ -76,7 +76,7 @@ var proxystsCmd = &cobra.Command{
 	Long: `Spawn a server process that listens for requests and takes API calls
 	that follow the STS API. There are only few supporte`,
 	Run: func(cmd *cobra.Command, args []string) {
-		server.CreateAndStartSync(buildSTSServer())
+		server.CreateAndStartSync(buildSTSServer(), server.ServerOpts{})
 	},
 }
 

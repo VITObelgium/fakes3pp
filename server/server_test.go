@@ -26,7 +26,11 @@ func CreateTestHandler(t testing.TB, sendSize int64) http.HandlerFunc{
 			t.FailNow()
 		}
 		w.WriteHeader(http.StatusOK)
-		io.Copy(w, testutils.NewNonDeterministicLimitedRandReadSeeker(sendSize))
+		_, err = io.Copy(w, testutils.NewNonDeterministicLimitedRandReadSeeker(sendSize))
+		if err != nil {
+			t.Error("vould not copy in random string")
+			t.FailNow()
+		}
 	}
 }
 
@@ -154,7 +158,10 @@ func TestCheckMetricsServer(t *testing.T) {
 		}
 	}
 	assertCloseEnough(t, 1, finishedRequests, 0.001)
-	ts.Shutdown(context.Background())
+	err = ts.Shutdown(context.Background())
+	if err != nil {
+		t.Error("Got an error", err)
+	}
 	wg.Wait()
 }
 

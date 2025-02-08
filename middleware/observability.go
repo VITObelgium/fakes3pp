@@ -12,16 +12,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
-func updateMetrics(requestDuration *prometheus.HistogramVec, requestSize *prometheus.SummaryVec,
-	responseSize *prometheus.SummaryVec, requestsFinished *prometheus.CounterVec, rCtx requestctx.RequestCtx, method string, startTime time.Time) {
-	opLabel := prometheus.Labels{"operation": rCtx.Operation.String()}
-	requestDuration.With(opLabel).Observe(time.Since(startTime).Seconds())
-	requestSize.With(opLabel).Observe(float64(rCtx.BytesReceived))
-	responseSize.With(opLabel).Observe(float64(rCtx.BytesSent))
-	opmetLabels := prometheus.Labels{"operation": rCtx.Operation.String(), "method": method}
-	requestsFinished.With(opmetLabels).Inc()
-}
-
 //The log Middleware has as responsibility to make sure to allow for:
 // 1. tracking requests via an X-Request-ID header
 // 2. creating an access log
@@ -33,8 +23,8 @@ func LogMiddleware(requestLogLvl slog.Level, hc HealthChecker, promReg prometheu
 	var buckets  []float64
 	var requestsTotal *prometheus.CounterVec
 	var requestDuration *prometheus.HistogramVec
-	var requestSize *prometheus.SummaryVec
-	var responseSize *prometheus.SummaryVec
+	var requestSize *prometheus.CounterVec
+	var responseSize *prometheus.CounterVec
 	var requestsFinished *prometheus.CounterVec
 	if promReg != nil {
 		requestsTotal = promauto.With(promReg).NewCounterVec(
@@ -51,15 +41,15 @@ func LogMiddleware(requestLogLvl slog.Level, hc HealthChecker, promReg prometheu
 			},
 			[]string{"operation"},
 		)
-		requestSize = promauto.With(promReg).NewSummaryVec(
-			prometheus.SummaryOpts{
+		requestSize = promauto.With(promReg).NewCounterVec(
+			prometheus.CounterOpts{
 				Name: "http_request_size_bytes",
 				Help: "Tracks the size of HTTP requests.",
 			},
 			[]string{"operation"},
 		)
-		responseSize = promauto.With(promReg).NewSummaryVec(
-			prometheus.SummaryOpts{
+		responseSize = promauto.With(promReg).NewCounterVec(
+			prometheus.CounterOpts{
 				Name: "http_response_size_bytes",
 				Help: "Tracks the size of HTTP responses.",
 			},
@@ -109,12 +99,22 @@ func LogMiddleware(requestLogLvl slog.Level, hc HealthChecker, promReg prometheu
 
 			if !wasHealthCheck{
 				if promReg != nil {
+					//We can increase the request counter already
 					lbls := prometheus.Labels{"method": r.Method}
 					requestsTotal.With(lbls).Inc()
+					//But end of action metrics we must defer to the final stage
 					defer func() {
-
+						operation := ""
+						if rCtx.Operation != nil {
+							operation = rCtx.Operation.String()
+						}
+						opLabel := prometheus.Labels{"operation": operation}
+						requestDuration.With(opLabel).Observe(time.Since(startTime).Seconds())
+						requestSize.With(opLabel).Add(float64(rCtx.BytesReceived))
+						responseSize.With(opLabel).Add(float64(rCtx.BytesSent))
+						opmetLabels := prometheus.Labels{"operation": operation, "method": r.Method}
+						requestsFinished.With(opmetLabels).Inc()
 					}()
-					defer updateMetrics(requestDuration, requestSize, responseSize, requestsFinished, *rCtx, r.Method, startTime)
 				}
 				next.ServeHTTP(trackingW, r.WithContext(ctx))
 			}

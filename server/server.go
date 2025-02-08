@@ -48,6 +48,7 @@ func StartPrometheusMetricsServer(port int) (func(), prometheus.Registerer) {
 	metricsSrvDone := &sync.WaitGroup{}
 	metricsSrvDone.Add(1)
 	var metricsSrv = &http.Server{Addr: addr}
+	metricsSrv.Handler = mux
 
 	go func() {
 		defer metricsSrvDone.Done()

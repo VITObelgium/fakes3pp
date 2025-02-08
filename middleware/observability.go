@@ -126,6 +126,12 @@ func logFinalRequestDetails(ctx context.Context, lvl slog.Level, startTime time.
 	requestLogAttrs := getRequestCtxLogAttrs(rCtx)
 	requestLogAttrs = append(requestLogAttrs, slog.Int64("Total ms", time.Since(startTime).Milliseconds()))
 	requestLogAttrs = append(requestLogAttrs, slog.Uint64("Bytes sent", rCtx.BytesSent))
+	requestLogAttrs = append(requestLogAttrs, slog.Uint64("Bytes received", rCtx.BytesReceived))
+	operation := "unknown"
+	if rCtx.Operation != nil {
+		operation = rCtx.Operation.String()
+	}
+	requestLogAttrs = append(requestLogAttrs, slog.String("Operation", operation))
 	requestLogAttrs = append(requestLogAttrs, slog.Int("HTTP status", rCtx.HTTPStatus))
 	requestLogAttrs = append(requestLogAttrs, rCtx.GetAccessLogInfo()...)
 	slog.LogAttrs(
@@ -138,7 +144,7 @@ func logFinalRequestDetails(ctx context.Context, lvl slog.Level, startTime time.
 
 
 func getRequestCtxLogAttrs(r *requestctx.RequestCtx) (logAttrs []slog.Attr) {
-	logAttrs = append(logAttrs, slog.Time("Time", r.Time))
+	logAttrs = append(logAttrs, slog.Time("StartTime", r.Time))
 	logAttrs = append(logAttrs, slog.String("RemoteIP", r.RemoteIP))
 	logAttrs = append(logAttrs, slog.String("RequestURI", r.RequestURI))
 	logAttrs = append(logAttrs, slog.String("Referer", r.Referer))

@@ -12,6 +12,7 @@ import (
 	"github.com/VITObelgium/fakes3pp/aws/credentials"
 	"github.com/VITObelgium/fakes3pp/aws/service"
 	"github.com/VITObelgium/fakes3pp/aws/service/iam"
+	"github.com/VITObelgium/fakes3pp/aws/service/sts/api"
 	"github.com/VITObelgium/fakes3pp/aws/service/sts/oidc"
 	"github.com/VITObelgium/fakes3pp/aws/service/sts/session"
 	"github.com/VITObelgium/fakes3pp/requestctx"
@@ -170,9 +171,10 @@ type stsClaims map[string]interface{}
 // - RoleSessionName
 // - WebIdentityToken following the structure 
 func (s *STSServer)assumeRoleWithWebIdentity(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-
+	requestctx.SetOperation(r, api.AssumeRoleWithWebIdentity)
 	claims := stsClaims{}
 	defer slog.InfoContext(ctx, "Auditlog", "claims", claims)
+	requestctx.AddAccessLogInfo(r, "sts", slog.Any("claims", claims))
 
 	token := r.Form.Get(stsWebIdentityToken)
 

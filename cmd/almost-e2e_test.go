@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"testing"
 	"time"
@@ -599,3 +600,55 @@ func TestListingOfS3BucketHasExpectedObjects(t *testing.T) {
 	assertObjectInBucketListing(t, listObjects, "team.txt")
 }
 
+func TestAuditLogEntry(t *testing.T) {
+	tearDownProxy, getSignedToken, stsServer, s3Server := testingFixture(t)
+	defer tearDownProxy()
+	teardownLog, getCapturedStructuredLogEntries := testutils.CaptureStructuredLogsFixture(t, slog.LevelInfo, nil)
+	defer teardownLog()
+
+	//GIVEN we run another test scenario
+		//_GIVEN token for team that does have access
+		token := getSignedToken("mySubject", time.Minute * 20, session.AWSSessionTags{PrincipalTags: map[string][]string{testTeamTag: {testAllowedTeam}}})
+		creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowTeamFolderARN, stsServer)
+	
+		//_WHEN access is attempted that required the team information
+		content, err := getTestBucketObjectContent(t, testRegion1, testTeamFile, credentials.FromAwsFormat(creds), s3Server)
+	
+		//_THEN the file content should be returned
+		if err != nil {
+			t.Errorf("Could not get team file even though part of correct team. got %s", err)
+		}
+		expectedContent := "teamSecret123"
+		if content != expectedContent {
+			t.Errorf("Got %s, expected %s", content, expectedContent)
+		}
+	
+	//WHEN we get the logs
+	logEntries := getCapturedStructuredLogEntries()
+	//THEN we have 1 access log entry per service (sts & s3)
+	accesslogEntries := logEntries.GetEntriesWithMsg(t, "Request end")
+	if len(accesslogEntries) != 2 {
+		t.Errorf("Invalid number of access log entries. Expected 2 got: %d", len(accesslogEntries))
+	}
+	
+	//WHEN we check the s3 auditlog entry
+	s3Entry := accesslogEntries.GetEntriesContainingField(t, "s3")[0]
+	//Then the operation should be GetObject
+	operation := s3Entry.GetStringField(t, "Operation")
+	if operation != "GetObject" {
+		t.Errorf("Wrong operation present in s3 access log. Expected GetObject got %s", operation)
+	}
+	if s3Entry.GetFloat64(t, "HTTP status") != 200 {
+		t.Error("HTTPS status should have been a 200")
+	}
+
+	//WHEN we check the sts audit log entry
+	stsEntry := accesslogEntries.GetEntriesContainingField(t, "sts")[0]
+	//Then the operation should be AssumeRoleWithWebIdentity
+	operation = stsEntry.GetStringField(t, "Operation")
+	if operation != "AssumeRoleWithWebIdentity" {
+		t.Errorf("Wrong operation present in sts access log. Expected AssumeRoleWithWebIdentity got %s", operation)
+
+	}
+
+}

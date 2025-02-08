@@ -12,8 +12,6 @@ func initializeTestLogging() {
 	logging.InitializeLogging(slog.LevelError, nil, nil)
 }
 
-
-
 //utility function to not run a test if there are no testing backends in the build environment.
 func skipIfNoTestingBackends(t testing.TB) {
   if os.Getenv("NO_TESTING_BACKENDS") != "" {

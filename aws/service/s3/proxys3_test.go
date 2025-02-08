@@ -458,7 +458,7 @@ func TestAllowEnablingTracingAtClientSide(t *testing.T) {
 	os.Setenv(logging.ENV_FORCE_LOGGING_FOR_REQUEST_ID_PREFIX, "00AABBCC")
 	
 	//Given a way to capture logs
-	stopLogCapture, getLogLines := captureLogFixture(t, slog.LevelError, nil)
+	stopLogCapture, getLogLines := testutils.CaptureLogFixture(t, slog.LevelError, nil)
 	defer stopLogCapture()
 
 	//Given a uuid4 that starts with the prefix

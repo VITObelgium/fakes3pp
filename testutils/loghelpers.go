@@ -1,4 +1,4 @@
-package s3
+package testutils
 
 import (
 	"bytes"
@@ -10,7 +10,7 @@ import (
 )
 
 //For testing only get lines out of a buffer
-func logBufferToLines(tb testing.TB, buf *bytes.Buffer) []string {
+func LogBufferToLines(tb testing.TB, buf *bytes.Buffer) []string {
 	var lines = []string{}
 	lineDelimiter := byte('\n')
 	for i:=0 ; i < 10000; i++ {
@@ -31,7 +31,7 @@ func logBufferToLines(tb testing.TB, buf *bytes.Buffer) []string {
 //A fixture to start capturing logs. It returns the following:
 // - a teardown callback to stop the log capture.
 // - a getCapturedLogLines callback which gets the log lines captured since the last run
-func captureLogFixture(tb testing.TB, lvl slog.Level, fe logging.ForceEnabler) (teardown func()(), getCapturedLogLines func()([]string)) {
+func CaptureLogFixture(tb testing.TB, lvl slog.Level, fe logging.ForceEnabler) (teardown func()(), getCapturedLogLines func()([]string)) {
 	loggerBeforeFixture := slog.Default()
 	buf := &bytes.Buffer{}
 	logging.InitializeLogging(lvl, fe, buf)
@@ -45,7 +45,7 @@ func captureLogFixture(tb testing.TB, lvl slog.Level, fe logging.ForceEnabler) (
 	}
 
 	getCapturedLogLines = func() (lines []string) {
-		lines = logBufferToLines(tb, buf)
+		lines = LogBufferToLines(tb, buf)
 		return lines
 	}
 

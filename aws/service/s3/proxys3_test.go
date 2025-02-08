@@ -120,7 +120,7 @@ func setupSuiteProxyS3(
 	t testing.TB, proxyHB interfaces.HandlerBuilderI, pm *iam.PolicyManager, bm interfaces.BackendManager, mws []middleware.Middleware, tlsEnabled bool,
 ) (func(t testing.TB), *S3Server) {
 	s := NewTestS3Server(t, proxyHB, pm, bm, mws, tlsEnabled)
-	stsProxyDone, stsProxySrv, err := server.CreateAndStart(s)
+	stsProxyDone, stsProxySrv, err := server.CreateAndStart(s, server.ServerOpts{})
 	if err != nil {
 		t.Errorf("Could not spawn fake STS server %s", err)
 	}
@@ -458,7 +458,7 @@ func TestAllowEnablingTracingAtClientSide(t *testing.T) {
 	os.Setenv(logging.ENV_FORCE_LOGGING_FOR_REQUEST_ID_PREFIX, "00AABBCC")
 	
 	//Given a way to capture logs
-	stopLogCapture, getLogLines := captureLogFixture(t, slog.LevelError, nil)
+	stopLogCapture, getLogLines := testutils.CaptureLogFixture(t, slog.LevelError, nil)
 	defer stopLogCapture()
 
 	//Given a uuid4 that starts with the prefix

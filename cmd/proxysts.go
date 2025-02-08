@@ -69,6 +69,12 @@ func buildSTSServer() (server.Serverable) {
 	return s
 }
 
+func getServerOptsFromViper() server.ServerOpts{
+	return server.ServerOpts{
+		MetricsPort: viper.GetInt(metricsPort),
+	}
+}
+
 // proxystsCmd represents the proxysts command
 var proxystsCmd = &cobra.Command{
 	Use:   proxysts,
@@ -76,7 +82,7 @@ var proxystsCmd = &cobra.Command{
 	Long: `Spawn a server process that listens for requests and takes API calls
 	that follow the STS API. There are only few supporte`,
 	Run: func(cmd *cobra.Command, args []string) {
-		server.CreateAndStartSync(buildSTSServer())
+		server.CreateAndStartSync(buildSTSServer(), getServerOptsFromViper())
 	},
 }
 

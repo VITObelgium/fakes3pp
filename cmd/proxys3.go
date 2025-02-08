@@ -15,35 +15,35 @@ const proxys3 = "proxys3"
 func buildS3Server() (server.Serverable) {
 	BindEnvVariables(proxys3)
 
-		pm, err := initializePolicyManager()
-		if err != nil {
-			slog.Error("Could not initialize PolicyManager", "error", err)
-			panic(fmt.Sprintf("Clould not initialize PolicyManager %s", err))
-		}
+	pm, err := initializePolicyManager()
+	if err != nil {
+		slog.Error("Could not initialize PolicyManager", "error", err)
+		panic(fmt.Sprintf("Clould not initialize PolicyManager %s", err))
+	}
 
-		fqdns, err := getS3ProxyFQDNs()
-		if err != nil {
-			slog.Error("Could not get sts proxy fqdns", "error", err)
-			panic(fmt.Sprintf("Could not get sts proxy fqdns: %s", err))
-		}
+	fqdns, err := getS3ProxyFQDNs()
+	if err != nil {
+		slog.Error("Could not get sts proxy fqdns", "error", err)
+		panic(fmt.Sprintf("Could not get sts proxy fqdns: %s", err))
+	}
 
-		s, err := s3.NewS3Server(
-			viper.GetString(s3ProxyJwtPrivateRSAKey),
-			viper.GetInt(s3ProxyPort),
-			fqdns,
-			viper.GetString(s3ProxyCertFile),
-			viper.GetString(s3ProxyKeyFile),
-			pm,
-			viper.GetInt(signedUrlGraceTimeSeconds),
-			nil,
-			viper.GetString(s3BackendConfigFile),
-			viper.GetBool(enableLegacyBehaviorInvalidRegionToDefaultRegion),
-		)
-		if err != nil {
-			slog.Error("Could not create S3 server", "error", err)
-			panic(fmt.Sprintf("Could not create S3 server: %s", err))
-		}
-		return s
+	s, err := s3.NewS3Server(
+		viper.GetString(s3ProxyJwtPrivateRSAKey),
+		viper.GetInt(s3ProxyPort),
+		fqdns,
+		viper.GetString(s3ProxyCertFile),
+		viper.GetString(s3ProxyKeyFile),
+		pm,
+		viper.GetInt(signedUrlGraceTimeSeconds),
+		nil,
+		viper.GetString(s3BackendConfigFile),
+		viper.GetBool(enableLegacyBehaviorInvalidRegionToDefaultRegion),
+	)
+	if err != nil {
+		slog.Error("Could not create S3 server", "error", err)
+		panic(fmt.Sprintf("Could not create S3 server: %s", err))
+	}
+	return s
 }
 
 // proxys3Cmd represents the proxyS3 command
@@ -53,7 +53,7 @@ var proxys3Cmd = &cobra.Command{
 	Long: `Spawn a server process that listens for requests and takes API calls
 	that follow the S3 API.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		server.CreateAndStartSync(buildS3Server())
+		server.CreateAndStartSync(buildS3Server(), getServerOptsFromViper())
 	},
 }
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"testing"
 	"time"
@@ -85,10 +86,10 @@ func TestMain(m *testing.M) {
 }
 
 func setupSuiteProxyS3(
-	t testing.TB,
+	t testing.TB, opts server.ServerOpts,
 ) (func(t testing.TB), *s3proxy.S3Server) {
 	s := buildS3Server()
-	s3ProxyDone, s3ProxySrv, err := server.CreateAndStart(s)
+	s3ProxyDone, s3ProxySrv, err := server.CreateAndStart(s, opts)
 	if err != nil {
 		t.Errorf("Could not spawn fake STS server %s", err)
 	}
@@ -109,10 +110,10 @@ func setupSuiteProxyS3(
 }
 
 func setupSuiteProxySTS(
-	t testing.TB,
+	t testing.TB, opts server.ServerOpts,
 ) (func(t testing.TB), *stsproxy.STSServer) {
 	s := buildSTSServer()
-	stsProxyDone, stsProxySrv, err := server.CreateAndStart(s)
+	stsProxyDone, stsProxySrv, err := server.CreateAndStart(s, opts)
 	if err != nil {
 		t.Errorf("Could not spawn fake STS server %s", err)
 	}
@@ -189,9 +190,30 @@ func defaultPolicyFixture(t testing.TB) (teardown func ()()) {
 	)
 }
 
+
+
 //This is the testing fixture. It starts an sts and s3 proxy which
 //are configured with the S3 backends detailed in testing/README.md.
-func testingFixture(t testing.TB) (tearDown func ()(), getToken func(subject string, d time.Duration, tags session.AWSSessionTags) string, stsServer server.Serverable, s3Server server.Serverable){
+func testingFixture(t testing.TB) (
+	tearDown func ()(), 
+	getToken func(subject string, d time.Duration, tags session.AWSSessionTags) string, 
+	stsServer server.Serverable, 
+	s3Server server.Serverable,
+	){
+	return testingFixtureCustomServerOpts(
+		t,
+		server.ServerOpts{},
+		server.ServerOpts{},
+	)
+}
+
+
+func testingFixtureCustomServerOpts(t testing.TB, stsServerOpts server.ServerOpts, s3ServerOpts server.ServerOpts) (
+	tearDown func ()(), 
+	getToken func(subject string, d time.Duration, tags session.AWSSessionTags) string, 
+	stsServer server.Serverable, 
+	s3Server server.Serverable,
+	){
 	skipIfNoTestingBackends(t)
 	//Configure backends to be the testing S3 backends
 	stageTestingBackendsConfig(t)
@@ -199,10 +221,9 @@ func testingFixture(t testing.TB) (tearDown func ()(), getToken func(subject str
 	teardownPolicies := defaultPolicyFixture(t)
 	defer teardownPolicies()
 
-
 	//Given valid server config
-	teardownSuiteSTS, stsServer := setupSuiteProxySTS(t)
-	teardownSuiteS3, s3Server := setupSuiteProxyS3(t)
+	teardownSuiteSTS, stsServer := setupSuiteProxySTS(t, stsServerOpts)
+	teardownSuiteS3, s3Server := setupSuiteProxyS3(t, s3ServerOpts)
 
 	keyStorage := getTestingKeyStorage(t)
 
@@ -577,4 +598,57 @@ func TestListingOfS3BucketHasExpectedObjects(t *testing.T) {
 	//THEN it should report the known objects "region.txt" and "team.txt"
 	assertObjectInBucketListing(t, listObjects, "region.txt")
 	assertObjectInBucketListing(t, listObjects, "team.txt")
+}
+
+func TestAuditLogEntry(t *testing.T) {
+	tearDownProxy, getSignedToken, stsServer, s3Server := testingFixture(t)
+	defer tearDownProxy()
+	teardownLog, getCapturedStructuredLogEntries := testutils.CaptureStructuredLogsFixture(t, slog.LevelInfo, nil)
+	defer teardownLog()
+
+	//GIVEN we run another test scenario
+		//_GIVEN token for team that does have access
+		token := getSignedToken("mySubject", time.Minute * 20, session.AWSSessionTags{PrincipalTags: map[string][]string{testTeamTag: {testAllowedTeam}}})
+		creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowTeamFolderARN, stsServer)
+	
+		//_WHEN access is attempted that required the team information
+		content, err := getTestBucketObjectContent(t, testRegion1, testTeamFile, credentials.FromAwsFormat(creds), s3Server)
+	
+		//_THEN the file content should be returned
+		if err != nil {
+			t.Errorf("Could not get team file even though part of correct team. got %s", err)
+		}
+		expectedContent := "teamSecret123"
+		if content != expectedContent {
+			t.Errorf("Got %s, expected %s", content, expectedContent)
+		}
+	
+	//WHEN we get the logs
+	logEntries := getCapturedStructuredLogEntries()
+	//THEN we have 1 access log entry per service (sts & s3)
+	accesslogEntries := logEntries.GetEntriesWithMsg(t, "Request end")
+	if len(accesslogEntries) != 2 {
+		t.Errorf("Invalid number of access log entries. Expected 2 got: %d", len(accesslogEntries))
+	}
+	
+	//WHEN we check the s3 auditlog entry
+	s3Entry := accesslogEntries.GetEntriesContainingField(t, "s3")[0]
+	//Then the operation should be GetObject
+	operation := s3Entry.GetStringField(t, "Operation")
+	if operation != "GetObject" {
+		t.Errorf("Wrong operation present in s3 access log. Expected GetObject got %s", operation)
+	}
+	if s3Entry.GetFloat64(t, "HTTP status") != 200 {
+		t.Error("HTTPS status should have been a 200")
+	}
+
+	//WHEN we check the sts audit log entry
+	stsEntry := accesslogEntries.GetEntriesContainingField(t, "sts")[0]
+	//Then the operation should be AssumeRoleWithWebIdentity
+	operation = stsEntry.GetStringField(t, "Operation")
+	if operation != "AssumeRoleWithWebIdentity" {
+		t.Errorf("Wrong operation present in sts access log. Expected AssumeRoleWithWebIdentity got %s", operation)
+
+	}
+
 }

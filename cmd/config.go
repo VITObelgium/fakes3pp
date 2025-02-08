@@ -52,6 +52,7 @@ const(
 	signedUrlGraceTimeSeconds = "signedUrlGraceTimeSeconds"
 	enableLegacyBehaviorInvalidRegionToDefaultRegion = "enableLegacyBehaviorInvalidRegionToDefaultRegion"
 	logLevel = "logLevel"
+	metricsPort = "metricsPort"
 	
 
 	//Environment variables are upper cased
@@ -74,6 +75,7 @@ const(
 	FAKES3PP_SIGNEDURL_GRACE_TIME_SECONDS = "FAKES3PP_SIGNEDURL_GRACE_TIME_SECONDS"
 	ENABLE_LEGACY_BEHAVIOR_INVALID_REGION_TO_DEFAULT_REGION = "ENABLE_LEGACY_BEHAVIOR_INVALID_REGION_TO_DEFAULT_REGION"
 	LOG_LEVEL = "LOG_LEVEL"
+	FAKES3PP_METRICS_PORT = "FAKES3PP_METRICS_PORT"
 )
 
 var envVarDefs = []envVarDef{
@@ -203,6 +205,13 @@ var envVarDefs = []envVarDef{
 		LOG_LEVEL,
 		false,
 		"The Loglevel at which to run (DEBUG, INFO (default), WARN, ERROR)",
+		[]string{proxys3, proxysts},
+	},
+	{
+		metricsPort,
+		FAKES3PP_METRICS_PORT,
+		false,
+		"The port on which to run the /metrics endpoint",
 		[]string{proxys3, proxysts},
 	},
 }

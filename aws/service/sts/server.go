@@ -12,6 +12,7 @@ import (
 	"github.com/VITObelgium/fakes3pp/aws/credentials"
 	"github.com/VITObelgium/fakes3pp/aws/service"
 	"github.com/VITObelgium/fakes3pp/aws/service/iam"
+	"github.com/VITObelgium/fakes3pp/aws/service/sts/api"
 	"github.com/VITObelgium/fakes3pp/aws/service/sts/oidc"
 	"github.com/VITObelgium/fakes3pp/aws/service/sts/session"
 	"github.com/VITObelgium/fakes3pp/requestctx"
@@ -23,18 +24,12 @@ import (
 
 
 type STSServer struct{
+	server.BasicServer
+
 	//The Key material that is used for signing JWT tokens.
 	jwtKeyMaterial utils.KeyPairKeeper
 
 	fqdns []string
-
-	port  int
-
-	//The TLS certificate used to encrypt traffic with if omitted HTTP server will be spawned
-	tlsCertFilePath string
-
-	//The TLS key used to encrypt traffic with if omitted HTTP server will be spawned
-	tlsKeyFilePath string
 
 	//The verifier for OIDC IDP tokens
 	oidcVerifier oidc.OIDCVerifier
@@ -92,42 +87,32 @@ func newSTSServer(
 	if err != nil {
 		return nil, err
 	}
+	if len(fqdns) == 0 {
+		return nil, errors.New("must pass at least 1 FQDN")
+	}
 	s = &STSServer{
+		BasicServer: *server.NewBasicServer(serverPort, fqdns[0], tlsCertFilePath, tlsKeyFilePath, nil),
 		jwtKeyMaterial: key,
 		fqdns: fqdns,
-		port: serverPort,
-		tlsCertFilePath: tlsCertFilePath,
-		tlsKeyFilePath: tlsKeyFilePath,
 		oidcVerifier: oidcVerifier,
 		pm: pm,
 		maxAllowedDuration: time.Duration(maxDurationSeconds) * time.Second,
 	}
+	s.SetHandlerFunc(s.CreateHandler())
 	return s, nil
 }
 
-func (s *STSServer) GetPort() (int) {
-	return s.port
-}
-
-func (s *STSServer) GetTls() (bool, string, string) {
-	enabled := true
-	if s.tlsCertFilePath == "" {
-		slog.Debug("Disabling TLS", "reason", "no certFile provided")
-		enabled = false
-	} else if s.tlsKeyFilePath == "" {
-		slog.Debug("Disabling TLS", "reason", "no keyFile provided")
-		enabled = false
-	}
-	return enabled, s.tlsCertFilePath, s.tlsKeyFilePath
-}
-
-func (s *STSServer) RegisterRoutes(router *mux.Router) error {
+func (s *STSServer) CreateHandler() http.HandlerFunc {
+	router := mux.NewRouter()
 	stsRouter := router.NewRoute().PathPrefix(server.SlashSeparator).Subrouter()
 
 	stsRouter.Methods(http.MethodPost).HandlerFunc(s.processSTSPost)
 
 	stsRouter.PathPrefix("/").HandlerFunc(justLog)
-	return nil
+
+	return func(w http.ResponseWriter, r *http.Request) {
+		stsRouter.ServeHTTP(w, r)
+	}
 }
 
 func justLog(w http.ResponseWriter, r *http.Request) {
@@ -186,9 +171,10 @@ type stsClaims map[string]interface{}
 // - RoleSessionName
 // - WebIdentityToken following the structure 
 func (s *STSServer)assumeRoleWithWebIdentity(ctx context.Context, w http.ResponseWriter, r *http.Request) {
-
+	requestctx.SetOperation(r, api.AssumeRoleWithWebIdentity)
 	claims := stsClaims{}
 	defer slog.InfoContext(ctx, "Auditlog", "claims", claims)
+	requestctx.AddAccessLogInfo(r, "sts", slog.Any("claims", claims))
 
 	token := r.Form.Get(stsWebIdentityToken)
 

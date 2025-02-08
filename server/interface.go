@@ -1,8 +1,12 @@
 package server
 
-import "github.com/minio/mux"
+import (
+	"net/http"
+)
 
 type Serverable interface {
+	http.Handler
+
 	//Get the port name on which to listen
 	GetPort() int
 
@@ -11,8 +15,5 @@ type Serverable interface {
 
 	//Get information to setup TLS
 	GetTls() (enabled bool, certFile string, keyFile string)
-
-	//Callback to add routes to a router
-	RegisterRoutes(router *mux.Router) (error)
 }
 

@@ -25,7 +25,7 @@ func TestS3Error(t *testing.T) {
 	r.Header.Set(requestctx.XRequestID, testReqID)
 	rr := httptest.NewRecorder()
 	ctx := requestctx.NewContextFromHttpRequest(r)
-	writeS3ErrorAccessDeniedResponse(ctx, rr)
+	writeS3ErrorResponse(ctx, rr, ErrS3AccessDenied, nil)
 	bodyBytes, err := io.ReadAll(rr.Body)
 	if err != nil {
 		t.Errorf("Could not read response body %s", err)

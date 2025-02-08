@@ -24,7 +24,6 @@ package s3
 import (
 	"context"
 	"encoding/xml"
-	"errors"
 	"log/slog"
 	"net/http"
 
@@ -84,12 +83,6 @@ func writeS3ErrorResponse(ctx context.Context, w http.ResponseWriter, errCode S3
 	encodedErrorResponse := service.EncodeResponse(ctx, s3ErrorResponse)
 	service.WriteResponse(ctx, w, s3Err.HTTPStatusCode, encodedErrorResponse, service.MimeXML)
 }
-
-func writeS3ErrorAccessDeniedResponse(ctx context.Context, w http.ResponseWriter) {
-	// nolint:staticcheck
-	writeS3ErrorResponse(ctx, w, ErrS3AccessDenied, errors.New("access Denied"))
-}
-
 
 type S3ErrorResponse struct {
 	XMLName xml.Name `xml:"Error" json:"-"`

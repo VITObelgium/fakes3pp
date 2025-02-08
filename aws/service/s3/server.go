@@ -1,7 +1,7 @@
 package s3
 
 import (
-	"log/slog"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -11,23 +11,16 @@ import (
 	"github.com/VITObelgium/fakes3pp/middleware"
 	"github.com/VITObelgium/fakes3pp/server"
 	"github.com/VITObelgium/fakes3pp/utils"
-	"github.com/minio/mux"
 )
 
 
 type S3Server struct{
+	server.BasicServer
+
 	//The Key material that is used for signing JWT tokens. Needed for verification.
 	jwtKeyMaterial utils.KeyPairKeeper
 
 	fqdns []string
-
-	port  int
-
-	//The TLS certificate used to encrypt traffic with if omitted HTTP server will be spawned
-	tlsCertFilePath string
-
-	//The TLS key used to encrypt traffic with if omitted HTTP server will be spawned
-	tlsKeyFilePath string
 
 	pm *iam.PolicyManager
 
@@ -95,13 +88,15 @@ func newS3Server(
 	if err != nil {
 		return nil, err
 	}
+	if len(fqdns) == 0 {
+		return nil, errors.New("must at least pass in 1 fqdn to create a server")
+	}
+	basicServer := server.NewBasicServer(serverPort, fqdns[0], tlsCertFilePath, tlsKeyFilePath, nil)
 	
 	s = &S3Server{
+		BasicServer: *basicServer,
 		jwtKeyMaterial: key,
 		fqdns: fqdns,
-		port: serverPort,
-		tlsCertFilePath: tlsCertFilePath,
-		tlsKeyFilePath: tlsKeyFilePath,
 		pm: pm,
 		signedUrlGracePeriod: time.Duration(signedUrlGraceTimeSeconds) * time.Second,
 		proxyHB: proxyHB,
@@ -117,6 +112,7 @@ func newS3Server(
 		}
 	}
 	s.mws = mws
+	s.SetHandlerFunc(s.BuildHandlerfunc())
 	return s, nil
 }
 
@@ -141,29 +137,10 @@ func (s *S3Server)IsVirtualHostingRequest(req *http.Request) bool {
 	return true
 }
 
-
-func (s *S3Server) GetPort() (int) {
-	return s.port
-}
-
-func (s *S3Server) GetTls() (enabled bool, certFile string, keyFile string) {
-	enabled = true
-	if certFile == "" {
-		slog.Debug("Disabling TLS", "reason", "no certFile provided")
-		enabled = false
-	} else if keyFile == "" {
-		slog.Debug("Disabling TLS", "reason", "no keyFile provided")
-		enabled = false
-	}
-	return enabled, s.tlsCertFilePath, s.tlsKeyFilePath
-}
-
 //Register routes to S3 router
 //For real cases the proxyHB HandlerBuilder should build a handler function
 //that sends the request upstream and passes back the response.
-func (s *S3Server) RegisterRoutes(router *mux.Router) error {
+func (s *S3Server) BuildHandlerfunc() http.HandlerFunc{
 	h := s.proxyHB.Build(s.s3BackendManager)
-
-	router.NewRoute().HandlerFunc(middleware.Chain(h, s.mws...))
-	return nil
+	return middleware.Chain(h, s.mws...)
 }

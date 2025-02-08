@@ -10,29 +10,89 @@ import (
 	"sync"
 
 	"github.com/VITObelgium/fakes3pp/middleware"
-	"github.com/minio/mux"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
+
+//Defines optional configuration for a Serverable
+type ServerOpts struct {
+	//The default of 0 means no metrics are exposed
+	MetricsPort int
+
+	//The loglevel at which request start and stop events are logged
+	RequestLogLvl slog.Level
+
+	//The healthchecker used
+	healthchecker middleware.HealthChecker
+}
+
+func StartPrometheusMetricsServer(port int) (func(), prometheus.Registerer) {
+	if port == 0 {
+		return nil, nil
+	}
+	// Create non-global registry.
+	reg := prometheus.NewRegistry()
+
+	// Add go runtime metrics and process collectors.
+	reg.MustRegister(
+		collectors.NewGoCollector(),
+		collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}),
+	)
+
+	mux := http.NewServeMux()
+	// Expose /metrics HTTP endpoint using the created custom registry.
+	mux.Handle("/metrics", promhttp.HandlerFor(reg, promhttp.HandlerOpts{Registry: reg}))
+	var addr = fmt.Sprintf(":%d", port)
+
+	metricsSrvDone := &sync.WaitGroup{}
+	metricsSrvDone.Add(1)
+	var metricsSrv = &http.Server{Addr: addr}
+	metricsSrv.Handler = mux
+
+	go func() {
+		defer metricsSrvDone.Done()
+		err := metricsSrv.ListenAndServe()
+
+		if err != http.ErrServerClosed {
+			slog.Error(err.Error())
+		}
+	}()
+
+	shutdownMetricsServerSync := func(){
+		err := metricsSrv.Shutdown(context.Background())
+		if err != nil {
+			panic(err)
+		}
+	}
+
+	return shutdownMetricsServerSync, reg
+}
 
 //Start a server in the background but return a waitGroup.
 //
-func CreateAndStart(s Serverable) (*sync.WaitGroup, *http.Server, error) {
+func CreateAndStart(s Serverable, opts ServerOpts) (*sync.WaitGroup, *http.Server, error) {
+	shutdownMetricsServerSync, reg := StartPrometheusMetricsServer(opts.MetricsPort)
+
 	serverDone := &sync.WaitGroup{}
 	serverDone.Add(1)
 	portNr := s.GetPort()
 	tlsEnabled, tlsCertFile, tlsKeyFile := s.GetTls()
-	router := mux.NewRouter().SkipClean(true).UseEncodedPath()
 
-	err := s.RegisterRoutes(router)
-	if err != nil {
-		return nil, nil, err
-	}
 	listenAddress := fmt.Sprintf(":%d", portNr)
 	slog.Info("Started listening", "port", portNr)
 
 	srv := &http.Server{Addr: listenAddress}
+	if shutdownMetricsServerSync != nil {
+		srv.RegisterOnShutdown(shutdownMetricsServerSync)
+	}
+	healthchecker := opts.healthchecker
+	if healthchecker == nil {
+		healthchecker = middleware.NewPingPongHealthCheck(slog.LevelDebug)
+	}
 	srv.Handler = middleware.NewMiddlewarePrefixedHandler(
-		router, 
-		middleware.LogMiddleware(slog.LevelInfo, middleware.NewPingPongHealthCheck(slog.LevelInfo),),
+		s, 
+		middleware.LogMiddleware(opts.RequestLogLvl, healthchecker, reg),
 	)
 
 	// Start proxy in the background but manage waitgroup
@@ -56,8 +116,8 @@ func CreateAndStart(s Serverable) (*sync.WaitGroup, *http.Server, error) {
 }
 
 //Create a server and await until its health check is passing
-func CreateAndAwaitHealthy(s Serverable) (*sync.WaitGroup, *http.Server, error) {
-	serverDone, srv, err := CreateAndStart(s)
+func CreateAndAwaitHealthy(s Serverable, opts ServerOpts) (*sync.WaitGroup, *http.Server, error) {
+	serverDone, srv, err := CreateAndStart(s, opts)
 	if err != nil {
 		return serverDone, srv, err
 	}
@@ -75,8 +135,8 @@ func CreateAndAwaitHealthy(s Serverable) (*sync.WaitGroup, *http.Server, error) 
 	return serverDone, srv, nil
 }
 
-func CreateAndStartSync(s Serverable) {
-	proxyDone, _, err := CreateAndAwaitHealthy(s)
+func CreateAndStartSync(s Serverable, opts ServerOpts) {
+	proxyDone, _, err := CreateAndAwaitHealthy(s, opts)
 	if err != nil {
 		panic(err)
 	}

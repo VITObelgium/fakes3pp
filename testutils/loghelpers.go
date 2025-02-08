@@ -10,7 +10,7 @@ import (
 )
 
 //For testing only get lines out of a buffer
-func LogBufferToLines(tb testing.TB, buf *bytes.Buffer) []string {
+func logBufferToLines(tb testing.TB, buf *bytes.Buffer) []string {
 	var lines = []string{}
 	lineDelimiter := byte('\n')
 	for i:=0 ; i < 10000; i++ {
@@ -45,7 +45,7 @@ func CaptureLogFixture(tb testing.TB, lvl slog.Level, fe logging.ForceEnabler) (
 	}
 
 	getCapturedLogLines = func() (lines []string) {
-		lines = LogBufferToLines(tb, buf)
+		lines = logBufferToLines(tb, buf)
 		return lines
 	}
 

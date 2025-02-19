@@ -72,6 +72,9 @@ type RequestCtx struct{
 
 	//Target region
 	TargetRegion string
+
+	//The Error that was encountered
+	Error fmt.Stringer
 }
 
 func (c *RequestCtx)AddAccessLogInfo(groupName string, attrs... slog.Attr) {
@@ -125,11 +128,27 @@ func SetSessionToken(r *http.Request, token string) {
 	)
 }
 
+func SetErrorCode(ctx context.Context, errorCode fmt.Stringer) {
+	rCtx, ok := FromContext(ctx)
+	if !ok || rCtx == nil{
+		slog.ErrorContext(
+			ctx,
+			"Attempting to set errorCode without existing request context",
+			"error code", errorCode,
+		)
+		return
+	}
+	if rCtx.Error != noError {
+		slog.WarnContext(ctx, "Overriding Error this should not happen", "Old error", rCtx.Error, "New error", errorCode)
+	}
+	rCtx.Error = errorCode
+}
+
 func GetSessionToken(r *http.Request) (string, error) {
 	if rCtx := get(r); rCtx != nil {
 		return rCtx.SessionToken, nil
 	}
-	return "", errors.New("No session token stored in requestctx")
+	return "", errors.New("no session token stored in requestctx")
 }
 
 func SetOperation(r *http.Request, operation fmt.Stringer) {
@@ -245,6 +264,14 @@ func NewContextFromHttpRequest(req *http.Request) context.Context{
 	return NewContextFromHttpRequestWithStartTime(req, time.Now())
 }
 
+type emptyError string
+
+func (e emptyError) String() (string) {
+	return "-"
+}
+
+var noError emptyError
+
 func NewContextFromHttpRequestWithStartTime(req *http.Request, reqStartTime time.Time) context.Context{
 	rCtx := RequestCtx{
 		RequestID: getRequestIdFromHttpRequest(req),
@@ -256,6 +283,7 @@ func NewContextFromHttpRequestWithStartTime(req *http.Request, reqStartTime time
 		Host: req.Host,
 		accessLogAttrs: map[string]LogAttrs{},
 		data: map[string]any{},
+		Error: noError,
 	}
 	return NewContext(req.Context(), &rCtx)
 }

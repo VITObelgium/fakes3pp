@@ -641,6 +641,11 @@ func TestAuditLogEntry(t *testing.T) {
 	if s3Entry.GetFloat64(t, "HTTP status") != 200 {
 		t.Error("HTTPS status should have been a 200")
 	}
+	//Then the error should be empty
+	errorCode := s3Entry.GetStringField(t, "Error")
+	if errorCode != "-" {
+		t.Errorf("Wrong errorCode present in s3 access log. Expected - got %s", errorCode)
+	}
 
 	//WHEN we check the sts audit log entry
 	stsEntry := accesslogEntries.GetEntriesContainingField(t, "sts")[0]

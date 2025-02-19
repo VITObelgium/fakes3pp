@@ -31,6 +31,7 @@ import (
 
 // writeSTSErrorResponse writes error headers
 func writeSTSErrorResponse(ctx context.Context, w http.ResponseWriter, errCode STSErrorCode, err error) {
+	requestctx.SetErrorCode(ctx, errCode)
 	stsErr := stsErrCodes.ToSTSErr(errCode)
 
 	// Generate error response.

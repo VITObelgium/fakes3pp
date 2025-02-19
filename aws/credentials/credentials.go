@@ -96,6 +96,14 @@ func CalculateSecretKey(accessKey string, keyStorage utils.PrivateKeyKeeper) (st
 
 //Generate New AWS Credentials out of a JWT and a specified duration
 func NewAWSCredentials(token *jwt.Token, expiry time.Duration, keyStorage utils.PrivateKeyKeeper) (*AWSCredentials, error) {
+	accessKey := NewAccessKey()
+
+	claims, ok := token.Claims.(AWSSessionTokenClaims)
+	if !ok {
+		return nil, fmt.Errorf("AWS session token can only be created with token having AWSSessionTokenClaims: %v", token)
+	}
+
+	claims.SetAccessKeyId(accessKey)
 	key, err := keyStorage.GetPrivateKey()
 	if err != nil {
 		return nil, err
@@ -104,7 +112,6 @@ func NewAWSCredentials(token *jwt.Token, expiry time.Duration, keyStorage utils.
 	if err != nil {
 		return nil, err
 	}
-	accessKey := NewAccessKey()
 	secretKey, err := CalculateSecretKey(accessKey, keyStorage)
 	if err != nil {
 		return nil, err

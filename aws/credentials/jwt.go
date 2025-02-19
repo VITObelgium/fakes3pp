@@ -36,6 +36,26 @@ type SessionClaims struct {
 	//The issuer of the initial OIDC refresh token
 	IIssuer string `json:"initial_issuer"`
 	IDPClaims
+
+	AccessKeyID string `json:"access_key_id"`
+}
+
+
+//AWSSessionTokenClaims follow the jwt Claims interface but additionally
+//allows to embed an AccessKeyId during signing
+type AWSSessionTokenClaims interface {
+	jwt.Claims
+
+	SetAccessKeyId(akid string) ()
+	GetAccessKeyId() string
+}
+
+func (s *SessionClaims) SetAccessKeyId(akid string) () {
+	s.AccessKeyID = akid
+}
+
+func (s *SessionClaims) GetAccessKeyId() (string) {
+	return s.AccessKeyID
 }
 
 func CreateRS256PolicyToken(issuer, iIssuer, subject, roleARN string, expiry time.Duration, tags session.AWSSessionTags) (*jwt.Token) {
@@ -53,6 +73,7 @@ func CreateRS256PolicyToken(issuer, iIssuer, subject, roleARN string, expiry tim
 				ID:        uuid.New().String(),
 			},
 		},
+		"",
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
@@ -84,7 +105,13 @@ func ExtractTokenClaims(token string, keyFunc jwt.Keyfunc) (*SessionClaims, erro
 
 	policyClaims := SessionClaims{}
 
-	if _, err := jwt.ParseWithClaims(token, &policyClaims, keyFunc); err != nil {
+	var err error
+	if keyFunc == nil {
+		_, _, err = jwt.NewParser().ParseUnverified(token, &policyClaims)
+	} else {
+	    _, err = jwt.ParseWithClaims(token, &policyClaims, keyFunc)
+	}
+	if err != nil {
 		return nil, err
 	}
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -72,6 +73,13 @@ func handleAuthNPresigned(w http.ResponseWriter, r *http.Request, keyStorage uti
 	requestctx.AddAccessLogInfo(r, "s3", slog.String(L_AKID, creds.AccessKeyID))
 	requestctx.SetSessionToken(r, creds.SessionToken)
 
+	err = makeSureSessionTokenIsForAccessKey(creds.SessionToken, creds.AccessKeyID)
+	if err != nil {
+		err := fmt.Errorf("Error when making sure session token corresponds to used credential pair: %w", err)
+		e.WriteErrorResponse(r.Context(), w, service.ErrAuthorizationHeaderMalformed, err)
+		return false
+	}
+
 	addRegionToSession(r, backendManager)
 
 	// If url has gone passed expiry time (under user control)
@@ -132,6 +140,13 @@ func handleAuthNNormal(w http.ResponseWriter, r *http.Request, keyStorage utils.
 	requestctx.AddAccessLogInfo(r, "s3", slog.String(L_AKID, accessKeyId))
 	requestctx.SetSessionToken(r, sessionToken)
 
+	err = makeSureSessionTokenIsForAccessKey(sessionToken, accessKeyId)
+	if err != nil {
+		err := fmt.Errorf("Error when making sure session token corresponds to used credential pair: %w", err)
+		e.WriteErrorResponse(r.Context(), w, service.ErrAuthorizationHeaderMalformed, err)
+		return false
+	}
+
 	addRegionToSession(r, backendManager)
 
 	secretAccessKey, err := credentials.CalculateSecretKey(accessKeyId, keyStorage)
@@ -171,6 +186,23 @@ func handleAuthNNormal(w http.ResponseWriter, r *http.Request, keyStorage utils.
 		return false
 	}
 	return true
+}
+
+//Make sure the provided session token matches the used credentials
+//If not return an error
+func makeSureSessionTokenIsForAccessKey(sessionToken, accessKeyId string) (invalidToken error) {
+	claims, err := credentials.ExtractTokenClaims(sessionToken, nil)
+	if err != nil {
+		return err
+	}
+	if claims.AccessKeyID == accessKeyId {
+		return nil
+	}
+	if strings.ToUpper(os.Getenv("DEPRECATED_ALLOW_LEGACY_CREDENTIALS")) == "YES" {
+		slog.Warn("RELYING ON DEPRECATED BEHAVIOR", "claims", claims.AccessKeyID, "creds", accessKeyId)
+		return nil
+	}
+	return fmt.Errorf("mismatch between session token and access key i:d %s <> %s", claims.AccessKeyID, accessKeyId)
 }
 
 //For requests the access key and token are send over the wire

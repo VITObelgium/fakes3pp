@@ -36,7 +36,7 @@ func fixture_with_environment_values(tb testing.TB, new_env map[string]string) (
 
 	tearDown = func() () {
 		for new_env_key, new_env_value := range new_env {
-			old_value, old_value_exists := os.LookupEnv(new_env_key)
+			old_value, old_value_exists := old_env_variables[new_env_key]
 			if old_value_exists {
 				err := os.Setenv(new_env_key, old_value)
 				if err != nil {

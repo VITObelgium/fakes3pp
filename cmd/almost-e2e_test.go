@@ -652,3 +652,166 @@ func TestAuditLogEntry(t *testing.T) {
 	}
 
 }
+
+func TestMakeSureRequestFailsWithOldSigningStrategy(t *testing.T) {
+	tearDown, _, _, s3Server := testingFixture(t)
+	defer tearDown()
+
+	//Given credentials like how they were generated in the old times
+	creds := getLegacyCredentials(t, testPolicyAllowAllARN, session.AWSSessionTags{})
+
+
+	for _, backendRegion := range backendTestRegions {
+		_, err := getRegionObjectContent(t, backendRegion, credentials.FromAwsFormat(creds), s3Server)
+		if err == nil {
+			t.Error("Should not have been able to get region content but it worked")
+		}
+	}
+}
+
+func TestMakeSureRequestSucceedsWithOldSigningStrategyWhenBackwardsCompatibilityEnabled(t *testing.T) {
+	//Given feature flag that allows legacy credentials
+	restore_env := fixture_with_environment_values(t, map[string]string{"DEPRECATED_ALLOW_LEGACY_CREDENTIALS": "YES"})
+	defer restore_env()
+
+	tearDown, _, _, s3Server := testingFixture(t)
+	defer tearDown()
+
+	//Given credentials like how they were generated in the old times
+	creds := getLegacyCredentials(t, testPolicyAllowAllARN, session.AWSSessionTags{})
+
+
+	for _, backendRegion := range backendTestRegions {
+		regionContent, err := getRegionObjectContent(t, backendRegion, credentials.FromAwsFormat(creds), s3Server)
+		if err != nil {
+			t.Errorf("Could not get region content due to error %s", err)
+		} else if regionContent != backendRegion {
+			t.Errorf("when retrieving region file for %s we got %s", backendRegion, regionContent)
+		}
+	}
+}
+
+
+func TestSigv4PresignedUrlsFailWithOldSigningStrategy(t *testing.T) {
+	//Given a running proxy and credentials against that proxy that allow access for the get operation
+	tearDown, _, _, s3Server := testingFixture(t)
+	defer tearDown()
+
+	//Given credentials like how they were generated in the old times
+	creds := getLegacyCredentials(t, testPolicyAllowAllARN, session.AWSSessionTags{})
+
+	//Given a Get request for the region.txt file
+	regionFileUrl := fmt.Sprintf("%s%s/%s", testutils.GetTestServerUrl(s3Server), testingBucketNameBackenddetails, testingRegionTxtObjectKey)
+	req, err := http.NewRequest(http.MethodGet, regionFileUrl, nil)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+
+	//When creating a presigned url it and using that presigned url it should return the region correctly.
+	for _, backendRegion := range backendTestRegions {
+		signedUri, _, err := presign.PreSignRequestWithCreds(context.Background(), req, 300, time.Now(), creds, backendRegion)
+		if err != nil {
+			t.Errorf("Did not expect error when signing url for %s. Got %s", backendRegion, err)
+			t.FailNow()
+		}
+		resp, err := http.Get(signedUri)
+		if err != nil {
+			t.Errorf("The get should have gone through but got an error: %s", err)
+		}
+		if resp.StatusCode != http.StatusBadRequest {
+			t.Errorf("The api should have returned a Bad Request status but got %d, %v", resp.StatusCode, resp)
+		}
+	}
+}
+
+//test can be removed after DEPRECATED behavior is no longer tolerated.
+func TestSigv4PresignedUrlsSucceedWithOldSigningStrategyWhenBackwardsCompatibilityEnabled(t *testing.T) {
+	//Given feature flag that allows legacy credentials
+	restore_env := fixture_with_environment_values(t, map[string]string{"DEPRECATED_ALLOW_LEGACY_CREDENTIALS": "YES"})
+	defer restore_env()
+
+	//Given a running proxy and credentials against that proxy that allow access for the get operation
+	tearDown, _, _, s3Server := testingFixture(t)
+	defer tearDown()
+
+	//Given credentials like how they were generated in the old times
+	creds := getLegacyCredentials(t, testPolicyAllowAllARN, session.AWSSessionTags{})
+
+	//Given a Get request for the region.txt file
+	regionFileUrl := fmt.Sprintf("%s%s/%s", testutils.GetTestServerUrl(s3Server), testingBucketNameBackenddetails, testingRegionTxtObjectKey)
+	req, err := http.NewRequest(http.MethodGet, regionFileUrl, nil)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+
+	//When creating a presigned url it and using that presigned url it should return the region correctly.
+	for _, backendRegion := range backendTestRegions {
+		signedUri, _, err := presign.PreSignRequestWithCreds(context.Background(), req, 300, time.Now(), creds, backendRegion)
+		if err != nil {
+			t.Errorf("Did not expect error when signing url for %s. Got %s", backendRegion, err)
+		}
+		resp, err := http.Get(signedUri)
+		if err != nil {
+			t.Errorf("Did not expect error when using signing url for %s. Got %s", backendRegion, err)
+		}
+		bytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Errorf("Did not expect error when getting body of signed url response for %s. Got %s", backendRegion, err)
+		}
+		if string(bytes) != backendRegion {
+			t.Errorf("Invalid response of presigned url expected %s, got %s", backendRegion, string(bytes))
+		}
+	}
+}
+
+func getLegacyCredentials(t testing.TB, roleArn string, tags session.AWSSessionTags) aws.Credentials {
+	pkKeeper, err := utils.NewKeyStorage(viper.GetString(s3ProxyJwtPrivateRSAKey))
+	if err != nil {
+		t.Error("Could not get signing key material")
+		t.FailNow()
+	}
+
+	expiry := time.Hour
+
+	token := credentials.CreateRS256PolicyToken("issuer", "iisuer", "subject", roleArn, expiry, tags)
+	
+	creds, err := newLegacyAWSCredentialsForToken(token, expiry, pkKeeper)
+	if err != nil {
+		t.Error("Could not create legacy credentials: %w", err)
+		t.FailNow()
+	}
+	awsCreds := aws.Credentials{
+		AccessKeyID: creds.AccessKey,
+		SecretAccessKey: creds.SecretKey,
+		SessionToken: creds.SessionToken,
+		Expires: creds.Expiration,
+		CanExpire: true,
+	}
+	return awsCreds
+}
+
+func newLegacyAWSCredentialsForToken(token *jwt.Token, expiry time.Duration, keyStorage utils.PrivateKeyKeeper) (*credentials.AWSCredentials, error) {
+	accessKey := credentials.NewAccessKey()
+
+	key, err := keyStorage.GetPrivateKey()
+	if err != nil {
+		return nil, err
+	}
+	sessionToken, err :=token.SignedString(key)
+	if err != nil {
+		return nil, err
+	}
+	secretKey, err := credentials.CalculateSecretKey(accessKey, keyStorage)
+	if err != nil {
+		return nil, err
+	}
+	cred := &credentials.AWSCredentials{
+		AccessKey: accessKey,
+		SecretKey: secretKey,
+		SessionToken: sessionToken,
+		Expiration: time.Now().UTC().Add(expiry),
+	}
+	return cred, nil
+}

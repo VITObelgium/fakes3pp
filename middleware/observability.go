@@ -26,6 +26,7 @@ func LogMiddleware(requestLogLvl slog.Level, hc HealthChecker, promReg prometheu
 	var requestSize *prometheus.CounterVec
 	var responseSize *prometheus.CounterVec
 	var requestsFinished *prometheus.CounterVec
+	var requestsFailed *prometheus.CounterVec
 	if promReg != nil {
 		requestsTotal = promauto.With(promReg).NewCounterVec(
 			prometheus.CounterOpts{
@@ -60,6 +61,12 @@ func LogMiddleware(requestLogLvl slog.Level, hc HealthChecker, promReg prometheu
 				Name: "http_requests_finished_total",
 				Help: "Tracks the number of HTTP requests.",
 			}, []string{"method", "operation"},
+		)
+		requestsFailed = promauto.With(promReg).NewCounterVec(
+			prometheus.CounterOpts{
+				Name: "http_requests_failed_total",
+				Help: "Tracks the number of HTTP requests that failed.",
+			}, []string{"code"},
 		)
 	}
     return func(next http.HandlerFunc) http.HandlerFunc {
@@ -114,6 +121,11 @@ func LogMiddleware(requestLogLvl slog.Level, hc HealthChecker, promReg prometheu
 						responseSize.With(opLabel).Add(float64(rCtx.BytesSent))
 						opmetLabels := prometheus.Labels{"operation": operation, "method": r.Method}
 						requestsFinished.With(opmetLabels).Inc()
+
+						if rCtx.Error != nil {
+							errLabel := prometheus.Labels{"code": rCtx.Error.String()}
+							requestsFailed.With(errLabel).Inc()
+						}
 					}()
 				}
 				next.ServeHTTP(trackingW, r.WithContext(ctx))
@@ -132,6 +144,7 @@ func logFinalRequestDetails(ctx context.Context, lvl slog.Level, startTime time.
 		operation = rCtx.Operation.String()
 	}
 	requestLogAttrs = append(requestLogAttrs, slog.String("Operation", operation))
+	requestLogAttrs = append(requestLogAttrs, slog.String("Error", rCtx.Error.String()))
 	requestLogAttrs = append(requestLogAttrs, slog.Int("HTTP status", rCtx.HTTPStatus))
 	requestLogAttrs = append(requestLogAttrs, rCtx.GetAccessLogInfo()...)
 	slog.LogAttrs(

@@ -62,6 +62,7 @@ func toS3ErrorCode(ctx context.Context, awsE service.AWSErrorCode) (s3E S3ErrorC
 // writeS3ErrorResponse writes error headers
 // If err is a UserError then we return the user error as a description
 func writeS3ErrorResponse(ctx context.Context, w http.ResponseWriter, errCode S3ErrorCode, err error) {
+	requestctx.SetErrorCode(ctx, errCode)
 	s3Err := s3ErrCodes.ToS3Err(errCode)
 
 	// Generate error response.

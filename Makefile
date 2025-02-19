@@ -5,10 +5,10 @@ build-container:
 	podman build -t fakes3pp -f Dockerfile .
 
 run-container-s3:
-	podman run --rm -v ./etc.private:/etc/fakes3pp:Z -p 8443:8443 --env HOME=${HOME} -it localhost/fakes3pp:latest proxys3 --dot-env /etc/fakes3pp/.env.docker
+	podman run --rm -v ./etc.private:/etc/fakes3pp:Z -p 8443:8443 -p 5555:5555 --env HOME=${HOME} -it localhost/fakes3pp:latest proxys3 --dot-env /etc/fakes3pp/.env.docker
 
 run-container-sts:
-	podman run --rm -v ./etc.private:/etc/fakes3pp:Z -p 8444:8444 --env HOME=${HOME} -it localhost/fakes3pp:latest proxysts --dot-env /etc/fakes3pp/.env.docker
+	podman run --rm -v ./etc.private:/etc/fakes3pp:Z -p 8444:8444 -p 5555:5556 --env HOME=${HOME} -it localhost/fakes3pp:latest proxysts --dot-env /etc/fakes3pp/.env.docker
 
 setup-test-dependencies:
 	[ ! -f testing/venv/moto ] && python3 -m venv testing/venv/moto

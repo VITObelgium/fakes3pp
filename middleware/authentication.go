@@ -75,7 +75,7 @@ func handleAuthNPresigned(w http.ResponseWriter, r *http.Request, keyStorage uti
 
 	err = makeSureSessionTokenIsForAccessKey(creds.SessionToken, creds.AccessKeyID)
 	if err != nil {
-		err := fmt.Errorf("Error when making sure session token corresponds to used credential pair: %w", err)
+		err := fmt.Errorf("error when making sure session token corresponds to used credential pair: %w", err)
 		e.WriteErrorResponse(r.Context(), w, service.ErrAuthorizationHeaderMalformed, err)
 		return false
 	}
@@ -142,7 +142,7 @@ func handleAuthNNormal(w http.ResponseWriter, r *http.Request, keyStorage utils.
 
 	err = makeSureSessionTokenIsForAccessKey(sessionToken, accessKeyId)
 	if err != nil {
-		err := fmt.Errorf("Error when making sure session token corresponds to used credential pair: %w", err)
+		err := fmt.Errorf("error when making sure session token corresponds to used credential pair: %w", err)
 		e.WriteErrorResponse(r.Context(), w, service.ErrAuthorizationHeaderMalformed, err)
 		return false
 	}
@@ -174,6 +174,8 @@ func handleAuthNNormal(w http.ResponseWriter, r *http.Request, keyStorage utils.
 	passedSignature := r.Header.Get(constants.AuthorizationHeader)
 	//Cleaning could have removed content length
 	r.ContentLength = backupContentLength
+	slog.DebugContext(r.Context(), "ContentLength after manipualation", "ContentLength", r.ContentLength)
+
 
 	if calculatedSignature != passedSignature {
 		slog.DebugContext(
@@ -215,6 +217,8 @@ func getCredentialsFromRequest(r *http.Request) (accessKeyId, sessionToken strin
 //cleanHeadersThatAreNotSignedInAuthHeader removes headers which are potentially added along the way
 //
 func cleanHeadersThatAreNotSignedInAuthHeader(req *http.Request) {
+	slog.DebugContext(req.Context(), "Headers before manipualation", "Headers", req.Header)
+
 	signedHeaders := getSignedHeadersFromRequest(req)
 
 	presign.CleanHeadersTo(req.Context(), req, signedHeaders)

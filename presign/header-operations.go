@@ -60,6 +60,12 @@ func CleanHeadersTo(ctx context.Context, req *http.Request, toKeep map[string]st
 			//also be <=0 otherwise it is taken in the signature
 			//-1 means unknown so let's fall back to that
 			if headerLC == "content-length" {
+				slog.DebugContext(
+					req.Context(),
+					"Cleaning Content-Length",
+					"header", req.Header.Get(header),
+					"reqValue", req.ContentLength,
+				)
 				req.ContentLength = -1
 			}
 			req.Header.Del(header)

@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"os"
 	"testing"
 	"time"
 
@@ -78,10 +79,12 @@ var testProviderFakeTesting string = fmt.Sprintf(`
 var testConfigFakeTesting string = fmt.Sprintf("providers:%s", testProviderFakeTesting)
 
 func TestMain(m *testing.M) {
-	envFiles = "../etc/.env"
-	loadEnvVarsFromDotEnv()
-	initConfig()
-	initializeTestLogging()
+	if os.Getenv("DEBUG_LOCAL_TEST") == "" {
+		envFiles = "../etc/.env"
+		loadEnvVarsFromDotEnv()
+		initConfig()
+		initializeTestLogging()
+	}
 	m.Run()
 }
 

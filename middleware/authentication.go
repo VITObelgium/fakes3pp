@@ -221,7 +221,7 @@ func cleanHeadersThatAreNotSignedInAuthHeader(req *http.Request) {
 
 	signedHeaders := getSignedHeadersFromRequest(req)
 
-	presign.CleanHeadersTo(req.Context(), req, signedHeaders)
+	presign.CleanHeadersTo(req.Context(), req, signedHeaders, presign.CleanerOptions{})
 }
 
 const signedHeadersPrefix = "SignedHeaders="

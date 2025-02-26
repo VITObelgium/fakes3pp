@@ -89,7 +89,7 @@ func (u presignedUrlS3V4Query) GetPresignedUrlDetails(ctx context.Context, deriv
 	if c.Header.Get("Host") == "" {
 		c.Header.Add("Host", c.Host)
 	}
-	CleanHeadersTo(ctx, c, u.getSignedHeaders())
+	CleanHeadersTo(ctx, c, u.getSignedHeaders(), CleanerOptions{AlwaysClean: true})
 	defaultRegion := ""  // A Sigv4 always has a region specified as part of the X-amz-credentials parameter so no fallback needed.
 	signedUri, _, err := PreSignRequestWithCreds(ctx, c, expirySeconds, signDate, creds, defaultRegion)
 	if err != nil {

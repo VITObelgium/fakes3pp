@@ -19,6 +19,15 @@ var cleanableHeaders = map[string]bool{
 	"amz-sdk-invocation-id": true, //Added by AWS SDKs after signing
 	"amz-sdk-request": true, //Added by AWS SDKs after signing
 	"content-length": true,
+	"Sec-Fetch-User": true,
+	"Priority": true,
+	"Te": true,
+	"Accept": true,
+	"Upgrade-Insecure-Requests": true,
+	"Sec-Fetch-Dest": true,
+	"Sec-Fetch-Mode": true,
+	"Sec-Fetch-Site": true,
+	"Accept-Language": true,
 }
 
 //It is not always clear which headers are OK to skip cleaning. These headers
@@ -37,7 +46,14 @@ func isCleanable(headerName string) bool {
 	return false
 }
 
-func CleanHeadersTo(ctx context.Context, req *http.Request, toKeep map[string]string) {
+type CleanerOptions struct{
+	//If set we do not check against a list of headers that is safe to clean
+	//We just clean all that are not explicitly set to keep
+	AlwaysClean bool
+}
+
+//
+func CleanHeadersTo(ctx context.Context, req *http.Request, toKeep map[string]string, opts CleanerOptions) {
 	var cleaned = []string{}
 	var skipped = []string{}
 	var signed = []string{}
@@ -55,7 +71,7 @@ func CleanHeadersTo(ctx context.Context, req *http.Request, toKeep map[string]st
 			signed = append(signed, header)
 			continue
 		}
-		if isCleanable(header) {
+		if isCleanable(header) || opts.AlwaysClean {
 			//If content-length is to be cleaned it should
 			//also be <=0 otherwise it is taken in the signature
 			//-1 means unknown so let's fall back to that

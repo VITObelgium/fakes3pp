@@ -2,9 +2,7 @@ package testutils
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
-	"net/http"
 	"testing"
 	"time"
 
@@ -15,17 +13,15 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 )
 
+
+
 func getTestAwsConfig(t testing.TB) (aws.Config) {
 	cfg, err := config.LoadDefaultConfig(context.Background())
 	if err != nil {
 		t.Error(err)
 	}
-	//https://github.com/aws/aws-sdk-go/issues/2404
-	tr := &http.Transport{
-        TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-    }
-	httpClient := &http.Client{Transport: tr}
-	cfg.HTTPClient = httpClient
+
+	cfg.HTTPClient = BuildUnsafeHttpClientThatTrustsAnyCert(t)
 	return cfg
 }
 

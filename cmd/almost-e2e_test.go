@@ -397,7 +397,7 @@ func TestSigv4PresignedUrlsWork(t *testing.T) {
 		if err != nil {
 			t.Errorf("Did not expect error when signing url for %s. Got %s", backendRegion, err)
 		}
-		resp, err := http.Get(signedUri)
+		resp, err := testutils.BuildUnsafeHttpClientThatTrustsAnyCert(t).Get(signedUri)
 		if err != nil {
 			t.Errorf("Did not expect error when using signing url for %s. Got %s", backendRegion, err)
 		}
@@ -723,7 +723,7 @@ func TestSigv4PresignedUrlsFailWithOldSigningStrategy(t *testing.T) {
 			t.Errorf("Did not expect error when signing url for %s. Got %s", backendRegion, err)
 			t.FailNow()
 		}
-		resp, err := http.Get(signedUri)
+		resp, err := testutils.BuildUnsafeHttpClientThatTrustsAnyCert(t).Get(signedUri)
 		if err != nil {
 			t.Errorf("The get should have gone through but got an error: %s", err)
 		}
@@ -760,7 +760,7 @@ func TestSigv4PresignedUrlsSucceedWithOldSigningStrategyWhenBackwardsCompatibili
 		if err != nil {
 			t.Errorf("Did not expect error when signing url for %s. Got %s", backendRegion, err)
 		}
-		resp, err := http.Get(signedUri)
+		resp, err := testutils.BuildUnsafeHttpClientThatTrustsAnyCert(t).Get(signedUri)
 		if err != nil {
 			t.Errorf("Did not expect error when using signing url for %s. Got %s", backendRegion, err)
 		}

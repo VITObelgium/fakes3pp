@@ -1,0 +1,39 @@
+services:
+  s3proxy:
+    image: localhost/fakes3pp
+    # image: registry.prod.warsaw.openeo.dataspace.copernicus.eu/ghcr-cache/vitobelgium/fakes3pp:1.0.0
+    networks:
+      - frontend
+    ports:
+      - "8443:8443"
+      - "8000:5555"
+    command: proxys3 --dot-env /etc/fakes3pp/.env.docker
+    volumes:
+      - ../etc.private:/etc/fakes3pp:Z
+
+    environment:
+      HOME: /root
+      LOG_LEVEL: DEBUG
+     
+
+  stsproxy:
+    image: localhost/fakes3pp
+    # image: registry.prod.warsaw.openeo.dataspace.copernicus.eu/ghcr-cache/vitobelgium/fakes3pp:1.0.0
+
+    networks:
+      - frontend
+    ports:
+      - "8444:8444"
+      - "8001:5556"
+    command: proxysts --dot-env /etc/fakes3pp/.env.docker
+    volumes:
+      - ../etc.private:/etc/fakes3pp:Z
+    environment:
+      HOME: /root
+      FAKES3PP_METRICS_PORT: "8001"
+
+networks:
+  frontend:
+    # Specify driver options
+    driver: bridge
+

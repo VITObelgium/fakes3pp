@@ -32,10 +32,10 @@ func (s *BasicServer) GetListenHost() string {
 
 func (s *BasicServer) GetTls() (enabled bool, certFile string, keyFile string) {
 	enabled = true
-	if certFile == "" {
+	if s.tlsCertFilePath == "" {
 		slog.Debug("Disabling TLS", "reason", "no certFile provided")
 		enabled = false
-	} else if keyFile == "" {
+	} else if s.tlsKeyFilePath == "" {
 		slog.Debug("Disabling TLS", "reason", "no keyFile provided")
 		enabled = false
 	}

@@ -98,14 +98,14 @@ var envVarDefs = []envVarDef{
 	{
 		s3ProxyCertFile,
 		FAKES3PP_S3_PROXY_CERT_FILE,
-		true,
+		false,
 		"The certificate file used for tls server-side",
 		[]string{proxys3},
 	},
 	{
 		s3ProxyKeyFile,
 		FAKES3PP_S3_PROXY_KEY_FILE,
-		true,
+		false,
 		"The key file used for tls server-side",
 		[]string{proxys3},
 	},
@@ -140,14 +140,14 @@ var envVarDefs = []envVarDef{
 	{
 		stsProxyCertFile,
 		FAKES3PP_STS_PROXY_CERT_FILE,
-		true,
+		false,
 		"The certificate file used for tls server-side",
 		[]string{proxysts},
 	},
 	{
 		stsProxyKeyFile,
 		FAKES3PP_STS_PROXY_KEY_FILE,
-		true,
+		false,
 		"The key file used for tls server-side",
 		[]string{proxysts},
 	},

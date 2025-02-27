@@ -3,6 +3,7 @@ package presign
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -12,6 +13,7 @@ import (
 	"github.com/VITObelgium/fakes3pp/requestutils"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
+	"github.com/aws/smithy-go/logging"
 )
 
 //This file just contains helpers to presign for S3 with sigv4
@@ -20,14 +22,31 @@ func PreSignRequestWithCreds(ctx context.Context, req *http.Request, expiryInSec
 	if expiryInSeconds <= 0 {
 		return "", nil, errors.New("expiryInSeconds must be bigger than 0 for presigned requests")
 	}
-	signer := v4.NewSigner()
+	signer := getSigner(ctx)
 
 	ctx, creds, req, payloadHash, service, region, signingTime := GetS3SignRequestParams(ctx, req, expiryInSeconds, signingTime, creds, defaultRegion)
 	return signer.PresignHTTP(ctx, creds, req, payloadHash, service, region, signingTime)
 }
 
+func getLogger(ctx context.Context, l *slog.Logger) logging.LoggerFunc {
+	var f logging.LoggerFunc = func(classification logging.Classification, format string, v ...interface{}) {
+		if len(classification) != 0 {
+			format = string(classification) + " " + format
+		}
+	
+		l.DebugContext(ctx, "SigninLogging", "msg", fmt.Sprintf(format, v...))
+	}
+	
+	return f
+}
+
+func getSigner(ctx context.Context) *v4.Signer {
+	return v4.NewSigner(func(signer *v4.SignerOptions){signer.LogSigning = true; signer.Logger = getLogger(ctx, slog.Default())})
+}
+
+
 func SignRequestWithCreds(ctx context.Context, req *http.Request, expiryInSeconds int, signingTime time.Time, creds aws.Credentials, defaultRegion string) (err error){
-	signer := v4.NewSigner()
+	signer := getSigner(ctx)
 
 	ctx, creds, req, payloadHash, service, region, signingTime := GetS3SignRequestParams(ctx, req, expiryInSeconds, signingTime, creds, defaultRegion)
 	return signer.SignHTTP(ctx, creds, req, payloadHash, service, region, signingTime)

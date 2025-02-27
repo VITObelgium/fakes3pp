@@ -328,7 +328,8 @@ func TestWithValidPresignedUrlOtherRegion(t *testing.T) {
 	if err != nil {
 		t.Errorf("client: error making http request: %s\n", err)
 	}
-	res, err := http.DefaultClient.Do(httpReq)
+	httpClient := testutils.BuildUnsafeHttpClientThatTrustsAnyCert(t)
+	res, err := httpClient.Do(httpReq)
 	if err != nil {
 		t.Errorf("client: error making http request: %s\n", err)
 	}
@@ -442,7 +443,7 @@ func performValidListObjectTestRequest(t testing.TB, s *S3Server, headerModifier
 	}
 	headerModifierPostSign(req.Header)
 
-	client := &http.Client{}
+	client := testutils.BuildUnsafeHttpClientThatTrustsAnyCert(t)
 	resp, err := client.Do(req)
 	if err != nil {
 		t.Errorf("Could not perform request: %s", err)

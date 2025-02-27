@@ -40,6 +40,9 @@ const (
 	// ContentSHAKey is the SHA256 of request body
 	AmzContentSHAKey = "X-Amz-Content-Sha256"
 
+	//as per https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-streaming.html
+	AmzDecodedContentLength = "x-amz-decoded-content-length"
+
 	// TimeFormat is the time format to be used in the X-Amz-Date header or query parameter
 	TimeFormat = "20060102T150405Z"
 )

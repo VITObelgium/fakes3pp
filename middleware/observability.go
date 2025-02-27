@@ -102,6 +102,11 @@ func LogMiddleware(requestLogLvl slog.Level, hc HealthChecker, promReg prometheu
 				"Request start",
 				getRequestCtxLogAttrs(rCtx)...
 			)
+			slog.DebugContext(
+				ctx, "Extra debug details", 
+				"contentLength", r.ContentLength,
+				"TransferEncoding", r.TransferEncoding,
+			)
 			defer logFinalRequestDetails(ctx, logLvl, startTime, rCtx)
 
 			if !wasHealthCheck{

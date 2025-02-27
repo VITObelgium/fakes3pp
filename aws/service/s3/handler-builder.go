@@ -14,6 +14,7 @@ import (
 	"github.com/VITObelgium/fakes3pp/constants"
 	"github.com/VITObelgium/fakes3pp/presign"
 	"github.com/VITObelgium/fakes3pp/requestctx"
+	"github.com/VITObelgium/fakes3pp/usererror"
 )
 
 // A handler builder builds http handlers
@@ -66,6 +67,21 @@ func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request, targ
 		writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
 		return
 	}
+	payloadHash := r.Header.Get(constants.AmzContentSHAKey)
+	if payloadHash == "STREAMING-UNSIGNED-PAYLOAD-TRAILER" {
+		writeS3ErrorResponse(
+			ctx, 
+			w, 
+			ErrS3InternalError, 
+			usererror.New(
+				errors.New("unsupported encryption to be implemented so giving internal error to user"), 
+				`We do not support STREAMING-UNSIGNED-PAYLOAD-TRAILER yet.
+				For details or to upvote see https://github.com/VITObelgium/fakes3pp/issues/27
+				`),
+			)
+		return
+	}
+	slog.DebugContext(ctx, "Headers before signing", "headers", r.Header)
 	err = presign.SignWithCreds(ctx, r, creds, targetBackendId)
 	if err != nil {
 		slog.ErrorContext(ctx, "Could not sign request with permanent credentials", "error", err, "backendId", targetBackendId)
@@ -78,6 +94,7 @@ func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request, targ
 	resp, err := client.Do(r)
 	if err != nil {
 		slog.ErrorContext(ctx, "Error making request", "error", err)
+		writeS3ErrorResponse(ctx, w, ErrS3UpstreamError, nil)
 		return
 	}
 	defer resp.Body.Close()
@@ -93,7 +110,7 @@ func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request, targ
 	if err != nil {
 		slog.ErrorContext(ctx, "Context had error", "error", err, "context_error", ctx.Err())
 	} else {
-		slog.InfoContext(ctx, "End of proxying", "bytes", i, "error", err, "status", resp.Status, "headers", resp.Header)
+		slog.InfoContext(ctx, "End of proxying", "bytes", i, "error", err, "status", resp.Status, "headers", resp.Header, "trailer", r.Trailer)
 	}
 }
 

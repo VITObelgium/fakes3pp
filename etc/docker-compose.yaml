@@ -1,7 +1,6 @@
 services:
   s3proxy:
     image: localhost/fakes3pp
-    # image: registry.prod.warsaw.openeo.dataspace.copernicus.eu/ghcr-cache/vitobelgium/fakes3pp:1.0.0
     networks:
       - frontend
     ports:
@@ -18,7 +17,6 @@ services:
 
   stsproxy:
     image: localhost/fakes3pp
-    # image: registry.prod.warsaw.openeo.dataspace.copernicus.eu/ghcr-cache/vitobelgium/fakes3pp:1.0.0
 
     networks:
       - frontend

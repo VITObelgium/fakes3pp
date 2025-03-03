@@ -2,14 +2,12 @@ package cmd
 
 import (
 	"fmt"
-	"log/slog"
 	"os"
 	"testing"
 
 	"github.com/VITObelgium/fakes3pp/logging"
 	"github.com/VITObelgium/fakes3pp/server"
 )
-
 
 //This is a dummy test that can be used to spawn a server with a local config
 //Just set DEBUG_LOCAL_TEST to a directory that has a fakes3pp.env file and all the other
@@ -24,7 +22,8 @@ func TestRunLocalDebugEndpoint(t *testing.T) {
 	envFiles = fmt.Sprintf("%s/fakes3pp.env", testDir)
 	loadEnvVarsFromDotEnv()
 	initConfig()
-	logging.InitializeLogging(slog.LevelDebug, nil, nil)
+
+	logging.InitializeLogging(logging.EnvironmentLvl, nil, nil)
 
 	server.CreateAndStartSync(buildS3Server(), getServerOptsFromViper())
 	

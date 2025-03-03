@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/VITObelgium/fakes3pp/requestctx/authtypes"
 	"github.com/google/uuid"
 )
 
@@ -75,6 +76,9 @@ type RequestCtx struct{
 
 	//The Error that was encountered
 	Error fmt.Stringer
+
+	//AuthType
+	AuthType authtypes.AuthType
 }
 
 func (c *RequestCtx)AddAccessLogInfo(groupName string, attrs... slog.Attr) {
@@ -83,6 +87,30 @@ func (c *RequestCtx)AddAccessLogInfo(groupName string, attrs... slog.Attr) {
 		existing_group = []slog.Attr{}
 	}
 	c.accessLogAttrs[groupName] = append(existing_group, attrs...)
+}
+
+func SetAuthType(r *http.Request, authType authtypes.AuthType) {
+	if rCtx := get(r); rCtx != nil {
+		if rCtx.AuthType != authtypes.AuthTypeUnknown {
+			if rCtx.AuthType == authType {
+				return
+			}
+			slog.WarnContext(r.Context(), "Overriding auth typethis should not happen", "Old authType", rCtx.AuthType, "New authType", authType)
+		}
+		rCtx.AuthType = authType
+		return		
+	}
+	slog.Error(
+		"Attempting to set Region without existing request context",
+		"request", r,
+		"AuthType", authType,
+	)
+}
+func GetAuthType(r *http.Request) (authtypes.AuthType, error) {
+	if rCtx := get(r); rCtx != nil {
+		return rCtx.AuthType, nil
+	}
+	return authtypes.AuthTypeUnknown, errors.New("no authType stored in requestctx")
 }
 
 func SetTargetRegion(r *http.Request, region string) {
@@ -251,13 +279,17 @@ func hasUUID4Format(s string) bool {
 //Get the RequestId for a request. If none is provided a Unique uuid4
 //will be generated and provided lower case. If the request provided
 //it via the X-Request-ID 
-func getRequestIdFromHttpRequest(req *http.Request) string {
+func getRequestIdFromHttpRequest(req *http.Request) (string) {
 	reqId := req.Header.Get(XRequestID)
-	if reqId == "" || ! hasUUID4Format(reqId) {
-		return getRandomRequestId()  //This is a lower case string
-	} else {
+	if reqId != "" && hasUUID4Format(reqId) {
 		return strings.ToUpper(reqId) //We force this to be upper case
 	}
+	//Let's try query parameter
+	reqId = req.URL.Query().Get(XRequestID)
+	if reqId != "" && hasUUID4Format(reqId) {
+		return strings.ToUpper(reqId) //We force this to be upper case
+	}
+	return getRandomRequestId()  //This is a lower case string
 }
 
 func NewContextFromHttpRequest(req *http.Request) context.Context{

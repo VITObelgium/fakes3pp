@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/VITObelgium/fakes3pp/constants"
+	"github.com/VITObelgium/fakes3pp/requestctx"
 	"github.com/VITObelgium/fakes3pp/requestutils"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
@@ -52,13 +53,18 @@ func SignRequestWithCreds(ctx context.Context, req *http.Request, expiryInSecond
 	return signer.SignHTTP(ctx, creds, req, payloadHash, service, region, signingTime)
 }
 
-var signatureQueryParamNames []string = []string{
+
+var signatureQueryParamNamesToRemove []string = []string{
 	constants.AmzAlgorithmKey,
 	constants.AmzCredentialKey,
 	constants.AmzDateKey,
-	constants.AmzSecurityTokenKey,
+	constants.AmzSecurityTokenKey, 
+	"x-amz-security-token", //For historic compatibility in future can be checked if this ever occurs
 	constants.AmzSignedHeadersKey,
 	constants.AmzSignatureKey,
+	constants.SignatureKey,
+	constants.AccessKeyId,
+	requestctx.XRequestID, //This only has meaning within the proxy
 }
 
 //Sign an HTTP request with a sigv4 signature. If expiry in seconds is bigger than zero then the signature has an explicit limited lifetime
@@ -72,7 +78,7 @@ func GetS3SignRequestParams(ctx context.Context, req *http.Request, expiryInSeco
 	}
 	
 	query := req.URL.Query()
-	for _, paramName := range signatureQueryParamNames {
+	for _, paramName := range signatureQueryParamNamesToRemove {
 		query.Del(paramName)
 	}
 	if expiryInSeconds > 0 {

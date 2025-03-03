@@ -76,8 +76,10 @@ func writeS3ErrorResponse(ctx context.Context, w http.ResponseWriter, errCode S3
 		s3ErrorResponse.Message = utils.CapitalizeFirstLetter(userFacing.Error())
 	}
 	switch errCode {
-	case ErrS3InternalError, ErrS3UpstreamError:
+	case ErrS3InternalError:
 		slog.ErrorContext(ctx, "Sending S3 error response", "error", err)
+	case ErrS3UpstreamError:
+		slog.InfoContext(ctx, "Sending S3 error response", "error", err)
 	default:
 		slog.InfoContext(ctx, "Sending S3 error response", "error", err)
 	}

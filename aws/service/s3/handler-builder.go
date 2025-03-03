@@ -93,8 +93,17 @@ func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request, targ
 	slog.DebugContext(ctx, "Going to perform request", "method", r.Method, "host", r.Host, "url", r.URL, "headers", r.Header)
 	resp, err := client.Do(r)
 	if err != nil {
-		slog.ErrorContext(ctx, "Error making request", "error", err)
-		writeS3ErrorResponse(ctx, w, ErrS3UpstreamError, nil)
+		var upstreamResponse string
+		if resp != nil && resp.Body != nil {
+			b, err := io.ReadAll(resp.Body)
+			if err != nil {
+				upstreamResponse = fmt.Sprintf("Could not read upstream error due to: %s", err.Error())
+			} else {
+				upstreamResponse = string(b)
+			}
+		}
+		slog.InfoContext(ctx, "Error making request", "error", err, "upstreamResponse", upstreamResponse)
+		writeS3ErrorResponse(ctx, w, ErrS3UpstreamError, err)
 		return
 	}
 	defer resp.Body.Close()
@@ -110,7 +119,7 @@ func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request, targ
 	if err != nil {
 		slog.ErrorContext(ctx, "Context had error", "error", err, "context_error", ctx.Err())
 	} else {
-		slog.InfoContext(ctx, "End of proxying", "bytes", i, "error", err, "status", resp.Status, "headers", resp.Header, "trailer", r.Trailer)
+		slog.DebugContext(ctx, "End of proxying", "bytes", i, "error", err, "status", resp.Status, "headers", resp.Header, "trailer", r.Trailer)
 	}
 }
 

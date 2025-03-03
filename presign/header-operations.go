@@ -36,6 +36,7 @@ var cleanableHeaders = map[string]bool{
 var okToSkipHeadersForCleaning = map[string]bool {
 	"user-agent": true,
 	"authorization": true,
+	"expect": true,
 }
 
 func isCleanable(headerName string) bool {

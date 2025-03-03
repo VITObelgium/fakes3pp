@@ -15,13 +15,13 @@ import (
 	"github.com/VITObelgium/fakes3pp/constants"
 	"github.com/VITObelgium/fakes3pp/presign"
 	"github.com/VITObelgium/fakes3pp/requestctx"
+	"github.com/VITObelgium/fakes3pp/requestctx/authtypes"
 	"github.com/VITObelgium/fakes3pp/requestutils"
 	"github.com/VITObelgium/fakes3pp/usererror"
 	"github.com/VITObelgium/fakes3pp/utils"
 	"github.com/aws/aws-sdk-go-v2/aws"
 )
 
-const L_AUTH_TYPE = "AuthType"
 const L_AKID = "AKID"  // Access Key ID
 
 //Authentication middleware is responsible for the following:
@@ -49,7 +49,7 @@ func AWSAuthN(keyStorage utils.PrivateKeyKeeper, e service.ErrorReporter, backen
 
 //Authenticate a presigned request see responsibilities AWSAuthN
 func handleAuthNPresigned(w http.ResponseWriter, r *http.Request, keyStorage utils.PrivateKeyKeeper, e service.ErrorReporter, backendManager interfaces.BackendManager) bool {
-	requestctx.AddAccessLogInfo(r, "s3", slog.String(L_AUTH_TYPE, "QueryString"))
+	requestctx.SetAuthType(r, authtypes.AuthTypeQueryString)
 
 	var isValid bool
 	var expires time.Time
@@ -95,11 +95,6 @@ func handleAuthNPresigned(w http.ResponseWriter, r *http.Request, keyStorage uti
 		return false
 	}
 
-	//Then make sure query parameters are no longer passed otherwise you can get 'InvalidAccessKeyId'
-	queryPart := fmt.Sprintf("?%s", r.URL.RawQuery)
-	r.RequestURI = strings.Replace(r.RequestURI, queryPart, "", 1)
-	r.URL.RawQuery = ""
-
 	cleanHeadersThatAreNotSignedInAuthHeader(r)
 	r.Header.Add(constants.AmzContentSHAKey, constants.EmptyStringSHA256)
 
@@ -126,9 +121,9 @@ func addRegionToSession(r *http.Request, backendManager interfaces.BackendManage
 //Authenticate a normal request see responsibilities AWSAuthN
 func handleAuthNNormal(w http.ResponseWriter, r *http.Request, keyStorage utils.PrivateKeyKeeper, e service.ErrorReporter, backendManager interfaces.BackendManager) bool {
 	if r.Header.Get(constants.AuthorizationHeader) == "" {
-		requestctx.AddAccessLogInfo(r, "s3", slog.String("AuthType", "-"))
+		requestctx.SetAuthType(r, authtypes.AuthTypeNone)
 	} else {
-		requestctx.AddAccessLogInfo(r, "s3", slog.String("AuthType", "AuthHeader"))
+		requestctx.SetAuthType(r, authtypes.AuthTypeAuthHeader)
 	}
 
 	accessKeyId, sessionToken, err := getCredentialsFromRequest(r)

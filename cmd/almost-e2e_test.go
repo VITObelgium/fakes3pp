@@ -411,6 +411,51 @@ func TestSigv4PresignedUrlsWork(t *testing.T) {
 	}
 }
 
+func TestSigv4PresignedUrlsWorkWithRanges(t *testing.T) {
+	//Given a running proxy and credentials against that proxy that allow access for the get operation
+	tearDown, getSignedToken, stsServer, s3Server := testingFixture(t)
+	defer tearDown()
+	token := getSignedToken("mySubject", time.Minute * 20, session.AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
+	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowAllARN, stsServer)
+
+	//Given a Get request for the region.txt file
+	regionFileUrl := fmt.Sprintf("%s%s/%s", testutils.GetTestServerUrl(s3Server), testingBucketNameBackenddetails, testingRegionTxtObjectKey)
+	req, err := http.NewRequest(http.MethodGet, regionFileUrl, nil)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+
+	//When creating a presigned url
+	for _, backendRegion := range backendTestRegions {
+		signedUri, _, err := presign.PreSignRequestWithCreds(context.Background(), req, 300, time.Now(), creds, backendRegion)
+		if err != nil {
+			t.Errorf("Did not expect error when signing url for %s. Got %s", backendRegion, err)
+		}
+		req, err := http.NewRequest("GET", signedUri, nil)
+		if err != nil {
+			t.Errorf("Did not expect error when creating request object for signing url for %s. Got %s", backendRegion, err)
+		}
+		//And when adding a range post-signing
+		firstByte := 0
+		lastByte := 2
+		req.Header.Add("Range", fmt.Sprintf("bytes=%d-%d", firstByte,  lastByte))
+		//Then it should work and return the corresponding bytes
+		resp, err := testutils.BuildUnsafeHttpClientThatTrustsAnyCert(t).Do(req)
+		if err != nil {
+			t.Errorf("Did not expect error when using signing url for %s. Got %s", backendRegion, err)
+		}
+		bytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Errorf("Did not expect error when getting body of signed url response for %s. Got %s", backendRegion, err)
+		}
+		// Range includes the upper bound where golang slices do not 
+		if string(bytes) != backendRegion[firstByte:lastByte+1] {
+			t.Errorf("Invalid response of presigned url expected %s, got %s", backendRegion, string(bytes))
+		}
+	}
+}
+
 
 var testPolicyAllowTeamFolderARN = "arn:aws:iam::000000000000:role/AllowTeamFolder"
 var testAllowedTeam = "teamA"

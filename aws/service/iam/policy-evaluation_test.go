@@ -112,6 +112,64 @@ var testPolAllowAllIfTestDepartmentOtherwiseDenyAll = `
 }
 `
 
+var testDenyAllUnlessMasterAsSubject = `
+{
+	"Version": "2012-10-17",
+	"Statement": [
+        {
+			"Sid": "Allow all if test department",
+			"Effect": "Allow",
+			"Action": [
+				"*"
+			],
+			"Resource": "*"
+        },
+		{
+			"Sid": "Deny all",
+			"Effect": "Deny",
+			"Action": [
+				"*"
+			],
+			"Resource": "*",
+			"Condition" : {
+                "StringNotLike" : {
+                    "claims:sub": "master" 
+                }
+            } 
+        } 
+	]
+}
+`
+
+var testDenyAllUnlessSpecificIssuer = `
+{
+	"Version": "2012-10-17",
+	"Statement": [
+        {
+			"Sid": "Allow all if test department",
+			"Effect": "Allow",
+			"Action": [
+				"*"
+			],
+			"Resource": "*"
+        },
+		{
+			"Sid": "Deny all",
+			"Effect": "Deny",
+			"Action": [
+				"*"
+			],
+			"Resource": "*",
+			"Condition" : {
+                "StringNotLike" : {
+                    "claims:iss": "specificissuer" 
+                }
+            } 
+        } 
+	]
+}
+`
+
 var testSessionDataTestDepartment = &PolicySessionData{
 	Claims: PolicySessionClaims{},
 	Tags: session.AWSSessionTags{
@@ -130,7 +188,7 @@ var testSessionDataQaDeparment = &PolicySessionData{
 		},
 		TransitiveTagKeys: []string{"department"},
 	},
-} 
+}
 
 func TestPolicyEvaluations(t *testing.T) {
 	policyTests := []struct {
@@ -251,6 +309,70 @@ func TestPolicyEvaluations(t *testing.T) {
 				actionnames.IAMActionS3GetObject,
 				testBucketARN,
 				testSessionDataQaDeparment,
+			),
+			false,
+			reasonExplicitDeny,
+		},
+		{
+			"An explicit deny takes precendence and claims:sub conditions should evaluate correctly master",
+			testDenyAllUnlessMasterAsSubject,
+			NewIamAction(
+				actionnames.IAMActionS3GetObject,
+				testBucketARN,
+				&PolicySessionData{
+					Claims: PolicySessionClaims{
+						Subject: "master",
+						Issuer: "specificissuer",
+					},
+				},
+			),
+			true,
+			reasonActionIsAllowed,
+		},
+		{
+			"An explicit deny takes precendence and claims:sub conditions should evaluate correctly non-master",
+			testDenyAllUnlessMasterAsSubject,
+			NewIamAction(
+				actionnames.IAMActionS3GetObject,
+				testBucketARN,
+				&PolicySessionData{
+					Claims: PolicySessionClaims{
+						Subject: "dobby",
+						Issuer: "specificissuer",
+					},
+				},
+			),
+			false,
+			reasonExplicitDeny,
+		},
+		{
+			"An explicit deny takes precendence and claims:issuer conditions should evaluate correctly specific-issuer",
+			testDenyAllUnlessSpecificIssuer,
+			NewIamAction(
+				actionnames.IAMActionS3GetObject,
+				testBucketARN,
+				&PolicySessionData{
+					Claims: PolicySessionClaims{
+						Subject: "master",
+						Issuer: "specificissuer",
+					},
+				},
+			),
+			true,
+			reasonActionIsAllowed,
+		},
+		{
+			"An explicit deny takes precendence and claims:sub conditions should evaluate correctly other-issuer",
+			testDenyAllUnlessSpecificIssuer,
+			NewIamAction(
+				actionnames.IAMActionS3GetObject,
+				testBucketARN,
+				&PolicySessionData{
+					Claims: PolicySessionClaims{
+						Subject: "master",
+						Issuer: "other-issuer",
+					},
+				},
 			),
 			false,
 			reasonExplicitDeny,

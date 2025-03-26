@@ -35,6 +35,7 @@ func (a IAMAction) AddContext(context map[string]*policy.ConditionValue) (IAMAct
 func addGenericSessionContextKeys(context map[string]*policy.ConditionValue, session *PolicySessionData) {
 	addAwsPrincipalTagConditionKeys(context, session)
 	addAwsRequestedRegionConditionKey(context, session)
+	addGenericTokenClaims(context, session)
 }
 
 //Add aws:PrincipalTag/tag-key keys that are added to nearly all requests that contain information about the current session
@@ -59,3 +60,15 @@ func addAwsRequestedRegionConditionKey(context map[string]*policy.ConditionValue
 	}
 }
 
+//Add generic session claims
+func addGenericTokenClaims(context map[string]*policy.ConditionValue, session *PolicySessionData) {
+	if session == nil {
+		return
+	}
+	if session.Claims.Subject != "" {
+		context["claims:sub"] = policy.NewConditionValueString(true, session.Claims.Subject)
+	}
+	if session.Claims.Issuer != "" {
+		context["claims:iss"] = policy.NewConditionValueString(true, session.Claims.Issuer)
+	}
+}

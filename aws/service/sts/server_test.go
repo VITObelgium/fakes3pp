@@ -57,6 +57,7 @@ func NewTestSTSServer(t testing.TB, pm *iam.PolicyManager, maxDurationSeconds in
 		testutils.TempYamlFile(t, oidcConfig),
 		pm,
 		maxDurationSeconds,
+		0, //For testing we don't want minimum durations
 	)
 	if err != nil {
 		t.Error("Problem creating test STS server", "error", err)

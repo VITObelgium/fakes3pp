@@ -96,7 +96,7 @@ func BenchmarkFakeS3Proxy(b *testing.B) {
 	defer tearDown()
 	token := getSignedToken("mySubject", time.Minute * 20, session.AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
 	//Given credentials that use the policy that allow everything in Region1
-	creds := getCredentialsFromTestStsProxy(b, token, "my-session", testPolicyAllowAllInRegion1ARN, stsServer)
+	creds := getCredentialsFromTestStsProxy(b, token, "my-session", testPolicyAllowAllInRegion1ARN, stsServer, nil)
 
 	backendClient := getS3ClientAgainstFakeS3Backend(b, testRegion1, creds)
 	proxyClient := testutils.GetTestClientS3(b, testRegion1, credentials.FromAwsFormat(creds), s3Server)

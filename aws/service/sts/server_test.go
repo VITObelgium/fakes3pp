@@ -235,7 +235,7 @@ func TestProxyStsViaSTSClient(t *testing.T) {
 		
 			token := getWebIdentityTestingToken(t, s.jwtKeyMaterial, 20*time.Minute, nil)
 		
-			_, err := testutils.AssumeRoleWithWebIdentityAgainstTestStsProxy(t, token, "my-session", testPolicyArnForTestPM, s)
+			_, err := testutils.AssumeRoleWithWebIdentityAgainstTestStsProxy(t, token, "my-session", testPolicyArnForTestPM, s, nil)
 			if err != nil {
 				t.Errorf("encountered error when assuming role: %s", err)
 			}

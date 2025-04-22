@@ -47,13 +47,16 @@ func GetTestClientS3(t testing.TB, region string, creds aws.CredentialsProvider,
 }
 
 
-func AssumeRoleWithWebIdentityAgainstTestStsProxy(t testing.TB, token, roleSessionName, roleArn string, stsServer server.Serverable) (*sts.AssumeRoleWithWebIdentityOutput, error) {
+func AssumeRoleWithWebIdentityAgainstTestStsProxy(t testing.TB, token, roleSessionName, roleArn string, stsServer server.Serverable, durationSecs *int32) (*sts.AssumeRoleWithWebIdentityOutput, error) {
 	client := GetTestClientSts(t, stsServer)
 
 	input := &sts.AssumeRoleWithWebIdentityInput{
 		RoleSessionName: &roleSessionName,
 		WebIdentityToken: &token,
 		RoleArn: &roleArn,
+	}
+	if durationSecs != nil {
+		input.DurationSeconds = durationSecs
 	}
 
 	max1Sec, cancel := context.WithTimeout(context.Background(), 1000 * time.Second)

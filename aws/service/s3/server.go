@@ -92,22 +92,24 @@ func newS3Server(
 		return nil, errors.New("must at least pass in 1 fqdn to create a server")
 	}
 	basicServer := server.NewBasicServer(serverPort, fqdns[0], tlsCertFilePath, tlsKeyFilePath, nil)
-	
+	signedUrlGraceTimeDuration := time.Duration(signedUrlGraceTimeSeconds) * time.Second
+
 	s = &S3Server{
 		BasicServer: *basicServer,
 		jwtKeyMaterial: key,
 		fqdns: fqdns,
 		pm: pm,
-		signedUrlGracePeriod: time.Duration(signedUrlGraceTimeSeconds) * time.Second,
+		signedUrlGracePeriod: signedUrlGraceTimeDuration,
 		proxyHB: proxyHB,
 		s3BackendManager: s3BackendManager,
 		mws: mws,
 	}
 
 	if len(mws) == 0 {
+		presignAuthOptions := middleware.AuthenticationOptions{Leeway: signedUrlGraceTimeDuration}
 		mws = []middleware.Middleware{
 			RegisterOperation(),
-			middleware.AWSAuthN(key, s3ErrorReporterInstance, s3BackendManager),
+			middleware.AWSAuthN(key, s3ErrorReporterInstance, s3BackendManager, &presignAuthOptions),
 			AWSAuthZS3(key, s3BackendManager, pm, s, s), 
 		}
 	}

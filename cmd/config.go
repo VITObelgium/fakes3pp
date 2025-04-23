@@ -192,7 +192,7 @@ var envVarDefs = []envVarDef{
 		signedUrlGraceTimeSeconds,
 		FAKES3PP_SIGNEDURL_GRACE_TIME_SECONDS,
 		false,
-		"The maximum duration in seconds a signed url can be valid past the lifetime of the credentials used to generate it",
+		"The maximum duration in seconds a signed url can be valid past the lifetime of the credentials used to generate it (for GetObject)",
 		[]string{proxys3},
 	},
 	{

@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -448,6 +449,47 @@ func TestSigv4PresignedUrlsWorkInGracePeriod(t *testing.T) {
 		}
 		if string(bytes) != backendRegion {
 			t.Errorf("Invalid response of presigned url expected %s, got %s", backendRegion, string(bytes))
+		}
+	}
+}
+
+func TestSigv4PresignedUrlsFailOutsideGracePeriod(t *testing.T) {
+	//Given grace time of 5 seconds (../etc/.env)
+	//Given a running proxy and credentials against that proxy that allow access for the get operation
+	tearDown, getSignedToken, stsServer, s3Server := testingFixture(t)
+	defer tearDown()
+	var durationSecs int32 = 2
+	token := getSignedToken("mySubject", time.Second * time.Duration(durationSecs), session.AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
+	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowAllARN, stsServer, &durationSecs)
+
+	//Given a Get request for the region.txt file
+	regionFileUrl := fmt.Sprintf("%s%s/%s", testutils.GetTestServerUrl(s3Server), testingBucketNameBackenddetails, testingRegionTxtObjectKey)
+	req, err := http.NewRequest(http.MethodGet, regionFileUrl, nil)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+
+	time.Sleep(time.Second * time.Duration(durationSecs+5))
+	//When creating a presigned url it and using that presigned url it should return the region correctly.
+	for _, backendRegion := range backendTestRegions {
+		signedUri, _, err := presign.PreSignRequestWithCreds(context.Background(), req, 300, time.Now(), creds, backendRegion)
+		if err != nil {
+			t.Errorf("Did not expect error when signing url for %s. Got %s", backendRegion, err)
+		}
+		resp, err := testutils.BuildUnsafeHttpClientThatTrustsAnyCert(t).Get(signedUri)
+		if err != nil {
+			t.Errorf("Did not expect error when using signing url for %s. Got %s", backendRegion, err)
+		}
+		bytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Errorf("Did not expect error when getting body of signed url response for %s. Got %s", backendRegion, err)
+		}
+		if resp.StatusCode >= 500 || resp.StatusCode < 400 {
+			t.Errorf("Invalid response code. Must indicate user error got %d", resp.StatusCode)
+		}
+		if !strings.Contains(string(bytes), "credentials are expired") {
+			t.Errorf("Expected response to indicate expired credentials got %s", string(bytes))
 		}
 	}
 }

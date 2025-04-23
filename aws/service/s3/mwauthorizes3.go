@@ -15,8 +15,8 @@ import (
 	"github.com/VITObelgium/fakes3pp/aws/service/s3/interfaces"
 	"github.com/VITObelgium/fakes3pp/middleware"
 	"github.com/VITObelgium/fakes3pp/requestctx"
-	"github.com/VITObelgium/fakes3pp/usererror"
 	"github.com/VITObelgium/fakes3pp/utils"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 //Authorization middleware is responsible for the following:
@@ -53,21 +53,15 @@ func AWSAuthZS3(keyStorage utils.JWTVerifier, backendManager interfaces.BackendM
 func authorizeS3Action(ctx context.Context, sessionToken, targetRegion string, action api.S3Operation, w http.ResponseWriter, r *http.Request, 
 	maxExpiryTime time.Time, jwtVerifier utils.JWTVerifier, policyRetriever iaminterfaces.PolicyRetriever, vhi interfaces.VirtualHosterIdentifier) (allowed bool) {
 	allowed = false
-	sessionClaims, err := credentials.ExtractTokenClaims(sessionToken, jwtVerifier.GetJwtKeyFunc())
+	var jwtKeyFunc jwt.Keyfunc = jwtVerifier.GetJwtKeyFunc()
+	if action == api.GetObject {
+		//Grace time is active and authentication has already checked token validity
+		jwtKeyFunc = nil
+	}
+	sessionClaims, err := credentials.ExtractTokenClaims(sessionToken, jwtKeyFunc)
 	if err != nil {
 		err := fmt.Errorf("could not get claims from session token: %w", err)
 		writeS3ErrorResponse(ctx, w, ErrS3InvalidSecurity, err)
-		return
-	}
-	expiresJwt, err := sessionClaims.GetExpirationTime()
-	if err != nil {
-		err := fmt.Errorf("could not get expires claim from session token: %w", err)
-		writeS3ErrorResponse(ctx, w, ErrS3InvalidSecurity, err)
-		return
-	}
-	if expiresJwt.Time.Before(maxExpiryTime) {
-		slog.WarnContext(ctx, "Credentials are passed expiry", "error", err, "claims", sessionClaims, "cutoff", maxExpiryTime, "expires", expiresJwt)
-		writeS3ErrorResponse(ctx, w, ErrS3InvalidSignature, usererror.New(errors.New("expired credentials"), "Expired credentials"))
 		return
 	}
 

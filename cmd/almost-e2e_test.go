@@ -416,6 +416,7 @@ func TestSigv4PresignedUrlsWork(t *testing.T) {
 }
 
 func TestSigv4PresignedUrlsWorkInGracePeriod(t *testing.T) {
+	testutils.SkipIfNoSlowUnittests(t)
 	//Given grace time of 5 seconds (../etc/.env)
 	//Given a running proxy and credentials against that proxy that allow access for the get operation
 	tearDown, getSignedToken, stsServer, s3Server := testingFixture(t)
@@ -454,6 +455,7 @@ func TestSigv4PresignedUrlsWorkInGracePeriod(t *testing.T) {
 }
 
 func TestSigv4PresignedUrlsFailOutsideGracePeriod(t *testing.T) {
+	testutils.SkipIfNoSlowUnittests(t)
 	//Given grace time of 5 seconds (../etc/.env)
 	//Given a running proxy and credentials against that proxy that allow access for the get operation
 	tearDown, getSignedToken, stsServer, s3Server := testingFixture(t)

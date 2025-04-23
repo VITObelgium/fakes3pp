@@ -9,6 +9,9 @@ on:
   pull_request:
     branches: [ "*", "**" ]
 
+env:
+  HASTE_MAKES_WASTE: "So take your time then"
+
 jobs:
   lint:
     runs-on: ubuntu-latest

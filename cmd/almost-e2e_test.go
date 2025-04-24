@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -85,6 +86,8 @@ func TestMain(m *testing.M) {
 		initConfig()
 		initializeTestLogging()
 	}
+	// For testing allow short duration for STS sessions
+	os.Setenv("FAKES3PP_STS_MINIMAL_DURATION_SECONDS", "1")
 	m.Run()
 }
 
@@ -251,8 +254,8 @@ func testingFixtureCustomServerOpts(t testing.TB, stsServerOpts server.ServerOpt
 	return tearDownProxies, getSignedToken, stsServer, s3Server
 }
 
-func getCredentialsFromTestStsProxy(t testing.TB, token, sessionName, roleArn string, stsServer server.Serverable) aws.Credentials {
-	result, err := testutils.AssumeRoleWithWebIdentityAgainstTestStsProxy(t, token, sessionName, roleArn, stsServer)
+func getCredentialsFromTestStsProxy(t testing.TB, token, sessionName, roleArn string, stsServer server.Serverable, durationSecs *int32) aws.Credentials {
+	result, err := testutils.AssumeRoleWithWebIdentityAgainstTestStsProxy(t, token, sessionName, roleArn, stsServer, durationSecs)
 	if err != nil {
 		t.Errorf("encountered error when assuming role: %s", err)
 		t.FailNow()
@@ -313,7 +316,7 @@ func TestMakeSureCorrectBackendIsSelected(t *testing.T) {
 	token := getSignedToken("mySubject", time.Minute * 20, session.AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
 	//Given the policy Manager that has roleArn for the testARN (is in default fixture)
 	//Given credentials for that role
-	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowAllARN, stsServer)
+	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowAllARN, stsServer, nil)
 
 
 	for _, backendRegion := range backendTestRegions {
@@ -340,7 +343,7 @@ func TestAllowFallbackToDefaultBackend(t *testing.T) {
 	token := getSignedToken("mySubject", time.Minute * 20, session.AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
 	//Given the policy Manager that has roleArn for the testARN (is in default fixture)
 	//Given credentials for that role
-	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowAllARN, stsServer)
+	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowAllARN, stsServer, nil)
 
 	// When a request is done to an invalid region
 	regionContent, err := getRegionObjectContent(t, "invalidRegion", credentials.FromAwsFormat(creds), s3Server)
@@ -362,7 +365,7 @@ func TestIfNoFallbackToDefaultBackendBadRequestShouldBeReturned(t *testing.T) {
 	token := getSignedToken("mySubject", time.Minute * 20, session.AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
 	//Given the policy Manager that has roleArn for the testARN (is in default fixture)
 	//Given credentials for that role
-	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowAllARN, stsServer)
+	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowAllARN, stsServer, nil)
 
 	// When a request is done to an invalid region
 	regionContent, err := getRegionObjectContent(t, "invalidRegion", credentials.FromAwsFormat(creds), s3Server)
@@ -380,8 +383,9 @@ func TestSigv4PresignedUrlsWork(t *testing.T) {
 	//Given a running proxy and credentials against that proxy that allow access for the get operation
 	tearDown, getSignedToken, stsServer, s3Server := testingFixture(t)
 	defer tearDown()
-	token := getSignedToken("mySubject", time.Minute * 20, session.AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
-	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowAllARN, stsServer)
+	token := getSignedToken("mySubject", time.Second * 2, session.AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
+	var durationSecs int32 = 2
+	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowAllARN, stsServer, &durationSecs)
 
 	//Given a Get request for the region.txt file
 	regionFileUrl := fmt.Sprintf("%s%s/%s", testutils.GetTestServerUrl(s3Server), testingBucketNameBackenddetails, testingRegionTxtObjectKey)
@@ -411,12 +415,93 @@ func TestSigv4PresignedUrlsWork(t *testing.T) {
 	}
 }
 
+func TestSigv4PresignedUrlsWorkInGracePeriod(t *testing.T) {
+	testutils.SkipIfNoSlowUnittests(t)
+	//Given grace time of 5 seconds (../etc/.env)
+	//Given a running proxy and credentials against that proxy that allow access for the get operation
+	tearDown, getSignedToken, stsServer, s3Server := testingFixture(t)
+	defer tearDown()
+	var durationSecs int32 = 2
+	token := getSignedToken("mySubject", time.Second * time.Duration(durationSecs), session.AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
+	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowAllARN, stsServer, &durationSecs)
+
+	//Given a Get request for the region.txt file
+	regionFileUrl := fmt.Sprintf("%s%s/%s", testutils.GetTestServerUrl(s3Server), testingBucketNameBackenddetails, testingRegionTxtObjectKey)
+	req, err := http.NewRequest(http.MethodGet, regionFileUrl, nil)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+
+	time.Sleep(time.Second * time.Duration(durationSecs+1))
+	//When creating a presigned url it and using that presigned url it should return the region correctly.
+	for _, backendRegion := range backendTestRegions {
+		signedUri, _, err := presign.PreSignRequestWithCreds(context.Background(), req, 300, time.Now(), creds, backendRegion)
+		if err != nil {
+			t.Errorf("Did not expect error when signing url for %s. Got %s", backendRegion, err)
+		}
+		resp, err := testutils.BuildUnsafeHttpClientThatTrustsAnyCert(t).Get(signedUri)
+		if err != nil {
+			t.Errorf("Did not expect error when using signing url for %s. Got %s", backendRegion, err)
+		}
+		bytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Errorf("Did not expect error when getting body of signed url response for %s. Got %s", backendRegion, err)
+		}
+		if string(bytes) != backendRegion {
+			t.Errorf("Invalid response of presigned url expected %s, got %s", backendRegion, string(bytes))
+		}
+	}
+}
+
+func TestSigv4PresignedUrlsFailOutsideGracePeriod(t *testing.T) {
+	testutils.SkipIfNoSlowUnittests(t)
+	//Given grace time of 5 seconds (../etc/.env)
+	//Given a running proxy and credentials against that proxy that allow access for the get operation
+	tearDown, getSignedToken, stsServer, s3Server := testingFixture(t)
+	defer tearDown()
+	var durationSecs int32 = 2
+	token := getSignedToken("mySubject", time.Second * time.Duration(durationSecs), session.AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
+	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowAllARN, stsServer, &durationSecs)
+
+	//Given a Get request for the region.txt file
+	regionFileUrl := fmt.Sprintf("%s%s/%s", testutils.GetTestServerUrl(s3Server), testingBucketNameBackenddetails, testingRegionTxtObjectKey)
+	req, err := http.NewRequest(http.MethodGet, regionFileUrl, nil)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+
+	time.Sleep(time.Second * time.Duration(durationSecs+5))
+	//When creating a presigned url it and using that presigned url it should return the region correctly.
+	for _, backendRegion := range backendTestRegions {
+		signedUri, _, err := presign.PreSignRequestWithCreds(context.Background(), req, 300, time.Now(), creds, backendRegion)
+		if err != nil {
+			t.Errorf("Did not expect error when signing url for %s. Got %s", backendRegion, err)
+		}
+		resp, err := testutils.BuildUnsafeHttpClientThatTrustsAnyCert(t).Get(signedUri)
+		if err != nil {
+			t.Errorf("Did not expect error when using signing url for %s. Got %s", backendRegion, err)
+		}
+		bytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Errorf("Did not expect error when getting body of signed url response for %s. Got %s", backendRegion, err)
+		}
+		if resp.StatusCode >= 500 || resp.StatusCode < 400 {
+			t.Errorf("Invalid response code. Must indicate user error got %d", resp.StatusCode)
+		}
+		if !strings.Contains(string(bytes), "credentials are expired") {
+			t.Errorf("Expected response to indicate expired credentials got %s", string(bytes))
+		}
+	}
+}
+
 func TestSigv4PresignedUrlsWorkWithRanges(t *testing.T) {
 	//Given a running proxy and credentials against that proxy that allow access for the get operation
 	tearDown, getSignedToken, stsServer, s3Server := testingFixture(t)
 	defer tearDown()
 	token := getSignedToken("mySubject", time.Minute * 20, session.AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
-	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowAllARN, stsServer)
+	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowAllARN, stsServer, nil)
 
 	//Given a Get request for the region.txt file
 	regionFileUrl := fmt.Sprintf("%s%s/%s", testutils.GetTestServerUrl(s3Server), testingBucketNameBackenddetails, testingRegionTxtObjectKey)
@@ -509,7 +594,7 @@ func TestPolicyAllowTeamFolderIDPClaimsCanBeUsedInPolicyEvaluationPrincipalWithC
 	defer tearDown()
 	// GIVEN token for team that does have access
 	token := getSignedToken("mySubject", time.Minute * 20, session.AWSSessionTags{PrincipalTags: map[string][]string{testTeamTag: {testAllowedTeam}}})
-	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowTeamFolderARN, stsServer)
+	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowTeamFolderARN, stsServer, nil)
 
 	//WHEN access is attempted that required the team information
 	content, err := getTestBucketObjectContent(t, testRegion1, testTeamFile, credentials.FromAwsFormat(creds), s3Server)
@@ -529,7 +614,7 @@ func TestPolicyAllowTeamFolderIDPClaimsCanBeUsedInPolicyEvaluationPrincipalWithI
 	defer tearDown()
 	// GIVEN token for team that does not have access
 	token := getSignedToken("mySubject", time.Minute * 20, session.AWSSessionTags{PrincipalTags: map[string][]string{testTeamTag: {testDisallowedTeam}}})
-	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowTeamFolderARN, stsServer)
+	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowTeamFolderARN, stsServer, nil)
 
 	//WHEN access is attempted that required the team information
 	_, err := getTestBucketObjectContent(t, testRegion1, testTeamFile, credentials.FromAwsFormat(creds), s3Server)
@@ -548,7 +633,7 @@ func TestPolicyAllowTeamFolderIDPClaimsCanBeUsedInPolicyEvaluationPrincipalWitho
 	defer tearDown()
 	// GIVEN token with no team information
 	token := getSignedToken("mySubject", time.Minute * 20, session.AWSSessionTags{PrincipalTags: map[string][]string{}})
-	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowTeamFolderARN, stsServer)
+	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowTeamFolderARN, stsServer, nil)
 
 	//WHEN access is attempted that required the team information
 	_, err := getTestBucketObjectContent(t, testRegion1, testTeamFile, credentials.FromAwsFormat(creds), s3Server)
@@ -568,7 +653,7 @@ func TestPolicyAllowAllInRegion1ConditionsOnRegionAreEnforced(t *testing.T) {
 	token := getSignedToken("mySubject", time.Minute * 20, session.AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
 	//Given the policy Manager that has our test policies
 	//Given credentials that use the policy that allow everything in Region1
-	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowAllInRegion1ARN, stsServer)
+	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowAllInRegion1ARN, stsServer, nil)
 
 	//WHEN we get an object in region 1
 	regionContent, err := getRegionObjectContent(t, testRegion1, credentials.FromAwsFormat(creds), s3Server)
@@ -633,7 +718,7 @@ func TestListingOfS3BucketHasExpectedObjects(t *testing.T) {
 	token := getSignedToken("mySubject", time.Minute * 20, session.AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
 	//Given the policy Manager that has our test policies
 	//Given credentials that use the policy that allow everything in Region1
-	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowAllInRegion1ARN, stsServer)
+	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowAllInRegion1ARN, stsServer, nil)
 
 	var prefix string= ""
 
@@ -657,7 +742,7 @@ func TestAuditLogEntry(t *testing.T) {
 	//GIVEN we run another test scenario
 		//_GIVEN token for team that does have access
 		token := getSignedToken("mySubject", time.Minute * 20, session.AWSSessionTags{PrincipalTags: map[string][]string{testTeamTag: {testAllowedTeam}}})
-		creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowTeamFolderARN, stsServer)
+		creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowTeamFolderARN, stsServer, nil)
 	
 		//_WHEN access is attempted that required the team information
 		content, err := getTestBucketObjectContent(t, testRegion1, testTeamFile, credentials.FromAwsFormat(creds), s3Server)

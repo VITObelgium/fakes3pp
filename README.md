@@ -100,3 +100,22 @@ Their work was quite a source of inspiration so we decided to base some work on 
 ### Mismatch UC2: I want a custom REST API
 
 Products that run against S3 object stores often provide an API that is not S3 compatible towards clients (e.g. https://github.com/oxyno-zeta/s3-proxy). It also offers a way of OIDC integration but the frontend interface is not S3 API compatible.
+
+
+## Contributing
+
+Contributions are welcome. When contributing something not on our radar it is recommended to open an issue before investing in development to see if the contribution sounds like a good fit. It could also help to exchange ideas on the preferred way to add it.
+
+### Running tests
+
+The CICD workflow is visible in the repository and is most likely the best guide to running all the tests. Some points of attention:
+
+#### Slow tests
+There are slow unittests disabled by default. If you want to run them locally set an enviornment variable `HASTE_MAKES_WASTE` and give it any value (e.g. `export HASTE_MAKES_WASTE=true`)
+
+When adding a test yourself that is slow make sure to use `testutils.SkipIfNoSlowUnittests(t)` to avoid running it always
+
+#### Tests against a test S3 implementation
+Some tests run against an S3 implementation for testing (moto) see [testing/README.md](testing docs) for details.
+
+These are located in [cmd/almost-e2e_test.go](cmd/almost-e2e_test.go)

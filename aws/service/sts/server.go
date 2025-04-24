@@ -37,6 +37,9 @@ type STSServer struct{
 	pm *iam.PolicyManager
 
 	maxAllowedDuration time.Duration
+
+	//The minimum time a STS session just be
+	minAllowedDuration time.Duration
 }
 
 func (s *STSServer) GetIssuer() string {
@@ -56,6 +59,7 @@ func NewSTSServer(
 	oidcConfigFilePath string,
 	pm *iam.PolicyManager,
 	maxDurationSeconds int,
+	minDurationSeconds int,
 ) (s server.Serverable, err error) {
 	return newSTSServer(
 		jwtPrivateRSAKeyFilePath,
@@ -66,6 +70,7 @@ func NewSTSServer(
 		oidcConfigFilePath,
 		pm,
 		maxDurationSeconds,
+		minDurationSeconds,
 	)
 }
 
@@ -78,6 +83,7 @@ func newSTSServer(
 	oidcConfigFilePath string,
 	pm *iam.PolicyManager,
 	maxDurationSeconds int,
+	minDurationSeconds int,
 ) (s *STSServer, err error) {
 	key, err := utils.NewKeyStorage(jwtPrivateRSAKeyFilePath)
 	if err != nil {
@@ -97,6 +103,7 @@ func newSTSServer(
 		oidcVerifier: oidcVerifier,
 		pm: pm,
 		maxAllowedDuration: time.Duration(maxDurationSeconds) * time.Second,
+		minAllowedDuration: time.Duration(minDurationSeconds) * time.Second,
 	}
 	s.SetHandlerFunc(s.CreateHandler())
 	return s, nil
@@ -269,8 +276,7 @@ func (s *STSServer)newProxyIssuedToken(subject, issuer, roleARN string, expiry t
 func (s *STSServer) calculateFinalDurationSeconds(apiProvidedDuration int, jwtExpiry *jwt.NumericDate) (*time.Duration, error) {
 	now := time.Now().UTC()
 
-	//We take same minimum as AWS does: https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRoleWithWebIdentity.html
-	minimalExpiryTime := now.Add(15 * time.Minute)
+	minimalExpiryTime := now.Add(s.minAllowedDuration)
 	if jwtExpiry.Before(now) {
 		//We allow the usage of refresh tokens so the token just needs to be valid
 		//at exchange time.
@@ -278,7 +284,7 @@ func (s *STSServer) calculateFinalDurationSeconds(apiProvidedDuration int, jwtEx
 	}
 	providedExpiryTime := now.Add(time.Duration(apiProvidedDuration) * time.Second)
 	if providedExpiryTime.Before(minimalExpiryTime) {
-		return nil, errors.New("provided expiry time is before minimal time of 15 minutes")
+		return nil, fmt.Errorf("provided expiry time is before minimal time of %s", s.minAllowedDuration.String())
 	}
 	var finalDuration time.Duration = time.Duration(apiProvidedDuration) * time.Second
 	if finalDuration > s.maxAllowedDuration {

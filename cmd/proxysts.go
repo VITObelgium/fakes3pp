@@ -61,6 +61,7 @@ func buildSTSServer() (server.Serverable) {
 		viper.GetString(stsOIDCConfigFile),
 		pm,
 		getMaxStsDurationSeconds(),
+		getMinStsDurationSeconds(),
 	)
 	if err != nil {
 		slog.Error("Could not create STS server", "error", err)

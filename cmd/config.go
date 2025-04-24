@@ -44,6 +44,7 @@ const(
 	stsProxyPort = "stsProxyPort"
 	stsProxyCertFile = "stsProxyCertFile"
 	stsProxyKeyFile = "stsProxyKeyFile"
+	stsMinimalDurationSeconds = "stsMinimalDurationSeconds"
 	rolePolicyPath = "rolePolicyPath"
 	secure = "secure"
 	stsOIDCConfigFile = "stsOIDCConfigFile"
@@ -67,6 +68,7 @@ const(
 	FAKES3PP_STS_PROXY_PORT = "FAKES3PP_STS_PROXY_PORT"
 	FAKES3PP_STS_PROXY_CERT_FILE = "FAKES3PP_STS_PROXY_CERT_FILE"
 	FAKES3PP_STS_PROXY_KEY_FILE = "FAKES3PP_STS_PROXY_KEY_FILE"
+	FAKES3PP_STS_MINIMAL_DURATION_SECONDS = "FAKES3PP_STS_MINIMAL_DURATION_SECONDS"
 	FAKES3PP_SECURE = "FAKES3PP_SECURE"
 	FAKES3PP_STS_OIDC_CONFIG = "FAKES3PP_STS_OIDC_CONFIG"
 	FAKES3PP_S3_BACKEND_CONFIG = "FAKES3PP_S3_BACKEND_CONFIG"
@@ -190,7 +192,7 @@ var envVarDefs = []envVarDef{
 		signedUrlGraceTimeSeconds,
 		FAKES3PP_SIGNEDURL_GRACE_TIME_SECONDS,
 		false,
-		"The maximum duration in seconds a signed url can be valid past the lifetime of the credentials used to generate it",
+		"The maximum duration in seconds a signed url can be valid past the lifetime of the credentials used to generate it (for GetObject)",
 		[]string{proxys3},
 	},
 	{
@@ -214,6 +216,21 @@ var envVarDefs = []envVarDef{
 		"The port on which to run the /metrics endpoint",
 		[]string{proxys3, proxysts},
 	},
+	{
+		stsMinimalDurationSeconds,
+		FAKES3PP_STS_MINIMAL_DURATION_SECONDS,
+		false,
+		"The minimal duration for an STS session in seconds (must be greater than 0 and defaults to 15 minutes",
+		[]string{proxysts},
+	},
+}
+
+func getMinStsDurationSeconds() int {
+	minDurationSeconds := viper.GetInt(stsMinimalDurationSeconds)
+	if minDurationSeconds == 0 {
+		return 15 * 60  // We take same minimum as AWS does: https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRoleWithWebIdentity.html
+	}
+	return minDurationSeconds
 }
 
 func getMaxStsDurationSeconds() int {

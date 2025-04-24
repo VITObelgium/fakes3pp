@@ -20,6 +20,7 @@ import (
 	"github.com/VITObelgium/fakes3pp/usererror"
 	"github.com/VITObelgium/fakes3pp/utils"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 const L_AKID = "AKID"  // Access Key ID
@@ -31,12 +32,12 @@ const L_AKID = "AKID"  // Access Key ID
 //Add Session token to request context
 //Add Region to request context (as it is in parts that might be cleaned up)
 //Cleanup the request to not have lingering parts that could cause issues with request downstream.
-func AWSAuthN(keyStorage utils.PrivateKeyKeeper, e service.ErrorReporter, backendManager interfaces.BackendManager) Middleware {
+func AWSAuthN(keyStorage utils.KeyPairKeeper, e service.ErrorReporter, backendManager interfaces.BackendManager, presignOptions *AuthenticationOptions) Middleware {
     return func(next http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			var shouldContinue bool
 			if IsPresignedAWSRequest(r) {
-				shouldContinue = handleAuthNPresigned(w, r, keyStorage, e, backendManager)
+				shouldContinue = handleAuthNPresigned(w, r, keyStorage, e, backendManager, presignOptions)
 			} else {
 				shouldContinue = handleAuthNNormal(w, r, keyStorage, e, backendManager)
 			}
@@ -48,7 +49,7 @@ func AWSAuthN(keyStorage utils.PrivateKeyKeeper, e service.ErrorReporter, backen
 }
 
 //Authenticate a presigned request see responsibilities AWSAuthN
-func handleAuthNPresigned(w http.ResponseWriter, r *http.Request, keyStorage utils.PrivateKeyKeeper, e service.ErrorReporter, backendManager interfaces.BackendManager) bool {
+func handleAuthNPresigned(w http.ResponseWriter, r *http.Request, keyStorage utils.KeyPairKeeper, e service.ErrorReporter, backendManager interfaces.BackendManager, presignAuthOptions *AuthenticationOptions) bool {
 	requestctx.SetAuthType(r, authtypes.AuthTypeQueryString)
 
 	var isValid bool
@@ -73,7 +74,7 @@ func handleAuthNPresigned(w http.ResponseWriter, r *http.Request, keyStorage uti
 	requestctx.AddAccessLogInfo(r, "s3", slog.String(L_AKID, creds.AccessKeyID))
 	requestctx.SetSessionToken(r, creds.SessionToken)
 
-	err = makeSureSessionTokenIsForAccessKey(creds.SessionToken, creds.AccessKeyID)
+	err = makeSureSessionTokenIsForAccessKey(creds.SessionToken, creds.AccessKeyID, keyStorage.GetJwtKeyFunc(), presignAuthOptions)
 	if err != nil {
 		err := fmt.Errorf("error when making sure session token corresponds to used credential pair: %w", err)
 		e.WriteErrorResponse(r.Context(), w, service.ErrAuthorizationHeaderMalformed, err)
@@ -119,7 +120,7 @@ func addRegionToSession(r *http.Request, backendManager interfaces.BackendManage
 }
 
 //Authenticate a normal request see responsibilities AWSAuthN
-func handleAuthNNormal(w http.ResponseWriter, r *http.Request, keyStorage utils.PrivateKeyKeeper, e service.ErrorReporter, backendManager interfaces.BackendManager) bool {
+func handleAuthNNormal(w http.ResponseWriter, r *http.Request, keyStorage utils.KeyPairKeeper, e service.ErrorReporter, backendManager interfaces.BackendManager) bool {
 	if r.Header.Get(constants.AuthorizationHeader) == "" {
 		requestctx.SetAuthType(r, authtypes.AuthTypeNone)
 	} else {
@@ -135,7 +136,7 @@ func handleAuthNNormal(w http.ResponseWriter, r *http.Request, keyStorage utils.
 	requestctx.AddAccessLogInfo(r, "s3", slog.String(L_AKID, accessKeyId))
 	requestctx.SetSessionToken(r, sessionToken)
 
-	err = makeSureSessionTokenIsForAccessKey(sessionToken, accessKeyId)
+	err = makeSureSessionTokenIsForAccessKey(sessionToken, accessKeyId, keyStorage.GetJwtKeyFunc(), nil)
 	if err != nil {
 		err := fmt.Errorf("error when making sure session token corresponds to used credential pair: %w", err)
 		e.WriteErrorResponse(r.Context(), w, service.ErrAuthorizationHeaderMalformed, err)
@@ -187,8 +188,12 @@ func handleAuthNNormal(w http.ResponseWriter, r *http.Request, keyStorage utils.
 
 //Make sure the provided session token matches the used credentials
 //If not return an error
-func makeSureSessionTokenIsForAccessKey(sessionToken, accessKeyId string) (invalidToken error) {
-	claims, err := credentials.ExtractTokenClaims(sessionToken, nil)
+func makeSureSessionTokenIsForAccessKey(sessionToken, accessKeyId string, keyFunc jwt.Keyfunc, authOptions *AuthenticationOptions) (invalidToken error) {
+	var parserOptions []jwt.ParserOption
+	if authOptions != nil {
+		parserOptions = authOptions.GetParserOptions()
+	}
+	claims, err := credentials.ExtractTokenClaims(sessionToken, keyFunc, parserOptions...)
 	if err != nil {
 		return err
 	}

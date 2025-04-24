@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/VITObelgium/fakes3pp/aws/service/sts/session"
+	"github.com/VITObelgium/fakes3pp/usererror"
 	"github.com/VITObelgium/fakes3pp/utils"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -98,7 +99,7 @@ func ExtractOIDCTokenClaims(token string, oidcKeyFunc jwt.Keyfunc) (*SessionClai
 
 
 // ExtractTokenClaims extracts JWT claims using a key functions
-func ExtractTokenClaims(token string, keyFunc jwt.Keyfunc) (*SessionClaims, error) {
+func ExtractTokenClaims(token string, keyFunc jwt.Keyfunc, options ...jwt.ParserOption) (*SessionClaims, error) {
 	if token == "" {
 		return nil, errors.New("invalid argument")
 	}
@@ -107,11 +108,14 @@ func ExtractTokenClaims(token string, keyFunc jwt.Keyfunc) (*SessionClaims, erro
 
 	var err error
 	if keyFunc == nil {
-		_, _, err = jwt.NewParser().ParseUnverified(token, &policyClaims)
+		_, _, err = jwt.NewParser(options...).ParseUnverified(token, &policyClaims)
 	} else {
-	    _, err = jwt.ParseWithClaims(token, &policyClaims, keyFunc)
+	    _, err = jwt.NewParser(options...).ParseWithClaims(token, &policyClaims, keyFunc)
 	}
 	if err != nil {
+		if err.Error() == "token has invalid claims: token is expired" {
+			return nil, usererror.New(err, "Session credentials are expired")
+		}
 		return nil, err
 	}
 

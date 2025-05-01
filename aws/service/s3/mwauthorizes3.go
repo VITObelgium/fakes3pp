@@ -54,7 +54,7 @@ func authorizeS3Action(ctx context.Context, sessionToken, targetRegion string, a
 	maxExpiryTime time.Time, jwtVerifier utils.JWTVerifier, policyRetriever iaminterfaces.PolicyRetriever, vhi interfaces.VirtualHosterIdentifier) (allowed bool) {
 	allowed = false
 	var jwtKeyFunc jwt.Keyfunc = jwtVerifier.GetJwtKeyFunc()
-	if action == api.GetObject {
+	if action == api.GetObject || action == api.HeadObject {
 		//Grace time is active and authentication has already checked token validity
 		jwtKeyFunc = nil
 	}

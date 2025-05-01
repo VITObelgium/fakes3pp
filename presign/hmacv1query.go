@@ -175,8 +175,8 @@ func getExpiresFromExpirySeconds(expirySeconds int) string {
 
 func getCanonicalRequestString(req *http.Request, expires string) (string, error) {
 	method := strings.ToUpper(req.Method)
-	if method != http.MethodGet {
-		return "", errors.New("only Get is implemented at the moment")
+	if method != http.MethodGet && method != http.MethodHead {
+		return "", errors.New("only Get and Head are implemented at the moment")
 	}
 	cs := method + "\n"
 	canonicalStandardHeaders := getCanonicalStandardHeaders(req, expires)

@@ -58,8 +58,22 @@ func handleAuthNPresigned(w http.ResponseWriter, r *http.Request, keyStorage uti
 	var secretDeriver = func(accessKeyId string) (secretAccessKey string, err error) {
 		return credentials.CalculateSecretKey(accessKeyId, keyStorage)
 	}
+	var toCheck *http.Request = r
 
-	presignedUrl, err := presign.MakePresignedUrl(r)
+	if r.URL.Query().Get(constants.HeadAsGet) != "" {
+		defer func(){
+			//Always remove the Proxy query parameter
+			urlVals := r.URL.Query()
+			urlVals.Del(constants.HeadAsGet)
+			r.URL.RawQuery = urlVals.Encode()
+		}()
+		if strings.ToLower(r.URL.Query().Get(constants.HeadAsGet)) == "true" && r.Method == http.MethodHead {
+			toCheck = r.Clone(r.Context())
+			toCheck.Method = http.MethodGet
+		}
+	}
+
+	presignedUrl, err := presign.MakePresignedUrl(toCheck)
 	if err != nil {
 		err := fmt.Errorf("could not get presigned url: %w", err)
 		e.WriteErrorResponse(r.Context(), w, service.ErrAWSInternalError, err)

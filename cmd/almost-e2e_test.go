@@ -7,6 +7,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	s3proxy "github.com/VITObelgium/fakes3pp/aws/service/s3"
 	stsproxy "github.com/VITObelgium/fakes3pp/aws/service/sts"
 	"github.com/VITObelgium/fakes3pp/aws/service/sts/session"
+	"github.com/VITObelgium/fakes3pp/constants"
 	"github.com/VITObelgium/fakes3pp/presign"
 	"github.com/VITObelgium/fakes3pp/server"
 	"github.com/VITObelgium/fakes3pp/testutils"
@@ -497,6 +499,111 @@ func TestSigv4PresignedUrlsHeadObjectWorks(t *testing.T) {
 		}
 		if int(contentLength) != len(backendRegion) {
 			t.Errorf("invalid Content-length header expected %d, got %s", len(backendRegion), resp.Header.Get("Content-Length"))
+		}
+	}
+}
+
+func TestSigv4PresignedUrlsHeadObjectForGetSignedWorks(t *testing.T) {
+	// Given a running proxy and credentials against that proxy that allow access for the get operation
+	tearDown, getSignedToken, stsServer, s3Server := testingFixture(t)
+	defer tearDown()
+	token := getSignedToken("mySubject", time.Second * 2, session.AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
+	var durationSecs int32 = 2
+	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowAllARN, stsServer, &durationSecs)
+
+	//Given a Get request for the region.txt file
+	regionFileUrl := fmt.Sprintf("%s%s/%s", testutils.GetTestServerUrl(s3Server), testingBucketNameBackenddetails, testingRegionTxtObjectKey)
+	req, err := http.NewRequest(http.MethodGet, regionFileUrl, nil)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+	// Given extra query parameter "AllowHead=true" 
+	urlValues := url.Values{}
+	urlValues.Add(constants.HeadAsGet, "true")
+	req.URL.RawQuery = urlValues.Encode()
+
+	for _, backendRegion := range backendTestRegions {
+		//WHEN creating a presigned url for a get method
+		signedUri, _, err := presign.PreSignRequestWithCreds(context.Background(), req, 300, time.Now(), creds, backendRegion)
+		if err != nil {
+			t.Errorf("Did not expect error when signing url for %s. Got %s", backendRegion, err)
+		}
+		//THEN performing a HEAD using that presigned url it should return the correct Content-Length
+		resp, err := testutils.BuildUnsafeHttpClientThatTrustsAnyCert(t).Head(signedUri)
+		if err != nil {
+			t.Errorf("Did not expect error when using signing url for %s. Got %s", backendRegion, err)
+		}
+		bytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Errorf("Did not expect error when getting body of signed url response for %s. Got %s", backendRegion, err)
+		}
+		if string(bytes) != "" {
+			t.Errorf("invalid response of presigned url expected empty body, got %s", string(bytes))
+		}
+		contentLength, err := strconv.ParseInt(resp.Header.Get("Content-Length"), 0, 32)
+		if err != nil {
+			t.Errorf("invalid Content-length %s cannot conver to int: %s", resp.Header.Get("Content-Length"), err)
+		}
+		if int(contentLength) != len(backendRegion) {
+			t.Errorf("invalid Content-length header expected %d, got %s", len(backendRegion), resp.Header.Get("Content-Length"))
+		}
+		//THEN performing a GET using that presigned url it should return the correct region
+		resp, err = testutils.BuildUnsafeHttpClientThatTrustsAnyCert(t).Get(signedUri)
+		if err != nil {
+			t.Errorf("Did not expect error when using signing url for %s. Got %s", backendRegion, err)
+		}
+		bytes, err = io.ReadAll(resp.Body)
+		if err != nil {
+			t.Errorf("Did not expect error when getting body of signed url response for %s. Got %s", backendRegion, err)
+		}
+		if string(bytes) != backendRegion {
+			t.Errorf("Invalid response of presigned url expected %s, got %s", backendRegion, string(bytes))
+		}
+	}
+}
+
+func TestSigv4PresignedUrlsHeadObjectForGetSignedCannotBeAltered(t *testing.T) {
+	// Given a running proxy and credentials against that proxy that allow access for the get operation
+	tearDown, getSignedToken, stsServer, s3Server := testingFixture(t)
+	defer tearDown()
+	token := getSignedToken("mySubject", time.Second * 2, session.AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
+	var durationSecs int32 = 2
+	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowAllARN, stsServer, &durationSecs)
+
+	//Given a Get request for the region.txt file
+	regionFileUrl := fmt.Sprintf("%s%s/%s", testutils.GetTestServerUrl(s3Server), testingBucketNameBackenddetails, testingRegionTxtObjectKey)
+	req, err := http.NewRequest(http.MethodGet, regionFileUrl, nil)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+
+	for _, backendRegion := range backendTestRegions {
+		//WHEN creating a presigned url for a get method
+		signedUri, _, err := presign.PreSignRequestWithCreds(context.Background(), req, 300, time.Now(), creds, backendRegion)
+		if err != nil {
+			t.Errorf("Did not expect error when signing url for %s. Got %s", backendRegion, err)
+		}
+		// WHEN adding extra query parameter "AllowHead=true" 
+		urlValues := url.Values{}
+		urlValues.Add(constants.HeadAsGet, "true")
+		signedUri = fmt.Sprintf("%s&%s", signedUri, urlValues.Encode())
+		//THEN performing a HEAD using that presigned url it should be Forbidden
+		resp, err := testutils.BuildUnsafeHttpClientThatTrustsAnyCert(t).Head(signedUri)
+		if err != nil {
+			t.Errorf("Did not expect error when using signing url for %s. Got %s", backendRegion, err)
+		}
+		if resp.StatusCode != http.StatusForbidden {
+			t.Errorf("Altered request should get forbidden response (403), got %d", resp.StatusCode)
+		}
+		//THEN performing a GET using that presigned url it should be Forbidden
+		resp, err = testutils.BuildUnsafeHttpClientThatTrustsAnyCert(t).Get(signedUri)
+		if err != nil {
+			t.Errorf("Did not expect error when using signing url for %s. Got %s", backendRegion, err)
+		}
+		if resp.StatusCode != http.StatusForbidden {
+			t.Errorf("Altered request should get forbidden response (403), got %d", resp.StatusCode)
 		}
 	}
 }

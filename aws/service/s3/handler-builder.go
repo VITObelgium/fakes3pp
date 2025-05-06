@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
+	"slices"
 
 	"github.com/VITObelgium/fakes3pp/aws/service/s3/api"
 	"github.com/VITObelgium/fakes3pp/aws/service/s3/interfaces"
@@ -61,10 +62,13 @@ func defaultRequester(r *http.Request) (*http.Response, error) {
 }
 
 //Temporary remove headers and return callback to reinstantiate headers
-func temporaryRemoveHeaders(r *http.Request, headersToRemove []string) (reAddHeaders func(*http.Request)()) {
+func temporaryRemoveHeaders(r *http.Request, headersToKeep []string) (reAddHeaders func(*http.Request)()) {
 	headers := map[string]string{}
 
-	for _, headerName := range headersToRemove {
+	for headerName, _ := range r.Header {
+		if slices.Contains(headersToKeep, headerName) {
+			continue
+		}
 		headers[headerName] = r.Header.Get(headerName)
 		r.Header.Del(headerName)
 	}
@@ -78,12 +82,19 @@ func temporaryRemoveHeaders(r *http.Request, headersToRemove []string) (reAddHea
 	return reAddHeaders
 }
 
-func temporaryRemoveSignedHeaders(r *http.Request) (reAddHeaders func(*http.Request)(), err error) {
-	signedHeaders, err := requestctx.GetSignedHeaders(r)
+//Headers that are added by our middleware and which should never be filtered.
+var alwaysSignHeaders = []string{
+	"X-Amz-Content-Sha256",
+	"Host",
+}
+
+func temporaryRemoveUntrustedHeaders(r *http.Request) (reAddHeaders func(*http.Request)(), err error) {
+	headersToKeep, err := requestctx.GetSignedHeaders(r)
 	if err != nil {
 		return
 	}
-	return temporaryRemoveHeaders(r, signedHeaders), nil
+	headersToKeep = append(headersToKeep, alwaysSignHeaders...)
+	return temporaryRemoveHeaders(r, headersToKeep), nil
 }
 
 func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request, targetBackendId string,  backendManager interfaces.BackendManager,
@@ -118,7 +129,9 @@ func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request, targ
 			)
 		return
 	}
-	reinstantiateHeaders, err := temporaryRemoveSignedHeaders(r)
+	//Browsers or even malicious people can use a presigned url and add headers to the request
+	//during signing we should only sign what was signed in the original signature or what we have added.
+	reinstantiateHeaders, err := temporaryRemoveUntrustedHeaders(r)
 	if err != nil {
 		slog.ErrorContext(ctx, "Issue removing signed headers", "error", err)
 		writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)

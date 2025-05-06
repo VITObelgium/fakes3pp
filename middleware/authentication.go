@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/textproto"
 	"os"
 	"strings"
 	"time"
@@ -241,7 +242,7 @@ func cleanHeadersThatAreNotSignedInAuthHeader(req *http.Request) {
 func addSignedHeadersToRequestCtx(r *http.Request, signedHeaders map[string]string) {
 	headerlist := make([]string, 0)
 	for headerName, _ := range signedHeaders {
-		headerlist = append(headerlist, headerName)
+		headerlist = append(headerlist, textproto.CanonicalMIMEHeaderKey(headerName))
 	}
 	requestctx.SetSignedHeaders(r, headerlist)
 }
@@ -249,6 +250,9 @@ func addSignedHeadersToRequestCtx(r *http.Request, signedHeaders map[string]stri
 const signedHeadersPrefix = "SignedHeaders="
 
 func getSignedHeadersFromRequest(req *http.Request) (signedHeaders map[string]string) {
+	//TODO: ideally this should also take care of signed headers in the presigned url
+	// at the moment host header is the only signed header known to be set so does not
+	// seem critical
 	signedHeaders = map[string]string{}
 	ah := req.Header.Get(constants.AuthorizationHeader)
 	if ah == "" {

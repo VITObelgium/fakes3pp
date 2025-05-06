@@ -17,13 +17,18 @@ import (
 	"github.com/VITObelgium/fakes3pp/usererror"
 )
 
+type requesterFunc func(*http.Request) (*http.Response, error)
+
 // A handler builder builds http handlers
 type handlerBuilder struct {
 	//How proxying is done to the backend
-	proxyFunc func(context.Context, http.ResponseWriter, *http.Request, string, interfaces.BackendManager)
+	proxyFunc func(context.Context, http.ResponseWriter, *http.Request, string, interfaces.BackendManager, requesterFunc)
+
+	//Function that performs the actual upstream request.
+	requester requesterFunc
 }
 
-var justProxied interfaces.HandlerBuilderI = handlerBuilder{proxyFunc: justProxy}
+var handlerBuilderToJustProxy interfaces.HandlerBuilderI = handlerBuilder{proxyFunc: justProxy, requester: defaultRequester}
 
 func getS3Action(r *http.Request) (api.S3Operation) {
 	action, actionOk := requestctx.GetOperation(r).(api.S3Operation)
@@ -46,11 +51,43 @@ func (hb handlerBuilder) Build(backendManager interfaces.BackendManager) (http.H
 			writeS3ErrorResponse(ctx, w, ErrS3InternalError, errors.New("could not get target region from requestctx"))
 			return
 		}
-		hb.proxyFunc(ctx, w, r, targetRegion, backendManager)
+		hb.proxyFunc(ctx, w, r, targetRegion, backendManager, hb.requester)
 	}
 }
 
-func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request, targetBackendId string,  backendManager interfaces.BackendManager) {
+func defaultRequester(r *http.Request) (*http.Response, error) {
+	client := &http.Client{}
+	return client.Do(r)
+}
+
+//Temporary remove headers and return callback to reinstantiate headers
+func temporaryRemoveHeaders(r *http.Request, headersToRemove []string) (reAddHeaders func(*http.Request)()) {
+	headers := map[string]string{}
+
+	for _, headerName := range headersToRemove {
+		headers[headerName] = r.Header.Get(headerName)
+		r.Header.Del(headerName)
+	}
+
+	reAddHeaders = func (req *http.Request)()  {
+		for headerName, headerVal := range headers {
+			req.Header.Add(headerName, headerVal)
+		}
+	}
+
+	return reAddHeaders
+}
+
+func temporaryRemoveSignedHeaders(r *http.Request) (reAddHeaders func(*http.Request)(), err error) {
+	signedHeaders, err := requestctx.GetSignedHeaders(r)
+	if err != nil {
+		return
+	}
+	return temporaryRemoveHeaders(r, signedHeaders), nil
+}
+
+func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request, targetBackendId string,  backendManager interfaces.BackendManager,
+	requester requesterFunc) {
 	err := reTargetRequest(ctx, r, targetBackendId, backendManager)
 	if err == errInvalidBackendErr {
 		slog.WarnContext(ctx, "Invalid region was specified in the request", "error", err, "backendId", targetBackendId)
@@ -81,6 +118,12 @@ func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request, targ
 			)
 		return
 	}
+	reinstantiateHeaders, err := temporaryRemoveSignedHeaders(r)
+	if err != nil {
+		slog.ErrorContext(ctx, "Issue removing signed headers", "error", err)
+		writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
+		return
+	}
 	slog.DebugContext(ctx, "Headers before signing", "headers", r.Header)
 	err = presign.SignWithCreds(ctx, r, creds, targetBackendId)
 	if err != nil {
@@ -88,10 +131,9 @@ func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request, targ
 		writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
 		return
 	}
-
-	client := &http.Client{}
+	reinstantiateHeaders(r)
 	slog.DebugContext(ctx, "Going to perform request", "method", r.Method, "host", r.Host, "url", r.URL, "headers", r.Header)
-	resp, err := client.Do(r)
+	resp, err := requester(r)
 	if err != nil {
 		var upstreamResponse string
 		if resp != nil && resp.Body != nil {

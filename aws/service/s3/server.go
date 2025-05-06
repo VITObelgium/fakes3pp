@@ -57,7 +57,7 @@ func NewS3Server(
 		return nil, err
 	}
 	if proxyHB == nil {
-		proxyHB = justProxied
+		proxyHB = handlerBuilderToJustProxy
 	}
 	return newS3Server(
 		jwtPrivateRSAKeyFilePath,

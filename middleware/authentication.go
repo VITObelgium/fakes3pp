@@ -229,13 +229,21 @@ func getCredentialsFromRequest(r *http.Request) (accessKeyId, sessionToken strin
 }
 
 //cleanHeadersThatAreNotSignedInAuthHeader removes headers which are potentially added along the way
-//
 func cleanHeadersThatAreNotSignedInAuthHeader(req *http.Request) {
 	slog.DebugContext(req.Context(), "Headers before manipualation", "Headers", req.Header)
 
 	signedHeaders := getSignedHeadersFromRequest(req)
+	addSignedHeadersToRequestCtx(req, signedHeaders)
 
 	presign.CleanHeadersTo(req.Context(), req, signedHeaders, presign.CleanerOptions{})
+}
+
+func addSignedHeadersToRequestCtx(r *http.Request, signedHeaders map[string]string) {
+	headerlist := make([]string, 0)
+	for headerName, _ := range signedHeaders {
+		headerlist = append(headerlist, headerName)
+	}
+	requestctx.SetSignedHeaders(r, headerlist)
 }
 
 const signedHeadersPrefix = "SignedHeaders="

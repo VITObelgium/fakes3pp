@@ -35,7 +35,7 @@ func TestMain(m *testing.M) {
 
 var testRequests = []*http.Request{}
 
-var testProxyStub = func (ctx context.Context, w http.ResponseWriter, r *http.Request, backendId string, bm interfaces.BackendManager)  {
+var testProxyStub = func (ctx context.Context, w http.ResponseWriter, r *http.Request, backendId string, bm interfaces.BackendManager, f requesterFunc)  {
 	testRequests = append(testRequests, r)
 	w.WriteHeader(http.StatusOK)
 }

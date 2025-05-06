@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"reflect"
 	"strings"
 	"time"
 
@@ -79,6 +80,9 @@ type RequestCtx struct{
 
 	//AuthType
 	AuthType authtypes.AuthType
+
+	//SignedHeaders
+	SignedHeaders []string
 }
 
 func (c *RequestCtx)AddAccessLogInfo(groupName string, attrs... slog.Attr) {
@@ -101,7 +105,7 @@ func SetAuthType(r *http.Request, authType authtypes.AuthType) {
 		return		
 	}
 	slog.Error(
-		"Attempting to set Region without existing request context",
+		"Attempting to set AuthType without existing request context",
 		"request", r,
 		"AuthType", authType,
 	)
@@ -111,6 +115,31 @@ func GetAuthType(r *http.Request) (authtypes.AuthType, error) {
 		return rCtx.AuthType, nil
 	}
 	return authtypes.AuthTypeUnknown, errors.New("no authType stored in requestctx")
+}
+
+func SetSignedHeaders(r *http.Request, signedHeaders []string) {
+	if rCtx := get(r); rCtx != nil {
+		if rCtx.SignedHeaders != nil {
+			if reflect.DeepEqual(rCtx.SignedHeaders, signedHeaders) {
+				return
+			}
+			slog.WarnContext(r.Context(), "Overriding signedheaders should not happen", "Old", rCtx.SignedHeaders, "New", signedHeaders)
+		}
+		rCtx.SignedHeaders = signedHeaders
+		return		
+	}
+	slog.Error(
+		"Attempting to set Signed Headers without existing request context",
+		"request", r,
+		"SignedHeaders", signedHeaders,
+	)
+}
+
+func GetSignedHeaders(r *http.Request) ([]string, error) {
+	if rCtx := get(r); rCtx != nil {
+		return rCtx.SignedHeaders, nil
+	}
+	return nil, errors.New("no signedHeaders stored in requestctx")
 }
 
 func SetTargetRegion(r *http.Request, region string) {

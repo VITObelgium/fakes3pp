@@ -117,17 +117,24 @@ func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request, targ
 	}
 	payloadHash := r.Header.Get(constants.AmzContentSHAKey)
 	if payloadHash == "STREAMING-UNSIGNED-PAYLOAD-TRAILER" {
-		writeS3ErrorResponse(
-			ctx, 
-			w, 
-			ErrS3InternalError, 
-			usererror.New(
-				errors.New("unsupported encryption to be implemented so giving internal error to user"), 
-				`We do not support STREAMING-UNSIGNED-PAYLOAD-TRAILER yet.
-				For details or to upvote see https://github.com/VITObelgium/fakes3pp/issues/27
-				`),
+		if !backendManager.HasCapability(targetBackendId, interfaces.S3CapabilityStreamingUnsignedPayloadTrailer){
+			slog.InfoContext(
+				r.Context(),
+				"STREAMING-UNSIGNED-PAYLOAD-TRAILER for unsupported backend",
+				"backendId", targetBackendId,
 			)
-		return
+			writeS3ErrorResponse(
+				ctx, 
+				w, 
+				ErrS3InternalError, 
+				usererror.New(
+					errors.New("unsupported encryption to be implemented so giving internal error to user"), 
+					`We do not support STREAMING-UNSIGNED-PAYLOAD-TRAILER yet.
+					For details or to upvote see https://github.com/VITObelgium/fakes3pp/issues/27
+					`),
+				)
+			return
+		}
 	}
 	//Browsers or even malicious people can use a presigned url and add headers to the request
 	//during signing we should only sign what was signed in the original signature or what we have added.

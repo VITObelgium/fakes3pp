@@ -64,6 +64,7 @@ func getDefaultTestBackendConfig() (interfaces.BackendManager) {
 					SecretAccessKey: "testSecretKeyWaw31",
 				},
 				endpoint: "https://s3.waw3-1.cloudferro.com",
+				capabilities: []interfaces.S3Capability{interfaces.S3CapabilityStreamingUnsignedPayloadTrailer},
 			},
 			"eu-nl": {
 				credentials: aws.Credentials{
@@ -72,6 +73,7 @@ func getDefaultTestBackendConfig() (interfaces.BackendManager) {
 					SessionToken: "testSessionTokenEuNl",
 				},
 				endpoint: "https://obs.eu-nl.otc.t-systems.com",
+				capabilities: []interfaces.S3Capability{},
 			},
 		},
 		defaultBackend: "waw3-1",

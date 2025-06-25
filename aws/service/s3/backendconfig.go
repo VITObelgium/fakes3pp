@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"slices"
 	"strings"
 
 	"github.com/VITObelgium/fakes3pp/aws/service/s3/interfaces"
@@ -17,6 +18,7 @@ type backendConfigFileEntry struct {
   RegionName string             `yaml:"region" json:"region"`
   Credentials map[string]any `yaml:"credentials" json:"credentials"`
   Endpoint string               `yaml:"endpoint" json:"endpoint"`
+  Capabilities []string         `yaml:"capabilities,omitempty" json:"capabilities,omitempty"`
 }
 
 
@@ -156,6 +158,10 @@ func getBackendsConfigFromBytes(inputBytes []byte, legacyBehavior bool, relative
 type backendConfigEntry struct {
 	credentials aws.Credentials
 	endpoint endpoint
+
+	//A list of capabilities supported by the backend.
+	//Check interfaces/backend-s3-capabilities for a definition of capabilities
+	capabilities []interfaces.S3Capability
 }
 
 //A dedicated type for endpoint allows to have the semantics of endpoints of the config.
@@ -191,6 +197,14 @@ func (bce *backendConfigEntry) fromBackendConfigFileEntry(input backendConfigFil
 
 	awsCredentials, err := input.getCredentials(relativepath)
 	bce.credentials = awsCredentials
+	bce.capabilities = make([]interfaces.S3Capability, 0)
+	for _, capability := range input.Capabilities {
+		typedCapability, exists := interfaces.S3CapabilityLookup[capability]
+		if !exists {
+			return fmt.Errorf("unknown capability: %s in config %v", capability, input)
+		}
+		bce.capabilities = append(bce.capabilities, typedCapability)
+	}
 	return err
 }
 
@@ -202,6 +216,16 @@ type backendsConfig struct {
 }
 
 var errInvalidBackendErr = errors.New("invalid BackendId")
+
+func (cfg* backendsConfig) HasCapability(backendId string, capability interfaces.S3Capability) bool {
+	backendCfg, ok := cfg.backends[backendId]
+	if ok {
+		return slices.Contains(backendCfg.capabilities, capability)
+	} else {
+		return false
+	}
+	
+}
 
 func (cfg* backendsConfig) getBackendConfig(backendId string) (cfgEntry backendConfigEntry, err error) {
 	if cfg == nil {

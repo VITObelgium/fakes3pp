@@ -1,6 +1,8 @@
 package interfaces
 
-import "github.com/aws/aws-sdk-go-v2/aws"
+import (
+	"github.com/aws/aws-sdk-go-v2/aws"
+)
 
 type BackendLocator interface {
 	//Takes an id of a backend and returns the endpoint (protocol://hostname:port)
@@ -18,6 +20,7 @@ type BackendCredentialRetriever interface {
 type BackendManager interface {
 	BackendLocator
 	BackendCredentialRetriever
+	HasCapability(backendId string, capability S3Capability) bool
 }
 
 type Endpoint interface {

@@ -132,7 +132,18 @@ var envVarDefs = []envVarDef{
 		s3ProxyRemovableQueryParams,
 		FAKES3PP_S3_PROXY_REMOVABLE_QUERY_PARAMS,
 		false,
-		"A comma separated list of regexes for query parameter keys that should be ignored",
+		`A comma separated list of regexes for query parameter keys that should be ignored.
+		
+		Removable query parameters are parameters that are added by frameworks or instrumentation client side but which should not be taken into consideration for S3 operation.
+
+		Such parameters could prove problematic for presigned URLs because it won't be possible to validate the signature as the canonical string for signing is composed of all the query parameters so having query parameters added after signing will make the signature invalid. This feature allows to setup regexes to remove query parameters based on patterns that will be matched with the keys of query parameters. If they matched they will be removed before validation of the signature. They will remain ignored and will not be communicated in the request to the S3 backend.
+
+		If you need query parameters that should be passed to the backend then it is recommended to change the code that generates the presigned url to include those parameters. For e.g. in Python you can register on the events before-sign.s3.GetObject and provide-client-params.s3.GetObjectprovide-client-params.s3.GetObject (this is documented on SO: https://stackoverflow.com/questions/59056522/create-a-presigned-s3-url-for-get-object-with-custom-logging-information-using-b )
+
+		If you want removal then you should set FAKES3PP_S3_PROXY_REMOVABLE_QUERY_PARAMS to a comma separated string of regexes. So if you target a singe query parameter named _please_ignore then it is recommended to anchor the regex so use something like: FAKES3PP_S3_PROXY_REMOVABLE_QUERY_PARAMS="^_please_ignore$"
+
+		Regexes allow flexibility but you should be careful with meta-characters. An easy way to test is to use a small golang app like https://gist.github.com/pvbouwel/02b42b899bbc1478b29fc75a24902cb5 if you do not have golang setup locally you can use the go playground https://go.dev/play/p/bq4oU4GU05a
+		`,
 		[]string{proxys3},
 	},
 	{

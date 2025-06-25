@@ -5,6 +5,7 @@ import (
 	"path"
 	"testing"
 
+	"github.com/VITObelgium/fakes3pp/aws/service/s3/interfaces"
 	"github.com/VITObelgium/fakes3pp/testutils"
 	"github.com/aws/aws-sdk-go-v2/aws"
 )
@@ -58,8 +59,6 @@ func TestLoadingOfExampleConfig(t *testing.T) {
 	}
 }
 
-
-
 func TestLoadingOfExampleConfigAbsoluteCredentialPaths(t *testing.T) {
 	//Given 2 credentials file and their absolute path
 	cfcCredFile := testutils.CreateTempTestCopy(t, path.Join(relativeEtcPathForS3Package, "creds/cfc_creds.yaml"))
@@ -72,6 +71,7 @@ s3backends:
     credentials:
       file: %s
     endpoint: https://s3.waw3-1.cloudferro.com
+    capabilities: ["StreamingUnsignedPayloadTrailer"]
   - region: eu-nl
     credentials:
       file: %s
@@ -86,7 +86,7 @@ default:  waw3-1
 	cfg , err := getBackendsConfigFromBytes([]byte(backendConfigYaml), true, relativepath)
 	//THEN it loads correctly and we can get the different config values
 	if err != nil {
-		t.Error("Could not load S3 backend config")
+		t.Errorf("Could not load S3 backend config: %s", err)
 		t.FailNow()
 	}
 	if cfg.defaultBackend != testDefaultBackendRegion {
@@ -114,5 +114,17 @@ default:  waw3-1
 	}
 	if creds2 != testSecondaryBackendCredentials {
 		t.Error("Secondary backend credentials are not correctly loaded")
+	}
+
+	if !cfg.HasCapability(testDefaultBackendRegion, interfaces.S3CapabilityStreamingUnsignedPayloadTrailer) {
+		t.Error("default region was configured with capability but not found")
+	}
+
+	if cfg.HasCapability(testSecondBackendRegion, interfaces.S3CapabilityStreamingUnsignedPayloadTrailer) {
+		t.Error("second backend region was NOT configured with capability but still reported as having it")
+	}
+
+	if !cfg.HasCapability("us-east-1", interfaces.S3CapabilityStreamingUnsignedPayloadTrailer) {
+		t.Error("Non defined backend region should use capabilities of default backend which was configured with capability")
 	}
 }

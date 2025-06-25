@@ -218,8 +218,8 @@ type backendsConfig struct {
 var errInvalidBackendErr = errors.New("invalid BackendId")
 
 func (cfg* backendsConfig) HasCapability(backendId string, capability interfaces.S3Capability) bool {
-	backendCfg, ok := cfg.backends[backendId]
-	if ok {
+	backendCfg, err := cfg.getBackendConfig(backendId)
+	if err == nil {
 		return slices.Contains(backendCfg.capabilities, capability)
 	} else {
 		return false

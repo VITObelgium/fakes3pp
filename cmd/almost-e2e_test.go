@@ -419,6 +419,47 @@ func TestSigv4PresignedUrlsWork(t *testing.T) {
 }
 
 
+func TestSigv4PresignedUrlsWorkWithIgnorableQueryParams(t *testing.T) {
+	//Given ingore configuration
+	os.Setenv(FAKES3PP_S3_PROXY_REMOVABLE_QUERY_PARAMS, "^_origin$,Ignore")
+	//Given a running proxy and credentials against that proxy that allow access for the get operation
+	tearDown, getSignedToken, stsServer, s3Server := testingFixture(t)
+	defer tearDown()
+	token := getSignedToken("mySubject", time.Second * 2, session.AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
+	var durationSecs int32 = 2
+	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowAllARN, stsServer, &durationSecs)
+
+	//Given a Get request for the region.txt file
+	regionFileUrl := fmt.Sprintf("%s%s/%s", testutils.GetTestServerUrl(s3Server), testingBucketNameBackenddetails, testingRegionTxtObjectKey)
+	req, err := http.NewRequest(http.MethodGet, regionFileUrl, nil)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+
+	//When creating a presigned url it and using that presigned url it should return the region correctly.
+	for _, backendRegion := range backendTestRegions {
+		signedUri, _, err := presign.PreSignRequestWithCreds(context.Background(), req, 300, time.Now(), creds, backendRegion)
+		if err != nil {
+			t.Errorf("Did not expect error when signing url for %s. Got %s", backendRegion, err)
+		}
+		//When an extra argument is added to the request
+		signedUriPatched := fmt.Sprintf("%s%s", signedUri, "&_origin=%2Ftest_my_custom_traceflag")
+		resp, err := testutils.BuildUnsafeHttpClientThatTrustsAnyCert(t).Get(signedUriPatched)
+		if err != nil {
+			t.Errorf("Did not expect error when using signing url for %s. Got %s", backendRegion, err)
+		}
+		bytes, err := io.ReadAll(resp.Body)
+		if err != nil {
+			t.Errorf("Did not expect error when getting body of signed url response for %s. Got %s", backendRegion, err)
+		}
+		//THEN we still get the expected object content
+		if string(bytes) != backendRegion {
+			t.Errorf("Invalid response of presigned url expected %s, got %s", backendRegion, string(bytes))
+		}
+	}
+}
+
 func TestHmacV1PresignedUrlsHeadObjectWorks(t *testing.T) {
 	//Given a running proxy and credentials against that proxy that allow access for the get operation
 	tearDown, getSignedToken, stsServer, s3Server := testingFixture(t)

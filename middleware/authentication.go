@@ -49,9 +49,25 @@ func AWSAuthN(keyStorage utils.KeyPairKeeper, e service.ErrorReporter, backendMa
 	}
 }
 
+func cleanRemovableQueryParameters(r *http.Request, presignAuthOptions *AuthenticationOptions) {
+	urlVals := r.URL.Query()
+	
+	for urlValKey, _ := range urlVals {
+		for _, keyToRemove := range presignAuthOptions.RemovableQueryParams {
+			matchedString := keyToRemove.FindString(urlValKey)
+			if matchedString != "" {
+				slog.DebugContext(r.Context(), "Found key that should be removed", "keyToRemoveRegex", keyToRemove, "matched", matchedString)
+				urlVals.Del(urlValKey)
+			}
+		}
+	}
+	r.URL.RawQuery = urlVals.Encode()
+}
+
 //Authenticate a presigned request see responsibilities AWSAuthN
 func handleAuthNPresigned(w http.ResponseWriter, r *http.Request, keyStorage utils.KeyPairKeeper, e service.ErrorReporter, backendManager interfaces.BackendManager, presignAuthOptions *AuthenticationOptions) bool {
 	requestctx.SetAuthType(r, authtypes.AuthTypeQueryString)
+	cleanRemovableQueryParameters(r, presignAuthOptions)
 
 	var isValid bool
 	var expires time.Time

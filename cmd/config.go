@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -40,6 +41,7 @@ const(
 	s3ProxyKeyFile = "s3ProxyKeyFile"
 	s3ProxyJwtPublicRSAKey = "s3ProxyJwtPublicRSAKey"
 	s3ProxyJwtPrivateRSAKey = "s3ProxyJwtPrivateRSAKey"
+	s3ProxyRemovableQueryParams = "s3ProxyRemovableQueryParams"
 	stsProxyFQDN = "stsProxyFQDN"
 	stsProxyPort = "stsProxyPort"
 	stsProxyCertFile = "stsProxyCertFile"
@@ -64,6 +66,7 @@ const(
 	FAKES3PP_S3_PROXY_KEY_FILE = "FAKES3PP_S3_PROXY_KEY_FILE"
 	FAKES3PP_S3_PROXY_JWT_PUBLIC_RSA_KEY = "FAKES3PP_S3_PROXY_JWT_PUBLIC_RSA_KEY"
 	FAKES3PP_S3_PROXY_JWT_PRIVATE_RSA_KEY = "FAKES3PP_S3_PROXY_JWT_PRIVATE_RSA_KEY"
+	FAKES3PP_S3_PROXY_REMOVABLE_QUERY_PARAMS = "FAKES3PP_S3_PROXY_REMOVABLE_QUERY_PARAMS"
 	FAKES3PP_STS_PROXY_FQDN = "FAKES3PP_STS_PROXY_FQDN"
 	FAKES3PP_STS_PROXY_PORT = "FAKES3PP_STS_PROXY_PORT"
 	FAKES3PP_STS_PROXY_CERT_FILE = "FAKES3PP_STS_PROXY_CERT_FILE"
@@ -124,6 +127,13 @@ var envVarDefs = []envVarDef{
 		true,
 		"The key file used for signing JWT tokens",
 		[]string{proxys3, proxysts},
+	},
+	{
+		s3ProxyRemovableQueryParams,
+		FAKES3PP_S3_PROXY_REMOVABLE_QUERY_PARAMS,
+		false,
+		"A comma separated list of regexes for query parameter keys that should be ignored",
+		[]string{proxys3},
 	},
 	{
 		stsProxyFQDN,
@@ -264,6 +274,26 @@ func getS3ProxyFQDNs() ([]string, error) {
 		return nil, err
 	}
 	return fqdns, nil
+}
+
+//Retrieve the regular expressions that are passed in for removal of query parameter keys that
+//should be removed. Makes sure they compile and fail fast if there is an invalid regex.
+func getS3RemovableQueryParamRegexes() ([]*regexp.Regexp, error) {
+	var queryParamNames []string
+	var queryParamNameRegexes []*regexp.Regexp = make([]*regexp.Regexp, 0)
+	err := viper.UnmarshalKey(s3ProxyRemovableQueryParams, &queryParamNames)
+	if err != nil {
+		return nil, err
+	}
+	for _, queryParamName := range queryParamNames {
+		candidate, err := regexp.Compile(queryParamName)
+		if err != nil {
+			err = fmt.Errorf("got %w when processing removable query param %s", err, queryParamName)
+			return nil, err
+		}
+		queryParamNameRegexes = append(queryParamNameRegexes, candidate)
+	}
+	return queryParamNameRegexes, nil
 }
 
 //TODO: make sure same is used for STS

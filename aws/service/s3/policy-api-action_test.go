@@ -42,7 +42,7 @@ func newStubJustReturnApiAction(ti *testing.T) interfaces.HandlerBuilderI {
 }
 
 func TestExpectedAPIActionIdentified(t *testing.T) {
-	teardownSuite, s := setupSuiteProxyS3(t, newStubJustReturnApiAction(t), nil, nil, []middleware.Middleware{RegisterOperation()},true)
+	teardownSuite, s := setupSuiteProxyS3(t, newStubJustReturnApiAction(t), nil, nil, []middleware.Middleware{RegisterOperation()}, true, nil)
 	defer teardownSuite(t)
 
 	for _, tc := range getApiAndIAMActionTestCases() { //see policy_iam_action_test

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -78,7 +79,7 @@ func getDefaultTestBackendConfig() (interfaces.BackendManager) {
 }
 
 func NewTestS3Server(t testing.TB, proxyHB interfaces.HandlerBuilderI, pm *iam.PolicyManager, bm interfaces.BackendManager,
-	mws []middleware.Middleware, isTlsEnabled bool) (*S3Server) {
+	mws []middleware.Middleware, isTlsEnabled bool, removableQueryParamRegexes []*regexp.Regexp) (*S3Server) {
 	tlsCert := ""
 	tlsKey := ""
 
@@ -108,6 +109,7 @@ func NewTestS3Server(t testing.TB, proxyHB interfaces.HandlerBuilderI, pm *iam.P
 		proxyHB,
 		bm,
 		mws,
+		removableQueryParamRegexes,
 	)
 	if err != nil {
 		t.Error("Problem creating test STS server", "error", err)
@@ -117,9 +119,9 @@ func NewTestS3Server(t testing.TB, proxyHB interfaces.HandlerBuilderI, pm *iam.P
 }
 
 func setupSuiteProxyS3(
-	t testing.TB, proxyHB interfaces.HandlerBuilderI, pm *iam.PolicyManager, bm interfaces.BackendManager, mws []middleware.Middleware, tlsEnabled bool,
+	t testing.TB, proxyHB interfaces.HandlerBuilderI, pm *iam.PolicyManager, bm interfaces.BackendManager, mws []middleware.Middleware, tlsEnabled bool, removableQueryParamRegexes []*regexp.Regexp,
 ) (func(t testing.TB), *S3Server) {
-	s := NewTestS3Server(t, proxyHB, pm, bm, mws, tlsEnabled)
+	s := NewTestS3Server(t, proxyHB, pm, bm, mws, tlsEnabled, removableQueryParamRegexes)
 	stsProxyDone, stsProxySrv, err := server.CreateAndStart(s, server.ServerOpts{})
 	if err != nil {
 		t.Errorf("Could not spawn fake STS server %s", err)
@@ -197,7 +199,7 @@ func createTestCredentialsForPolicy(t testing.TB, policyArn string, keyStorage u
 }
 
 func TestWithValidCredsButNoAccess(t *testing.T) {
-	teardownSuite, s := setupSuiteProxyS3(t, testStubJustProxy, nil, nil, nil, true)
+	teardownSuite, s := setupSuiteProxyS3(t, testStubJustProxy, nil, nil, nil, true, nil)
 	defer teardownSuite(t)
 
 	cred := createTestCredentialsForPolicy(t, testPolicyNoPermissionsARN, s.jwtKeyMaterial)
@@ -222,7 +224,7 @@ func TestWithValidCredsButNoAccess(t *testing.T) {
 }
 
 func TestWithValidCreds(t *testing.T) {
-	teardownSuite, s := setupSuiteProxyS3(t, testStubJustProxy, nil, nil, nil, true)
+	teardownSuite, s := setupSuiteProxyS3(t, testStubJustProxy, nil, nil, nil, true, nil)
 	defer teardownSuite(t)
 
 	//Given valid credentials with required permissions
@@ -244,7 +246,7 @@ func TestWithValidCreds(t *testing.T) {
 }
 
 func TestWithInValidCreds(t *testing.T) {
-	teardownSuite, s := setupSuiteProxyS3(t, testStubJustProxy, nil, nil, nil, true)
+	teardownSuite, s := setupSuiteProxyS3(t, testStubJustProxy, nil, nil, nil, true, nil)
 	defer teardownSuite(t)
 
 	//Given credentials that as a whole are not valid
@@ -263,7 +265,7 @@ func TestWithInValidCreds(t *testing.T) {
 }
 
 func TestWithValidCredsOtherRegion(t *testing.T) {
-	teardownSuite, s := setupSuiteProxyS3(t, testStubJustProxy, nil, nil, nil, true)
+	teardownSuite, s := setupSuiteProxyS3(t, testStubJustProxy, nil, nil, nil, true, nil)
 	defer teardownSuite(t)
 
 	//Given credentials that are valid
@@ -306,7 +308,7 @@ func (presigner Presigner) GetObject(
 }
 
 func TestWithValidPresignedUrlOtherRegion(t *testing.T) {
-	teardownSuite, s := setupSuiteProxyS3(t, testStubJustProxy, nil, nil, nil,true)
+	teardownSuite, s := setupSuiteProxyS3(t, testStubJustProxy, nil, nil, nil, true, nil)
 	defer teardownSuite(t)
 
 	//Given credentials that are valid
@@ -349,7 +351,7 @@ func assertHttpRequestOK(tb testing.TB, resp *http.Response) {
 //This will mess up the signature when they are considered in the signing
 //process
 func TestWithValidCredsButProxyHeaders(t *testing.T) {
-	teardownSuite, s := setupSuiteProxyS3(t, testStubJustProxy, nil, nil, nil, true)
+	teardownSuite, s := setupSuiteProxyS3(t, testStubJustProxy, nil, nil, nil, true, nil)
 	defer teardownSuite(t)
 
 	//Given headers that are added by a proxy component
@@ -386,7 +388,7 @@ var doNotAddAnyHeader = createHeaderAdder(map[string]string{})
 
 //When having other headers added that might influence the behavior
 func TestWithValidCredsButUntrustedHeaders(t *testing.T) {
-	teardownSuite, s := setupSuiteProxyS3(t, testStubJustProxy, nil, nil, nil, true)
+	teardownSuite, s := setupSuiteProxyS3(t, testStubJustProxy, nil, nil, nil, true, nil)
 	defer teardownSuite(t)
 
 	//Given headers are added by a proxy component
@@ -466,7 +468,7 @@ func TestAllowEnablingTracingAtClientSide(t *testing.T) {
 	userChosenUuid4 := getTestUUID4WithPrefix("00aabbcc")
 
 	//Given a test environment
-	teardownSuite, s := setupSuiteProxyS3(t, testStubJustProxy, nil, nil, nil, true)
+	teardownSuite, s := setupSuiteProxyS3(t, testStubJustProxy, nil, nil, nil, true, nil)
 	defer teardownSuite(t)
 
 	//Given helper function that adds the chosen UUID4 as the X-Request-ID header

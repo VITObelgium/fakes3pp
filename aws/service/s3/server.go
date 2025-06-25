@@ -3,6 +3,7 @@ package s3
 import (
 	"errors"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -51,6 +52,7 @@ func NewS3Server(
 	proxyHB interfaces.HandlerBuilderI,
 	s3BackendConfigFilePath string,
 	backendLegacyBehaviorDefaultRegion bool,
+	removableQueryParamRegexes []*regexp.Regexp,
 ) (s server.Serverable, err error) {
 	s3BackendCfg, err := getBackendsConfig(s3BackendConfigFilePath, backendLegacyBehaviorDefaultRegion)
 	if err != nil {
@@ -70,6 +72,7 @@ func NewS3Server(
 		proxyHB,
 		s3BackendCfg,
 		nil,
+		removableQueryParamRegexes,
 	)
 }
 func newS3Server(
@@ -83,6 +86,7 @@ func newS3Server(
 	proxyHB interfaces.HandlerBuilderI,
 	s3BackendManager interfaces.BackendManager,
 	mws []middleware.Middleware ,
+	removableQueryParamRegexes []*regexp.Regexp,
 ) (s *S3Server, err error) {
 	key, err := utils.NewKeyStorage(jwtPrivateRSAKeyFilePath)
 	if err != nil {
@@ -106,7 +110,10 @@ func newS3Server(
 	}
 
 	if len(mws) == 0 {
-		presignAuthOptions := middleware.AuthenticationOptions{Leeway: signedUrlGraceTimeDuration}
+		presignAuthOptions := middleware.AuthenticationOptions{
+			Leeway: signedUrlGraceTimeDuration, 
+			RemovableQueryParams: removableQueryParamRegexes,
+		}
 		mws = []middleware.Middleware{
 			RegisterOperation(),
 			middleware.AWSAuthN(key, s3ErrorReporterInstance, s3BackendManager, &presignAuthOptions),

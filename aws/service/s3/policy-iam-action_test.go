@@ -369,7 +369,7 @@ func getApiAndIAMActionTestCases() ([]apiAndIAMActionTestCase) {
 //Removing/changing context values (e.g. if there are bugs) are breaking changes and should be
 //treated as such.
 func TestExpectedIamActionsAreReturned(t *testing.T) {
-	teardownSuite, s := setupSuiteProxyS3(t, newStubJustReturnIamAction(t), nil, nil, []middleware.Middleware{RegisterOperation()}, true)
+	teardownSuite, s := setupSuiteProxyS3(t, newStubJustReturnIamAction(t), nil, nil, []middleware.Middleware{RegisterOperation()}, true, nil)
 	defer teardownSuite(t)
 
 	for _, tc := range getApiAndIAMActionTestCases() {

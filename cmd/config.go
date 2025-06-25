@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 
@@ -40,6 +41,7 @@ const(
 	s3ProxyKeyFile = "s3ProxyKeyFile"
 	s3ProxyJwtPublicRSAKey = "s3ProxyJwtPublicRSAKey"
 	s3ProxyJwtPrivateRSAKey = "s3ProxyJwtPrivateRSAKey"
+	s3ProxyRemovableQueryParams = "s3ProxyRemovableQueryParams"
 	stsProxyFQDN = "stsProxyFQDN"
 	stsProxyPort = "stsProxyPort"
 	stsProxyCertFile = "stsProxyCertFile"
@@ -64,6 +66,7 @@ const(
 	FAKES3PP_S3_PROXY_KEY_FILE = "FAKES3PP_S3_PROXY_KEY_FILE"
 	FAKES3PP_S3_PROXY_JWT_PUBLIC_RSA_KEY = "FAKES3PP_S3_PROXY_JWT_PUBLIC_RSA_KEY"
 	FAKES3PP_S3_PROXY_JWT_PRIVATE_RSA_KEY = "FAKES3PP_S3_PROXY_JWT_PRIVATE_RSA_KEY"
+	FAKES3PP_S3_PROXY_REMOVABLE_QUERY_PARAMS = "FAKES3PP_S3_PROXY_REMOVABLE_QUERY_PARAMS"
 	FAKES3PP_STS_PROXY_FQDN = "FAKES3PP_STS_PROXY_FQDN"
 	FAKES3PP_STS_PROXY_PORT = "FAKES3PP_STS_PROXY_PORT"
 	FAKES3PP_STS_PROXY_CERT_FILE = "FAKES3PP_STS_PROXY_CERT_FILE"
@@ -124,6 +127,24 @@ var envVarDefs = []envVarDef{
 		true,
 		"The key file used for signing JWT tokens",
 		[]string{proxys3, proxysts},
+	},
+	{
+		s3ProxyRemovableQueryParams,
+		FAKES3PP_S3_PROXY_REMOVABLE_QUERY_PARAMS,
+		false,
+		`A comma separated list of regexes for query parameter keys that should be ignored.
+		
+		Removable query parameters are parameters that are added by frameworks or instrumentation client side but which should not be taken into consideration for S3 operation.
+
+		Such parameters could prove problematic for presigned URLs because it won't be possible to validate the signature as the canonical string for signing is composed of all the query parameters so having query parameters added after signing will make the signature invalid. This feature allows to setup regexes to remove query parameters based on patterns that will be matched with the keys of query parameters. If they matched they will be removed before validation of the signature. They will remain ignored and will not be communicated in the request to the S3 backend.
+
+		If you need query parameters that should be passed to the backend then it is recommended to change the code that generates the presigned url to include those parameters. For e.g. in Python you can register on the events before-sign.s3.GetObject and provide-client-params.s3.GetObjectprovide-client-params.s3.GetObject (this is documented on SO: https://stackoverflow.com/questions/59056522/create-a-presigned-s3-url-for-get-object-with-custom-logging-information-using-b )
+
+		If you want removal then you should set FAKES3PP_S3_PROXY_REMOVABLE_QUERY_PARAMS to a comma separated string of regexes. So if you target a singe query parameter named _please_ignore then it is recommended to anchor the regex so use something like: FAKES3PP_S3_PROXY_REMOVABLE_QUERY_PARAMS="^_please_ignore$"
+
+		Regexes allow flexibility but you should be careful with meta-characters. An easy way to test is to use a small golang app like https://gist.github.com/pvbouwel/02b42b899bbc1478b29fc75a24902cb5 if you do not have golang setup locally you can use the go playground https://go.dev/play/p/bq4oU4GU05a
+		`,
+		[]string{proxys3},
 	},
 	{
 		stsProxyFQDN,
@@ -264,6 +285,26 @@ func getS3ProxyFQDNs() ([]string, error) {
 		return nil, err
 	}
 	return fqdns, nil
+}
+
+//Retrieve the regular expressions that are passed in for removal of query parameter keys that
+//should be removed. Makes sure they compile and fail fast if there is an invalid regex.
+func getS3RemovableQueryParamRegexes() ([]*regexp.Regexp, error) {
+	var queryParamNames []string
+	var queryParamNameRegexes []*regexp.Regexp = make([]*regexp.Regexp, 0)
+	err := viper.UnmarshalKey(s3ProxyRemovableQueryParams, &queryParamNames)
+	if err != nil {
+		return nil, err
+	}
+	for _, queryParamName := range queryParamNames {
+		candidate, err := regexp.Compile(queryParamName)
+		if err != nil {
+			err = fmt.Errorf("got %w when processing removable query param %s", err, queryParamName)
+			return nil, err
+		}
+		queryParamNameRegexes = append(queryParamNameRegexes, candidate)
+	}
+	return queryParamNameRegexes, nil
 }
 
 //TODO: make sure same is used for STS

@@ -27,6 +27,12 @@ func buildS3Server() (server.Serverable) {
 		panic(fmt.Sprintf("Could not get sts proxy fqdns: %s", err))
 	}
 
+	removableQueryParams, err := getS3RemovableQueryParamRegexes()
+	if err != nil {
+		slog.Error("Could not get removable query param regexes", "error", err)
+		panic(fmt.Sprintf("Could not get removable query param regexess: %s", err))
+	}
+
 	s, err := s3.NewS3Server(
 		viper.GetString(s3ProxyJwtPrivateRSAKey),
 		viper.GetInt(s3ProxyPort),
@@ -38,6 +44,7 @@ func buildS3Server() (server.Serverable) {
 		nil,
 		viper.GetString(s3BackendConfigFile),
 		viper.GetBool(enableLegacyBehaviorInvalidRegionToDefaultRegion),
+		removableQueryParams,
 	)
 	if err != nil {
 		slog.Error("Could not create S3 server", "error", err)

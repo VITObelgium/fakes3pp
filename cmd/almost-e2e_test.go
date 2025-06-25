@@ -420,13 +420,13 @@ func TestSigv4PresignedUrlsWork(t *testing.T) {
 
 
 func TestSigv4PresignedUrlsWorkWithIgnorableQueryParams(t *testing.T) {
-	//Given ingore configuration
+	//Given ignore configuration
 	os.Setenv(FAKES3PP_S3_PROXY_REMOVABLE_QUERY_PARAMS, "^_origin$,Ignore")
 	//Given a running proxy and credentials against that proxy that allow access for the get operation
 	tearDown, getSignedToken, stsServer, s3Server := testingFixture(t)
 	defer tearDown()
 	token := getSignedToken("mySubject", time.Second * 2, session.AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
-	var durationSecs int32 = 2
+	var durationSecs int32 = 2000
 	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowAllARN, stsServer, &durationSecs)
 
 	//Given a Get request for the region.txt file
@@ -437,7 +437,7 @@ func TestSigv4PresignedUrlsWorkWithIgnorableQueryParams(t *testing.T) {
 		t.FailNow()
 	}
 
-	//When creating a presigned url it and using that presigned url it should return the region correctly.
+	//When creating a valid presigned url
 	for _, backendRegion := range backendTestRegions {
 		signedUri, _, err := presign.PreSignRequestWithCreds(context.Background(), req, 300, time.Now(), creds, backendRegion)
 		if err != nil {

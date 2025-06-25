@@ -66,13 +66,16 @@ func (u presignedUrlHmacv1Query) GetPresignedUrlDetails(ctx context.Context, der
 }
 
 func (u presignedUrlHmacv1Query) hasValidSignature(creds aws.Credentials) (bool, error) {
-	testUrl := UrlDropSchemeFQDNPort(ru.FullUrlFromRequest(u.Request))
 	expectedUrl, err := CalculateS3PresignedHmacV1QueryUrl(u.Request, creds, 0)
-	expectedUrl = UrlDropSchemeFQDNPort(expectedUrl)
 	if err != nil {
 		return false, err
 	}
-	return testUrl == expectedUrl, nil
+	//We do not care about schema but signing should be for same path and query
+	_, isSameHost, isSamePath, isSameQuery, err := ru.CompareRequestWithUrl(u.Request, expectedUrl)
+	if err != nil {
+		return false, err
+	}
+	return isSameHost && isSamePath && isSameQuery, nil
 }
 
 func getExpiresFromHmacv1QueryUrl(r *http.Request) string {
@@ -108,14 +111,6 @@ func CalculateS3PresignedHmacV1QueryUrl(req *http.Request, creds aws.Credentials
 	return calculateS3PresignedHmacV1QueryUrlWithExpiryTime(req, creds, expires)
 }
 
-func UrlDropSchemeFQDNPort(url string) string {
-	urlParts := strings.Split(url, "/")
-	if len(urlParts) <= 3 {
-		return ""
-	}
-	return strings.Join(urlParts[3:], "/")
-}
-
 func calculateS3PresignedHmacV1QueryUrlWithExpiryTime(req *http.Request, creds aws.Credentials, expires string) (string, error) {
 	r := req.Clone(context.Background())
 	
@@ -140,10 +135,14 @@ func buildHmacV1QueryUrl(req *http.Request, creds aws.Credentials, expires, sign
 	if creds.SessionToken != "" {
 		secToken = fmt.Sprintf("&x-amz-security-token=%s", url.QueryEscape(creds.SessionToken))
 	}
+	var scheme string = "https"
+	if req.URL.Scheme != "" {
+		scheme = req.URL.Scheme
+	}
 	
 	return fmt.Sprintf(
 		"%s://%s%s?AWSAccessKeyId=%s&Signature=%s%s&Expires=%s", 
-		req.URL.Scheme, 
+		scheme, 
 		req.URL.Host, 
 		req.URL.Path,
 		url.QueryEscape(creds.AccessKeyID),

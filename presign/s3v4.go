@@ -50,7 +50,13 @@ func SignRequestWithCreds(ctx context.Context, req *http.Request, expiryInSecond
 	signer := getSigner(ctx)
 
 	ctx, creds, req, payloadHash, service, region, signingTime := GetS3SignRequestParams(ctx, req, expiryInSeconds, signingTime, creds, defaultRegion)
-	return signer.SignHTTP(ctx, creds, req, payloadHash, service, region, signingTime)
+	//Make sure we do not es
+	adaptSigningForS3 := func(options *v4.SignerOptions) {
+		//For S3 UriPathEscaping should NOT take place
+		options.DisableURIPathEscaping = true
+	}
+	
+	return signer.SignHTTP(ctx, creds, req, payloadHash, service, region, signingTime, adaptSigningForS3)
 }
 
 

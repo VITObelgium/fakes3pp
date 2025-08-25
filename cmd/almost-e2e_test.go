@@ -933,8 +933,26 @@ func _listTestBucketObjects(t testing.TB, prefix string, client *s3.Client) (*s3
 
 func listTestBucketObjects(t testing.TB, region, prefix string, creds aws.CredentialsProvider, s3server server.Serverable) (*s3.ListObjectsV2Output, smithy.APIError){
 	client := testutils.GetTestClientS3(t, region, creds, s3server)
-
 	return _listTestBucketObjects(t, prefix, client)
+}
+
+func putTestBucketObject(t testing.TB, region, key, content string, creds aws.CredentialsProvider, s3server server.Serverable) (*s3.PutObjectOutput, smithy.APIError){
+	client := testutils.GetTestClientS3(t, region, creds, s3server)
+	putObjectParams := s3.PutObjectInput{
+		Bucket: &testingBucketNameBackenddetails,
+		Key: &key,
+		Body: strings.NewReader(content),
+	}
+	out, err := client.PutObject(context.TODO(), &putObjectParams)
+	if err != nil {
+		var oe smithy.APIError
+		if !errors.As(err, &oe) {
+				t.Errorf("Could not convert smity error")
+				t.FailNow()
+		}
+		return nil, oe
+	}
+	return out, nil
 }
 
 //Make sure that needleObjectKey exists in the object Listing objectsList
@@ -966,6 +984,24 @@ func TestListingOfS3BucketHasExpectedObjects(t *testing.T) {
 	//THEN it should report the known objects "region.txt" and "team.txt"
 	assertObjectInBucketListing(t, listObjects, "region.txt")
 	assertObjectInBucketListing(t, listObjects, "team.txt")
+}
+
+func TestPutObjectWorksAsExpected(t *testing.T) {
+	tearDown, getSignedToken, stsServer, s3Server := testingFixture(t)
+	defer tearDown()
+	token := getSignedToken("mySubject", time.Minute * 20, session.AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
+	//Given the policy Manager that has our test policies
+	//Given credentials that use the policy that allow everything in Region1
+	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowAllInRegion1ARN, stsServer, nil)
+
+	var key string= "unicodeTestσ"
+
+	//WHEN we pu an object in region 1
+	_, err := putTestBucketObject(t, testRegion1, key, "myContent", credentials.FromAwsFormat(creds), s3Server)
+	//THEN it should just succeed as any action is allowed
+	if err != nil {
+		t.Errorf("Could not get objects in bucket due to error %s", err)
+	} 
 }
 
 func TestAuditLogEntry(t *testing.T) {

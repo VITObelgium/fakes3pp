@@ -986,7 +986,9 @@ func TestListingOfS3BucketHasExpectedObjects(t *testing.T) {
 	assertObjectInBucketListing(t, listObjects, "team.txt")
 }
 
-func TestPutObjectWorksAsExpected(t *testing.T) {
+//This test wil verify support for unicode characters
+//It covers both the regular signature part as the presigned part
+func TestForHtmlEscaping(t *testing.T) {
 	tearDown, getSignedToken, stsServer, s3Server := testingFixture(t)
 	defer tearDown()
 	token := getSignedToken("mySubject", time.Minute * 20, session.AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
@@ -1001,7 +1003,24 @@ func TestPutObjectWorksAsExpected(t *testing.T) {
 	//THEN it should just succeed as any action is allowed
 	if err != nil {
 		t.Errorf("Could not get objects in bucket due to error %s", err)
-	} 
+	}
+
+	url := fmt.Sprintf("%s/%s/%s", testutils.GetTestServerUrl(s3Server), testingBucketNameBackenddetails, key)
+	req, e := http.NewRequest(http.MethodGet, url, nil)
+	if e != nil {
+		t.Errorf("Could not create request for generating presigned url %s", url)
+	}
+	signedUri, _, e := presign.PreSignRequestWithCreds(context.Background(), req, 100, time.Now(), creds, testRegion1)
+	if e != nil {
+		t.Errorf("error when signing request with creds: %s", err)
+	}
+	resp, e := testutils.BuildUnsafeHttpClientThatTrustsAnyCert(t).Get(signedUri)
+	if e != nil {
+		t.Errorf("The get should have gone through but got an error: %s", err)
+	}
+	if resp.StatusCode != 200 {
+		t.Errorf("Presigned url not usable. Got status code %d: %v", resp.StatusCode, resp)
+	}
 }
 
 func TestAuditLogEntry(t *testing.T) {

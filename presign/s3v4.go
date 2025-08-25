@@ -26,7 +26,7 @@ func PreSignRequestWithCreds(ctx context.Context, req *http.Request, expiryInSec
 	signer := getSigner(ctx)
 
 	ctx, creds, req, payloadHash, service, region, signingTime := GetS3SignRequestParams(ctx, req, expiryInSeconds, signingTime, creds, defaultRegion)
-	return signer.PresignHTTP(ctx, creds, req, payloadHash, service, region, signingTime)
+	return signer.PresignHTTP(ctx, creds, req, payloadHash, service, region, signingTime, adaptSigningForS3)
 }
 
 func getLogger(ctx context.Context, l *slog.Logger) logging.LoggerFunc {
@@ -41,6 +41,12 @@ func getLogger(ctx context.Context, l *slog.Logger) logging.LoggerFunc {
 	return f
 }
 
+//adaptSigningForS3 helps to get a signer that is optimised for S3.
+//For example: S3 UriPathEscaping should NOT take place
+func adaptSigningForS3(options *v4.SignerOptions) {
+	options.DisableURIPathEscaping = true
+}
+
 func getSigner(ctx context.Context) *v4.Signer {
 	return v4.NewSigner(func(signer *v4.SignerOptions){signer.LogSigning = true; signer.Logger = getLogger(ctx, slog.Default())})
 }
@@ -50,12 +56,6 @@ func SignRequestWithCreds(ctx context.Context, req *http.Request, expiryInSecond
 	signer := getSigner(ctx)
 
 	ctx, creds, req, payloadHash, service, region, signingTime := GetS3SignRequestParams(ctx, req, expiryInSeconds, signingTime, creds, defaultRegion)
-	//Make sure we do not es
-	adaptSigningForS3 := func(options *v4.SignerOptions) {
-		//For S3 UriPathEscaping should NOT take place
-		options.DisableURIPathEscaping = true
-	}
-	
 	return signer.SignHTTP(ctx, creds, req, payloadHash, service, region, signingTime, adaptSigningForS3)
 }
 

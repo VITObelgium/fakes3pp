@@ -3,6 +3,7 @@ package s3
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -10,6 +11,7 @@ import (
 	"github.com/VITObelgium/fakes3pp/aws/service/iam/actionnames"
 	"github.com/VITObelgium/fakes3pp/aws/service/s3/api"
 	"github.com/VITObelgium/fakes3pp/aws/service/s3/interfaces"
+	"github.com/VITObelgium/fakes3pp/requestctx"
 	"github.com/micahhausler/aws-iam-policy/policy"
 )
 
@@ -39,6 +41,8 @@ func getS3ObjectFromRequest(req *http.Request, vhi interfaces.VirtualHosterIdent
 //Buid a new IAM action based out of an HTTP Request. The IAM action should resemble the required
 //Permissions. The api_action is passed in as a string argument
 func newIamActionsFromS3Request(api_action api.S3Operation, req *http.Request, session *iam.PolicySessionData, vhi interfaces.VirtualHosterIdentifier) (actions []iam.IAMAction, err error) {
+	var bucket string
+	defer requestctx.AddAccessLogInfo(req, "s3", slog.String(L_BUCKET, bucket))
 	actions = []iam.IAMAction{}
 	switch api_action {
 	// https://docs.aws.amazon.com/AmazonS3/latest/userguide/mpuoverview.html

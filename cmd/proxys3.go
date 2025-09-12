@@ -45,6 +45,7 @@ func buildS3Server() (server.Serverable) {
 		viper.GetString(s3BackendConfigFile),
 		viper.GetBool(enableLegacyBehaviorInvalidRegionToDefaultRegion),
 		removableQueryParams,
+		nil, // TODO: corsserver
 	)
 	if err != nil {
 		slog.Error("Could not create S3 server", "error", err)

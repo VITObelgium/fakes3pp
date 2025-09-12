@@ -36,7 +36,7 @@ func (*noVirtualHostRequestsType)IsVirtualHostingRequest(req *http.Request) (boo
 
 var noVirtualHostRequests = &noVirtualHostRequestsType{}
 
-func (p *StubJustReturnIamAction) Build(backendManager interfaces.BackendManager) http.HandlerFunc{
+func (p *StubJustReturnIamAction) Build(backendManager interfaces.BackendManager, corsHandler interfaces.CORSHandler) http.HandlerFunc{
 	return func (w http.ResponseWriter, r *http.Request)  {
 		action := getS3Action(r)
 		actions, err := newIamActionsFromS3Request(action, r, nil, noVirtualHostRequests)
@@ -369,7 +369,7 @@ func getApiAndIAMActionTestCases() ([]apiAndIAMActionTestCase) {
 //Removing/changing context values (e.g. if there are bugs) are breaking changes and should be
 //treated as such.
 func TestExpectedIamActionsAreReturned(t *testing.T) {
-	teardownSuite, s := setupSuiteProxyS3(t, newStubJustReturnIamAction(t), nil, nil, []middleware.Middleware{RegisterOperation()}, true, nil)
+	teardownSuite, s := setupSuiteProxyS3(t, newStubJustReturnIamAction(t), nil, nil, []middleware.Middleware{RegisterOperation()}, true, nil, nil)
 	defer teardownSuite(t)
 
 	for _, tc := range getApiAndIAMActionTestCases() {

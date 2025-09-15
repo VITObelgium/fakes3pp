@@ -104,7 +104,7 @@ func newS3Server(
 	signedUrlGraceTimeDuration := time.Duration(signedUrlGraceTimeSeconds) * time.Second
 
 	if corsHandler == nil {
-		corsHandler = NewCORSDisabled()
+		corsHandler = NewCORSStatic()
 	}
 	s = &S3Server{
 		BasicServer: *basicServer,

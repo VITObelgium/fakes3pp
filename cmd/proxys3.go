@@ -89,7 +89,7 @@ func getS3CORSHandler() (interfaces.CORSHandler) {
 	case valueStatic:
 		return s3.NewCORSStatic(s3.WithAllowedOrigin(os.Getenv(FAKES3PP_S3_CORS_STATIC_ALLOWED_ORIGIN)))
 	case valueDenyAll, "":
-		return s3.NewCORSDisabled()
+		return s3.NewCORSStatic()
 	default:
 		slog.Error("Unexpected S3 cors strategy", "strategy", strategy)
 		return nil

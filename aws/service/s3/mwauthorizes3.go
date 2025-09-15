@@ -19,6 +19,8 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
+const L_BUCKET = "Bucket"  // The Bucket used in the request
+
 //Authorization middleware is responsible for the following:
 //Make sure the action is authorized as per request context
 func AWSAuthZS3(keyStorage utils.JWTVerifier, backendManager interfaces.BackendManager, policyRetriever iaminterfaces.PolicyRetriever,

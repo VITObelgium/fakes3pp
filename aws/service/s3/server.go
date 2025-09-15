@@ -35,6 +35,8 @@ type S3Server struct{
 	//middleware chains for requests
 	mws []middleware.Middleware
 
+	//CORS implementation
+	corsHandler interfaces.CORSHandler
 }
 
 func (s *S3Server) GetListenHost() string {
@@ -53,6 +55,7 @@ func NewS3Server(
 	s3BackendConfigFilePath string,
 	backendLegacyBehaviorDefaultRegion bool,
 	removableQueryParamRegexes []*regexp.Regexp,
+	corsHandler interfaces.CORSHandler,
 ) (s server.Serverable, err error) {
 	s3BackendCfg, err := getBackendsConfig(s3BackendConfigFilePath, backendLegacyBehaviorDefaultRegion)
 	if err != nil {
@@ -73,6 +76,7 @@ func NewS3Server(
 		s3BackendCfg,
 		nil,
 		removableQueryParamRegexes,
+		corsHandler,
 	)
 }
 func newS3Server(
@@ -87,6 +91,7 @@ func newS3Server(
 	s3BackendManager interfaces.BackendManager,
 	mws []middleware.Middleware ,
 	removableQueryParamRegexes []*regexp.Regexp,
+	corsHandler interfaces.CORSHandler,
 ) (s *S3Server, err error) {
 	key, err := utils.NewKeyStorage(jwtPrivateRSAKeyFilePath)
 	if err != nil {
@@ -98,6 +103,9 @@ func newS3Server(
 	basicServer := server.NewBasicServer(serverPort, fqdns[0], tlsCertFilePath, tlsKeyFilePath, nil)
 	signedUrlGraceTimeDuration := time.Duration(signedUrlGraceTimeSeconds) * time.Second
 
+	if corsHandler == nil {
+		corsHandler = NewCORSStatic()
+	}
 	s = &S3Server{
 		BasicServer: *basicServer,
 		jwtKeyMaterial: key,
@@ -107,6 +115,7 @@ func newS3Server(
 		proxyHB: proxyHB,
 		s3BackendManager: s3BackendManager,
 		mws: mws,
+		corsHandler: corsHandler,
 	}
 
 	if len(mws) == 0 {
@@ -150,6 +159,6 @@ func (s *S3Server)IsVirtualHostingRequest(req *http.Request) bool {
 //For real cases the proxyHB HandlerBuilder should build a handler function
 //that sends the request upstream and passes back the response.
 func (s *S3Server) BuildHandlerfunc() http.HandlerFunc{
-	h := s.proxyHB.Build(s.s3BackendManager)
+	h := s.proxyHB.Build(s.s3BackendManager, s.corsHandler)
 	return middleware.Chain(h, s.mws...)
 }

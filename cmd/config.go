@@ -56,6 +56,7 @@ const(
 	enableLegacyBehaviorInvalidRegionToDefaultRegion = "enableLegacyBehaviorInvalidRegionToDefaultRegion"
 	logLevel = "logLevel"
 	metricsPort = "metricsPort"
+	s3CorsStrategy = "corsStrategy"
 	
 
 	//Environment variables are upper cased
@@ -67,6 +68,9 @@ const(
 	FAKES3PP_S3_PROXY_JWT_PUBLIC_RSA_KEY = "FAKES3PP_S3_PROXY_JWT_PUBLIC_RSA_KEY"
 	FAKES3PP_S3_PROXY_JWT_PRIVATE_RSA_KEY = "FAKES3PP_S3_PROXY_JWT_PRIVATE_RSA_KEY"
 	FAKES3PP_S3_PROXY_REMOVABLE_QUERY_PARAMS = "FAKES3PP_S3_PROXY_REMOVABLE_QUERY_PARAMS"
+	FAKES3PP_S3_CORS_STRATEGY = "FAKES3PP_S3_CORS_STRATEGY"
+	FAKES3PP_S3_CORS_STATIC_ALLOWED_ORIGIN = "FAKES3PP_S3_CORS_STATIC_ALLOWED_ORIGIN"
+
 	FAKES3PP_STS_PROXY_FQDN = "FAKES3PP_STS_PROXY_FQDN"
 	FAKES3PP_STS_PROXY_PORT = "FAKES3PP_STS_PROXY_PORT"
 	FAKES3PP_STS_PROXY_CERT_FILE = "FAKES3PP_STS_PROXY_CERT_FILE"
@@ -81,6 +85,9 @@ const(
 	ENABLE_LEGACY_BEHAVIOR_INVALID_REGION_TO_DEFAULT_REGION = "ENABLE_LEGACY_BEHAVIOR_INVALID_REGION_TO_DEFAULT_REGION"
 	LOG_LEVEL = "LOG_LEVEL"
 	FAKES3PP_METRICS_PORT = "FAKES3PP_METRICS_PORT"
+
+	valueStatic = "static"
+	valueDenyAll = "deny-all"
 )
 
 var envVarDefs = []envVarDef{
@@ -193,6 +200,13 @@ var envVarDefs = []envVarDef{
 		FAKES3PP_S3_BACKEND_CONFIG,
 		true,
 		"The configuration of the backends that are proxied. See the sample start config for details how to configure these backends",
+		[]string{proxys3},
+	},
+	{
+		s3CorsStrategy,
+		FAKES3PP_S3_CORS_STRATEGY,
+		false,
+		fmt.Sprintf("The strategy that is used to set CORS headers. Possible values are '%s' and defaults to '%s'", valueStatic, valueDenyAll),
 		[]string{proxys3},
 	},
 	{

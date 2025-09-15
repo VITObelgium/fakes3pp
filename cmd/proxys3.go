@@ -3,8 +3,11 @@ package cmd
 import (
 	"fmt"
 	"log/slog"
+	"os"
+	"strings"
 
 	"github.com/VITObelgium/fakes3pp/aws/service/s3"
+	"github.com/VITObelgium/fakes3pp/aws/service/s3/interfaces"
 	"github.com/VITObelgium/fakes3pp/server"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -45,6 +48,7 @@ func buildS3Server() (server.Serverable) {
 		viper.GetString(s3BackendConfigFile),
 		viper.GetBool(enableLegacyBehaviorInvalidRegionToDefaultRegion),
 		removableQueryParams,
+		getS3CORSHandler(),
 	)
 	if err != nil {
 		slog.Error("Could not create S3 server", "error", err)
@@ -77,4 +81,17 @@ func init() {
 	// is called directly, e.g.:
 	// proxyS3Cmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 
+}
+
+func getS3CORSHandler() (interfaces.CORSHandler) {
+	strategy := viper.GetString(s3CorsStrategy)
+	switch strings.ToLower(strategy) {
+	case valueStatic:
+		return s3.NewCORSStatic(s3.WithAllowedOrigin(os.Getenv(FAKES3PP_S3_CORS_STATIC_ALLOWED_ORIGIN)))
+	case valueDenyAll, "":
+		return s3.NewCORSStatic()
+	default:
+		slog.Error("Unexpected S3 cors strategy", "strategy", strategy)
+		return nil
+	}
 }

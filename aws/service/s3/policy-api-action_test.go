@@ -18,7 +18,7 @@ type StubJustReturnApiAction struct{
 
 var globalLastApiActionStubJustReturnApiAction api.S3Operation = api.UnknownOperation
 
-func (p *StubJustReturnApiAction) Build(backendManager interfaces.BackendManager) http.HandlerFunc{
+func (p *StubJustReturnApiAction) Build(backendManager interfaces.BackendManager, corsHandler interfaces.CORSHandler) http.HandlerFunc{
 	return func (w http.ResponseWriter, r *http.Request)  {
 		//AWS CLI expects certain structure for ok responses
 		//For error we could use the message field to pass a message regardless
@@ -42,7 +42,7 @@ func newStubJustReturnApiAction(ti *testing.T) interfaces.HandlerBuilderI {
 }
 
 func TestExpectedAPIActionIdentified(t *testing.T) {
-	teardownSuite, s := setupSuiteProxyS3(t, newStubJustReturnApiAction(t), nil, nil, []middleware.Middleware{RegisterOperation()}, true, nil)
+	teardownSuite, s := setupSuiteProxyS3(t, newStubJustReturnApiAction(t), nil, nil, []middleware.Middleware{RegisterOperation()}, true, nil, nil)
 	defer teardownSuite(t)
 
 	for _, tc := range getApiAndIAMActionTestCases() { //see policy_iam_action_test

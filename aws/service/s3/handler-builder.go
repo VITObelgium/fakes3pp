@@ -23,7 +23,7 @@ type requesterFunc func(*http.Request) (*http.Response, error)
 // A handler builder builds http handlers
 type handlerBuilder struct {
 	//How proxying is done to the backend
-	proxyFunc func(context.Context, http.ResponseWriter, *http.Request, string, interfaces.BackendManager, requesterFunc)
+	proxyFunc func(context.Context, http.ResponseWriter, *http.Request, string, interfaces.BackendManager, requesterFunc, interfaces.CORSHandler)
 
 	//Function that performs the actual upstream request.
 	requester requesterFunc
@@ -40,7 +40,7 @@ func getS3Action(r *http.Request) (api.S3Operation) {
 	return action
 }
 
-func (hb handlerBuilder) Build(backendManager interfaces.BackendManager) (http.HandlerFunc) {
+func (hb handlerBuilder) Build(backendManager interfaces.BackendManager, corsHandler interfaces.CORSHandler) (http.HandlerFunc) {
 	if backendManager == nil {
 		panic("This is a programming mistake and server should not even start.")
 	}
@@ -52,7 +52,7 @@ func (hb handlerBuilder) Build(backendManager interfaces.BackendManager) (http.H
 			writeS3ErrorResponse(ctx, w, ErrS3InternalError, errors.New("could not get target region from requestctx"))
 			return
 		}
-		hb.proxyFunc(ctx, w, r, targetRegion, backendManager, hb.requester)
+		hb.proxyFunc(ctx, w, r, targetRegion, backendManager, hb.requester, corsHandler)
 	}
 }
 
@@ -98,7 +98,7 @@ func temporaryRemoveUntrustedHeaders(r *http.Request) (reAddHeaders func(*http.R
 }
 
 func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request, targetBackendId string,  backendManager interfaces.BackendManager,
-	requester requesterFunc) {
+	requester requesterFunc, corsHandler interfaces.CORSHandler) {
 	err := reTargetRequest(ctx, r, targetBackendId, backendManager)
 	if err == errInvalidBackendErr {
 		slog.WarnContext(ctx, "Invalid region was specified in the request", "error", err, "backendId", targetBackendId)
@@ -169,7 +169,10 @@ func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request, targ
 		return
 	}
 	defer resp.Body.Close()
-
+	if resp.StatusCode != http.StatusForbidden {
+		corsHandler.SetHeaders(w, requestctx.GetAccessLogStringInfo(r, "s3", L_BUCKET), targetBackendId, backendManager)
+	}
+	
 	slog.DebugContext(ctx, "Response status", "status", resp.StatusCode)
 	for hk, hvs := range resp.Header {
 		for _, hv := range hvs {

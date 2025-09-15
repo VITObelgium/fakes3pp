@@ -93,6 +93,39 @@ func (c *RequestCtx)AddAccessLogInfo(groupName string, attrs... slog.Attr) {
 	c.accessLogAttrs[groupName] = append(existing_group, attrs...)
 }
 
+//Get a string entry that was added to the access log info if it exists
+//Return an empty string if nothing was added
+func (c *RequestCtx)GetAccessLogStringInfo(groupName, entryName string) string {
+	existing_group, ok := c.accessLogAttrs[groupName]
+	if !ok {
+		return ""
+	}
+	for _, attr := range existing_group {
+		if attr.Key == entryName {
+			if attr.Value.Kind() == slog.KindString {
+				return attr.Value.String()
+			} else {
+				slog.Warn("Expected string, got kind %s for %v", attr.Value.Kind().String(), attr)
+				return ""
+			}
+		}
+	}
+	return ""
+}
+
+func GetAccessLogStringInfo(r *http.Request, groupName, entryName string) string {
+	if rCtx := get(r); rCtx != nil {
+		return rCtx.GetAccessLogStringInfo(groupName, entryName)		
+	}
+	slog.Warn(
+		"Attempting to GetAccessLogStringInfo without existing request context",
+		"request", r,
+		"groupName", groupName,
+		"entryName", entryName,
+	)
+	return ""
+}
+
 func SetAuthType(r *http.Request, authType authtypes.AuthType) {
 	if rCtx := get(r); rCtx != nil {
 		if rCtx.AuthType != authtypes.AuthTypeUnknown {

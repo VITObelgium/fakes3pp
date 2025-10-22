@@ -407,6 +407,30 @@ func TestWithValidCredsButUntrustedHeaders(t *testing.T) {
 	}
 }
 
+//AWS SDKs have ", " to separate authorization header parts but other implementations
+//(e.g. GDAL) just use "," which can make it tricky
+func TestWithValidCredsWhereNoSpacesInAuthorizationHeader(t *testing.T) {
+	teardownSuite, s := setupSuiteProxyS3(t, testStubJustProxy, nil, nil, nil, true, nil, nil)
+	defer teardownSuite(t)
+
+	//Given headers are added by a proxy component
+	authSpaceRemover := func(h http.Header) {
+		authKey := "Authorization"
+		oldValueWithSpaces := h.Get(authKey)
+		newValueWithoutSpaces := strings.ReplaceAll(oldValueWithSpaces, " ", "")
+		h.Set(authKey, newValueWithoutSpaces)
+	} 
+	createHeaderAdder(map [string]string{"allYourBases": "belongToUs"})
+
+	//When doing a valid request where headers are added by an intermediate stop
+	resp := performValidListObjectTestRequest(t, s, doNotAddAnyHeader, authSpaceRemover)
+
+	//Then the result should be a bad request
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Errorf("Should have gotten a bad signature ")
+	}
+}
+
 
 func getTestUUID4WithPrefix(prefix string) string {
 	fully_random := uuid.New().String()

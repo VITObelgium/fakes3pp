@@ -77,11 +77,11 @@ func writeS3ErrorResponse(ctx context.Context, w http.ResponseWriter, errCode S3
 	}
 	switch errCode {
 	case ErrS3InternalError:
-		slog.ErrorContext(ctx, "Sending S3 error response", "error", err)
+		slog.ErrorContext(ctx, "Sending S3 error response", "error", usererror.AsFlatSensitiveString(err))
 	case ErrS3UpstreamError:
-		slog.WarnContext(ctx, "Sending S3 error response", "error", err)
+		slog.WarnContext(ctx, "Sending S3 error response", "error", usererror.AsFlatSensitiveString(err))
 	default:
-		slog.InfoContext(ctx, "Sending S3 error response", "error", err)
+		slog.InfoContext(ctx, "Sending S3 error response", "error", usererror.AsFlatSensitiveString(err))
 	}
 	encodedErrorResponse := service.EncodeResponse(ctx, s3ErrorResponse)
 	service.WriteResponse(ctx, w, s3Err.HTTPStatusCode, encodedErrorResponse, service.MimeXML)

@@ -83,7 +83,7 @@ func getSignatureCredentialStringFromRequestAuthHeader(authorizationHeader strin
 		return "", errors.New("invalid authorization header")
 	}
 	authorizationHeaderTrimmed := authorizationHeader[len(expectedAuthorizationStartWithCredential):]
-	return strings.Split(authorizationHeaderTrimmed, ", ")[0], nil
+	return strings.Split(authorizationHeaderTrimmed, ",")[0], nil
 }
 
 func getSignatureCredentialStringFromRequestQParams(qParams url.Values) (string, error) {

@@ -3,6 +3,7 @@ package usererror_test
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/VITObelgium/fakes3pp/usererror"
@@ -54,6 +55,52 @@ func TestWrappedUserErrorGiveCorrectString(t *testing.T){
 	if publicDetails != gottenError.Error() {
 		t.Errorf("Error was not return correct info got %s, expected %s", ue.Error(), publicDetails)
 	}
+}
+
+func TestWrappedUserErrorCanStillLogInternalInfoWhenFlattened(t *testing.T) {
+	//Given internal and userfacing error details in a user error
+	secretDetails := "Very hush hush info"
+	internalErr := errors.New(secretDetails)
+	publicDetails := "Please contact support with ID 123"
+	ue := usererror.New(internalErr, publicDetails)
+
+	//When we wrap the user error
+	wrapMsg := "While processing secret info xabc we encountered error"
+	wrappedErr := fmt.Errorf("%s: %w", wrapMsg, ue)
+
+	//When we get the flat string representation
+	errStr := usererror.AsFlatSensitiveString(wrappedErr)
+
+	//Then flat internal error string should contain the secret info
+	if !strings.Contains(errStr, secretDetails) {
+		t.Errorf("flat internal error did not contain secret info.")
+	}
+
+	//Then the flat internal error string should have the public parts
+	if !strings.Contains(errStr, publicDetails) {
+		t.Errorf("flat internal error did not contain public details")
+	}
+}
+
+func TestNormalErrorWorksFineWhenFlattened(t *testing.T) {
+	//Given a normal error
+	errString := "error"
+	e := errors.New(errString)
+
+	//When we get the flat string representation
+	flattenedErrStr := usererror.AsFlatSensitiveString(e)
+
+	//Then we expect it to contain the error str
+	if !strings.Contains(flattenedErrStr, errString) {
+		t.Errorf("flat error did not original error string")
+	}
+}
+
+func TestNilInputForErrorFlatteningShouldNotPanic(t *testing.T) {
+	//When we get the flat string representation
+	usererror.AsFlatSensitiveString(nil)
+
+	//Then we do not panic but remain calm
 }
 
 func TestGetUserErrorIsSafeOnAllError(t *testing.T) {

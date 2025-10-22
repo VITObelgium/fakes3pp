@@ -2,7 +2,9 @@ package usererror
 
 import (
 	"errors"
+	"fmt"
 	"log/slog"
+	"strings"
 )
 
 type internalTypeUserError string
@@ -69,4 +71,30 @@ func Get(e error) (UserError) {
 func IsUserFacing(e error) (bool) {
 	_, ok := e.(UserError)
 	return ok
+}
+
+//Helper to get a flat error representation which contains
+//both public and sensitive information
+func AsFlatSensitiveString(e error) (internal string) {
+	if e == nil {
+		return ""
+	}
+	var flatErrorStrings = []string{}
+	wrappedError := errors.Unwrap(e)
+	if wrappedError == nil {
+		return e.Error()
+	}
+	for wrappedError != nil {
+		userE, okUE := e.(UserError)
+		if okUE {
+			flatErrorStrings = append(flatErrorStrings, fmt.Sprintf("<userfacing> %s </userfacing>", userE.Error()))
+		} else {
+			flatErrorStrings = append(flatErrorStrings, e.Error())
+		}
+		e = wrappedError
+		wrappedError = errors.Unwrap(e)
+	}
+	flatErrorStrings = append(flatErrorStrings, e.Error())
+
+	return strings.Join(flatErrorStrings, " <- ")
 }

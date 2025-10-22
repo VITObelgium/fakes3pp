@@ -19,15 +19,15 @@ var cleanableHeaders = map[string]bool{
 	"amz-sdk-invocation-id": true, //Added by AWS SDKs after signing
 	"amz-sdk-request": true, //Added by AWS SDKs after signing
 	"content-length": true,
-	"Sec-Fetch-User": true,
-	"Priority": true,
-	"Te": true,
-	"Accept": true,
-	"Upgrade-Insecure-Requests": true,
-	"Sec-Fetch-Dest": true,
-	"Sec-Fetch-Mode": true,
-	"Sec-Fetch-Site": true,
-	"Accept-Language": true,
+	"sec-fetch-user": true,
+	"priority": true,
+	"te": true,
+	"accept": true,
+	"upgrade-insecure-requests": true,
+	"sec-fetch-dest": true,
+	"sec-fetch-mode": true,
+	"sec-fetch-Site": true,
+	"accept-language": true,
 }
 
 //It is not always clear which headers are OK to skip cleaning. These headers

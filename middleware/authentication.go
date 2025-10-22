@@ -218,7 +218,7 @@ func handleAuthNNormal(w http.ResponseWriter, r *http.Request, keyStorage utils.
 	slog.DebugContext(r.Context(), "ContentLength after manipualation", "ContentLength", r.ContentLength)
 
 
-	if calculatedSignature != passedSignature {
+	if strings.ReplaceAll(calculatedSignature, " ", "") != strings.ReplaceAll(passedSignature, " ", "") {
 		slog.DebugContext(
 			r.Context(),
 			"Invalid signature", 

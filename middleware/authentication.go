@@ -274,11 +274,11 @@ func getSignedHeadersFromRequest(req *http.Request) (signedHeaders map[string]st
 	if ah == "" {
 		return
 	}
-	authorizationParts := strings.Split(ah, ", ")
+	authorizationParts := strings.Split(ah, ",")
 	if len(authorizationParts) != 3 {
 		slog.WarnContext(req.Context(), "Signature not as expected", "got", ah)
 	}
-	signedHeadersPart := authorizationParts[1]
+	signedHeadersPart := strings.TrimLeft(authorizationParts[1], " ")
 	if !strings.HasPrefix(signedHeadersPart, signedHeadersPrefix) {
 		slog.WarnContext(req.Context(), "Signature did not have expected signed headers prefix", "got", ah)
 	}

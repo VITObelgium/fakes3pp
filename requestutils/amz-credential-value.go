@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/VITObelgium/fakes3pp/usererror"
 )
 
 
@@ -29,7 +31,10 @@ func GetCredentialPart(credentialString string, credentialPart CredentialPart) (
 		return "", errors.New("authorization header was not for S3")
 	}
 	if authorizationHeaderCredentialParts[CredentialPartType] != "aws4_request" {
-		return "", errors.New("authorization header was not a supported sigv4")
+		return "", usererror.New(
+			fmt.Errorf("unsupported format credentialString %s", credentialString),
+			"authorization header was not a supported sigv4",
+		)
 	}
 	return authorizationHeaderCredentialParts[credentialPart], nil
 }

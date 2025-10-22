@@ -30,6 +30,24 @@ func TestGetSignatureCredentialStringFromRequestAuthHeader(t *testing.T) {
 	assertEqualStr(t, "Credentialstring validation", expectedCredentialString, credStr)
 }
 
+func TestGetSignatureCredentialStringFromRequestAuthHeaderWithSpaces(t *testing.T) {
+	//GIVEN example Authorization header (from main example https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_sigv-create-signed-request.html)
+	authHeader := "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20220830/us-east-1/ec2/aws4_request, SignedHeaders=host;x-amz-date, Signature=calculated-signature"
+
+	//Given expected credentialString
+	expectedCredentialString := "AKIAIOSFODNN7EXAMPLE/20220830/us-east-1/ec2/aws4_request"
+
+	//WHEN Getting the Credentialstring
+	credStr, err := getSignatureCredentialStringFromRequestAuthHeader(authHeader)
+
+	//THEN it should not error out
+	if err != nil {
+		t.Errorf("was not able to get credentialstring: %s", err)
+	}
+
+	assertEqualStr(t, "Credentialstring validation", expectedCredentialString, credStr)
+}
+
 func TestExtractCredentialParts(t *testing.T) {
 	//GIVEN the different credential string parts
 	givenAkid := "AKIAIOSFODNN7EXAMPLE"

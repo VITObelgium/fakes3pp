@@ -42,9 +42,9 @@ jobs:
         # Force the usage of the embedded problem matchers
         #problem-matchers: # optional, default is false
         # golangci-lint command line arguments
-        #args: # optional, default is 
+        #args: # optional, default is
         # Periodically invalidate a cache because a new code being added. (number of days)
-        #cache-invalidation-interval: # optional, default is 7    
+        #cache-invalidation-interval: # optional, default is 7
 
   build:
     runs-on: ubuntu-latest

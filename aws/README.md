@@ -1,4 +1,4 @@
-The aws package itself does not contain code. 
+The aws package itself does not contain code.
 
 Service code goes under the service package. And other Generic code for aws goes under a package that groups related code.
 

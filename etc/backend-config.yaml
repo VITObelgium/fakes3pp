@@ -2,7 +2,7 @@
 # In order to allow proxying multiple backends the region name of the backend
 # is used to distinguish between configuration (see https://github.com/VITObelgium/fakes3pp/issues/3)
 s3backends:
-  # A mapping of the region name to the details required to use the backend: 
+  # A mapping of the region name to the details required to use the backend:
   # * Credentials could over time be provided in different ways. Available are:
   #   * A yaml file that contains a map with aws_access_key_id, aws_secret_access_key and optionally aws_session_token
   #     given that the contents of this file is sensitive it should be exclusive to the user running the s3proxy.
@@ -17,7 +17,7 @@ s3backends:
       file: ./creds/otc_creds.yaml
     endpoint: https://obs.eu-nl.otc.t-systems.com
 # The default backend is the backend that will be used if the system cannot determine which backend is intended.
-# When using multiple backends sigv4 presigned URLs should be preferred as they do contain the region in the 
+# When using multiple backends sigv4 presigned URLs should be preferred as they do contain the region in the
 # X-Amz-Credential query parameter. Normal requests are also signed with sigv4 and have the region.
 # The only known case where we need this are presigned hmacv1 query URLs since those do not specify the region.
 default:  waw3-1

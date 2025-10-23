@@ -8,7 +8,7 @@ jobs:
   bench:
     permissions:
         pull-requests: write
-        issues: write 
+        issues: write
     strategy:
       matrix:
         go-version: [ 1.22.x ]

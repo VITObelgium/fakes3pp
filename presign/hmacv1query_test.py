@@ -48,7 +48,7 @@ url_from_temp = gen_presigned_url(creds_with_temporary)
 assert get_expires_from_url(url_from_temp) == get_expires_from_url(url_from_perm), "Race hit just run again"
 
 print(f"""
-var testUrl = "{S3_ENDPOINT}/{test_bucket}/{test_key}" 
+var testUrl = "{S3_ENDPOINT}/{test_bucket}/{test_key}"
 var testAccessKeyId = "{creds_with_temporary['aws_access_key_id']}"
 var testSecretAccessKey = "{creds_with_temporary['aws_secret_access_key']}"
 var testSessionToken = "{creds_with_temporary['aws_session_token']}"

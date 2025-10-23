@@ -845,9 +845,9 @@ var testPolicyAllowTeamFolder string = fmt.Sprintf(`{
 			"Resource": "arn:aws:s3:::%s/%s",
 			"Condition" : {
 					"StringLike" : {
-							"aws:PrincipalTag/%s": "%s" 
+							"aws:PrincipalTag/%s": "%s"
 					}
-			} 
+			}
 		}
 	]
 }`, testingBucketNameBackenddetails, testTeamFile, testTeamTag, testAllowedTeam)
@@ -867,9 +867,9 @@ var testPolicyAllowAllInRegion1 string = fmt.Sprintf(`{
 			"Resource": "*",
 			"Condition" : {
 					"StringLike" : {
-							"aws:RequestedRegion": "%s" 
+							"aws:RequestedRegion": "%s"
 					}
-			} 
+			}
 		}
 	]
 }`, testRegion1)

@@ -139,7 +139,7 @@ var envVarDefs = []envVarDef{
 		FAKES3PP_S3_PROXY_REMOVABLE_QUERY_PARAMS,
 		false,
 		`A comma separated list of regexes for query parameter keys that should be ignored.
-		
+
 		Removable query parameters are parameters that are added by frameworks or instrumentation client side but which should not be taken into consideration for S3 operation.
 
 		Such parameters could prove problematic for presigned URLs because it won't be possible to validate the signature as the canonical string for signing is composed of all the query parameters so having query parameters added after signing will make the signature invalid. This feature allows to setup regexes to remove query parameters based on patterns that will be matched with the keys of query parameters. If they matched they will be removed before validation of the signature. They will remain ignored and will not be communicated in the request to the S3 backend.

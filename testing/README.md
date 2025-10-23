@@ -1,6 +1,6 @@
 # testing setup
 
-In order to allow more extensive testing we run basic implementations of S3 servers as part of testing and 
+In order to allow more extensive testing we run basic implementations of S3 servers as part of testing and
 allow using them as part of the tests. For simplicity there are not separate hostnames so they do run on
 localhost but they get distinguished by port number.
 

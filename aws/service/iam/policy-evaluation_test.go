@@ -31,7 +31,7 @@ var testPolScen1AllowPutWithinPrefix = fmt.Sprintf(`
 				"%s"
 			],
 			"Resource": "%s"
-          } 
+          }
 	]
 }
 `, actionnames.IAMActionS3PutObject, allowedWriteARN)
@@ -49,10 +49,10 @@ var testPolScen2AllowListingBucketWithinPrefix = fmt.Sprintf(`
 			"Resource": "%s",
 			"Condition" : {
                 "StringLike" : {
-                    "s3:prefix": "%s*" 
+                    "s3:prefix": "%s*"
                 }
-            } 
-          } 
+            }
+          }
 	]
 }
 `, actionnames.IAMActionS3ListBucket, testBucketARN, testAllowedPrefix)
@@ -70,10 +70,10 @@ var testPolScen2AllowListingBucketWithinPrefixes = fmt.Sprintf(`
 			"Resource": "%s",
 			"Condition" : {
                 "StringLike" : {
-                    "s3:prefix": ["%s*", "%s*"] 
+                    "s3:prefix": ["%s*", "%s*"]
                 }
-            } 
-          } 
+            }
+          }
 	]
 }
 `, actionnames.IAMActionS3ListBucket, testBucketARN, testAllowedPrefix, testAllowedPrefix2)
@@ -91,9 +91,9 @@ var testPolAllowAllIfTestDepartmentOtherwiseDenyAll = `
 			"Resource": "*",
 			"Condition" : {
                 "StringLike" : {
-                    "aws:PrincipalTag/department": "test" 
+                    "aws:PrincipalTag/department": "test"
                 }
-            } 
+            }
         },
 		{
 			"Sid": "Deny all if not test department",
@@ -104,10 +104,10 @@ var testPolAllowAllIfTestDepartmentOtherwiseDenyAll = `
 			"Resource": "*",
 			"Condition" : {
                 "StringNotLike" : {
-                    "aws:PrincipalTag/department": "test" 
+                    "aws:PrincipalTag/department": "test"
                 }
-            } 
-        } 
+            }
+        }
 	]
 }
 `
@@ -133,10 +133,10 @@ var testDenyAllUnlessMasterAsSubject = `
 			"Resource": "*",
 			"Condition" : {
                 "StringNotLike" : {
-                    "claims:sub": "master" 
+                    "claims:sub": "master"
                 }
-            } 
-        } 
+            }
+        }
 	]
 }
 `
@@ -162,10 +162,10 @@ var testDenyAllUnlessSpecificIssuer = `
 			"Resource": "*",
 			"Condition" : {
                 "StringNotLike" : {
-                    "claims:iss": "specificissuer" 
+                    "claims:iss": "specificissuer"
                 }
-            } 
-        } 
+            }
+        }
 	]
 }
 `

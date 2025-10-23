@@ -26,9 +26,9 @@ var testPolicyRealistic = `
 				"Resource": "arn:aws:s3:::OpenEO-artifacts",
 				"Condition" : {
 					"StringLike" : {
-						"s3:prefix": "{{.Claims.Subject}}/*" 
+						"s3:prefix": "{{.Claims.Subject}}/*"
 					}
-				} 
+				}
 			}
 		]
 	}
@@ -60,9 +60,9 @@ var testPolicyAllowAllInRegion1 string = fmt.Sprintf(`{
 			"Resource": "*",
 			"Condition" : {
 					"StringLike" : {
-							"aws:RequestedRegion": "%s" 
+							"aws:RequestedRegion": "%s"
 					}
-			} 
+			}
 		}
 	]
 }`, testRegion1)

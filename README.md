@@ -39,7 +39,7 @@ This section details the actions that can be handled by the proxy
 
 ### Building the container image
 
-Both the S3 and STS proxy are served by the same container image which can be built using `make build-container` 
+Both the S3 and STS proxy are served by the same container image which can be built using `make build-container`
 
 ## Configuration
 

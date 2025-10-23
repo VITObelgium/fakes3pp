@@ -13,7 +13,7 @@ services:
     environment:
       HOME: /root
       LOG_LEVEL: DEBUG
-     
+
 
   stsproxy:
     image: localhost/fakes3pp

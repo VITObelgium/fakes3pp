@@ -19,26 +19,26 @@ import (
 // These are different from aws.Credentials because these are actually credentials that only
 // live in the realm of our Proxy (STS+S3 environment) and they are not actual AWS credentials
 type AWSCredentials struct {
-	AccessKey    string                 `xml:"AccessKeyId" json:"accessKey,omitempty" yaml:"accessKey"`
-	SecretKey    string                 `xml:"SecretAccessKey" json:"secretKey,omitempty" yaml:"secretKey"`
-	SessionToken string                 `xml:"SessionToken" json:"sessionToken,omitempty" yaml:"sessionToken"`
-	Expiration   time.Time              `xml:"Expiration" json:"expiration,omitempty" yaml:"-"`
+	AccessKey    string    `xml:"AccessKeyId" json:"accessKey,omitempty" yaml:"accessKey"`
+	SecretKey    string    `xml:"SecretAccessKey" json:"secretKey,omitempty" yaml:"secretKey"`
+	SessionToken string    `xml:"SessionToken" json:"sessionToken,omitempty" yaml:"sessionToken"`
+	Expiration   time.Time `xml:"Expiration" json:"expiration,omitempty" yaml:"-"`
 }
 
 func FromAwsFormat(creds aws.Credentials) *AWSCredentials {
 	return &AWSCredentials{
-		AccessKey: creds.AccessKeyID,
-		SecretKey: creds.SecretAccessKey,
+		AccessKey:    creds.AccessKeyID,
+		SecretKey:    creds.SecretAccessKey,
 		SessionToken: creds.SessionToken,
-		Expiration: creds.Expires,
+		Expiration:   creds.Expires,
 	}
 }
 
 var ErrInvalidSecretKey = errors.New("invalid secret access key")
 var ErrExpiredAwsCredentials = errors.New("expired credentials")
 
-//Check whether an AWSCredential for the proxy is valid
-func (cred *AWSCredentials) isValid(keyStorage utils.PrivateKeyKeeper) (error) {
+// Check whether an AWSCredential for the proxy is valid
+func (cred *AWSCredentials) isValid(keyStorage utils.PrivateKeyKeeper) error {
 	if cred.Expiration.Before(time.Now().UTC()) {
 		return ErrExpiredAwsCredentials
 	}
@@ -59,7 +59,7 @@ func (cred *AWSCredentials) isValid(keyStorage utils.PrivateKeyKeeper) (error) {
 
 	//Is SessionToken valid
 	claims := jwt.MapClaims{}
-	keyFunc := func (t *jwt.Token) (interface{}, error)  {
+	keyFunc := func(t *jwt.Token) (interface{}, error) {
 		return &signingkey.PublicKey, nil
 	}
 
@@ -70,19 +70,18 @@ func (cred *AWSCredentials) isValid(keyStorage utils.PrivateKeyKeeper) (error) {
 	return nil
 }
 
-func (cred *AWSCredentials) IsValid(keyStorage utils.PrivateKeyKeeper) (error) {
+func (cred *AWSCredentials) IsValid(keyStorage utils.PrivateKeyKeeper) error {
 	return cred.isValid(keyStorage)
 }
 
-
-func NewAccessKey() (string) {
+func NewAccessKey() string {
 	uuidString := uuid.New().String()
 	return strings.ReplaceAll(uuidString, "-", "")
 }
 
-//Probably not how AWS or another S3* service calculates the secret key but it doesn't really matter
-//As we never pass this on upstream. But we chose to be able to derive the key using a shared secret
-//since that allows calculation everywhere without keeping state to lookup secret key for an access key
+// Probably not how AWS or another S3* service calculates the secret key but it doesn't really matter
+// As we never pass this on upstream. But we chose to be able to derive the key using a shared secret
+// since that allows calculation everywhere without keeping state to lookup secret key for an access key
 func CalculateSecretKey(accessKey string, keyStorage utils.PrivateKeyKeeper) (string, error) {
 	secretKeyLength := 42
 	hasher := sha1.New()
@@ -91,10 +90,10 @@ func CalculateSecretKey(accessKey string, keyStorage utils.PrivateKeyKeeper) (st
 		return "", err
 	}
 	toHash := fmt.Sprintf("%s%s", accessKey, signingkey.D.String())
-    return base64.URLEncoding.EncodeToString(hasher.Sum([]byte(toHash)))[0:secretKeyLength], nil
+	return base64.URLEncoding.EncodeToString(hasher.Sum([]byte(toHash)))[0:secretKeyLength], nil
 }
 
-//Generate New AWS Credentials out of a JWT and a specified duration
+// Generate New AWS Credentials out of a JWT and a specified duration
 func NewAWSCredentials(token *jwt.Token, expiry time.Duration, keyStorage utils.PrivateKeyKeeper) (*AWSCredentials, error) {
 	accessKey := NewAccessKey()
 
@@ -108,7 +107,7 @@ func NewAWSCredentials(token *jwt.Token, expiry time.Duration, keyStorage utils.
 	if err != nil {
 		return nil, err
 	}
-	sessionToken, err :=token.SignedString(key)
+	sessionToken, err := token.SignedString(key)
 	if err != nil {
 		return nil, err
 	}
@@ -117,24 +116,24 @@ func NewAWSCredentials(token *jwt.Token, expiry time.Duration, keyStorage utils.
 		return nil, err
 	}
 	cred := &AWSCredentials{
-		AccessKey: accessKey,
-		SecretKey: secretKey,
+		AccessKey:    accessKey,
+		SecretKey:    secretKey,
 		SessionToken: sessionToken,
-		Expiration: time.Now().UTC().Add(expiry),
+		Expiration:   time.Now().UTC().Add(expiry),
 	}
 	return cred, nil
 }
 
-//To satisfy the CredentialsProvider interface
+// To satisfy the CredentialsProvider interface
 func (cred *AWSCredentials) Retrieve(ctx context.Context) (aws.Credentials, error) {
 	var awsCred = aws.Credentials{
-		AccessKeyID: cred.AccessKey,
+		AccessKeyID:     cred.AccessKey,
 		SecretAccessKey: cred.SecretKey,
-		SessionToken: cred.SessionToken,
-		CanExpire: true,
-		Expires: cred.Expiration,
-		Source: "stsProxy",
-		AccountID: "000000000000",
+		SessionToken:    cred.SessionToken,
+		CanExpire:       true,
+		Expires:         cred.Expiration,
+		Source:          "stsProxy",
+		AccountID:       "000000000000",
 	}
 	return awsCred, nil
 }

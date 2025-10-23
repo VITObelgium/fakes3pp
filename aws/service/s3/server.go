@@ -14,8 +14,7 @@ import (
 	"github.com/VITObelgium/fakes3pp/utils"
 )
 
-
-type S3Server struct{
+type S3Server struct {
 	server.BasicServer
 
 	//The Key material that is used for signing JWT tokens. Needed for verification.
@@ -89,7 +88,7 @@ func newS3Server(
 	signedUrlGraceTimeSeconds int,
 	proxyHB interfaces.HandlerBuilderI,
 	s3BackendManager interfaces.BackendManager,
-	mws []middleware.Middleware ,
+	mws []middleware.Middleware,
 	removableQueryParamRegexes []*regexp.Regexp,
 	corsHandler interfaces.CORSHandler,
 ) (s *S3Server, err error) {
@@ -107,26 +106,26 @@ func newS3Server(
 		corsHandler = NewCORSStatic()
 	}
 	s = &S3Server{
-		BasicServer: *basicServer,
-		jwtKeyMaterial: key,
-		fqdns: fqdns,
-		pm: pm,
+		BasicServer:          *basicServer,
+		jwtKeyMaterial:       key,
+		fqdns:                fqdns,
+		pm:                   pm,
 		signedUrlGracePeriod: signedUrlGraceTimeDuration,
-		proxyHB: proxyHB,
-		s3BackendManager: s3BackendManager,
-		mws: mws,
-		corsHandler: corsHandler,
+		proxyHB:              proxyHB,
+		s3BackendManager:     s3BackendManager,
+		mws:                  mws,
+		corsHandler:          corsHandler,
 	}
 
 	if len(mws) == 0 {
 		presignAuthOptions := middleware.AuthenticationOptions{
-			Leeway: signedUrlGraceTimeDuration, 
+			Leeway:               signedUrlGraceTimeDuration,
 			RemovableQueryParams: removableQueryParamRegexes,
 		}
 		mws = []middleware.Middleware{
 			RegisterOperation(),
 			middleware.AWSAuthN(key, s3ErrorReporterInstance, s3BackendManager, &presignAuthOptions),
-			AWSAuthZS3(key, s3BackendManager, pm, s, s), 
+			AWSAuthZS3(key, s3BackendManager, pm, s, s),
 		}
 	}
 	s.mws = mws
@@ -137,17 +136,17 @@ func newS3Server(
 // The cutoff of expiry time lies in the past because we allow presigned urls
 // to outlive the credentials lifetime. So if we allow 2 hours of grace time
 // then the cutoff we use to check validity is 2 hours ago.
-func (s *S3Server)GetCutoffForPresignedUrl() time.Time {
+func (s *S3Server) GetCutoffForPresignedUrl() time.Time {
 	return time.Now().UTC().Add(
 		-s.signedUrlGracePeriod,
 	)
 }
 
-func (s *S3Server)IsVirtualHostingRequest(req *http.Request) bool {
+func (s *S3Server) IsVirtualHostingRequest(req *http.Request) bool {
 	hostWithoutPort := strings.ToLower(strings.Split(req.Host, ":")[0])
 	for _, fqdn := range s.fqdns {
 		lcfqdn := strings.ToLower(fqdn)
-		if lcfqdn == hostWithoutPort{
+		if lcfqdn == hostWithoutPort {
 			//Official fqdn is used so this is Path-based hosting.
 			return false
 		}
@@ -155,10 +154,10 @@ func (s *S3Server)IsVirtualHostingRequest(req *http.Request) bool {
 	return true
 }
 
-//Register routes to S3 router
-//For real cases the proxyHB HandlerBuilder should build a handler function
-//that sends the request upstream and passes back the response.
-func (s *S3Server) BuildHandlerfunc() http.HandlerFunc{
+// Register routes to S3 router
+// For real cases the proxyHB HandlerBuilder should build a handler function
+// that sends the request upstream and passes back the response.
+func (s *S3Server) BuildHandlerfunc() http.HandlerFunc {
 	h := s.proxyHB.Build(s.s3BackendManager, s.corsHandler)
 	return middleware.Chain(h, s.mws...)
 }

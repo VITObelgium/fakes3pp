@@ -1,12 +1,11 @@
 package interfaces
 
-
 type S3Capability int
 
 //go:generate stringer -type=S3Capability -trimprefix=S3Capability $GOFILE
 
-//Below are the different supported capabilities. When specifying them in the config file
-//just omit the S3Capability part for example "StreamingUnsignedPayloadTrailer"
+// Below are the different supported capabilities. When specifying them in the config file
+// just omit the S3Capability part for example "StreamingUnsignedPayloadTrailer"
 const (
 	//Whether the payload of type STREAMING-UNSIGNED-PAYLOAD-TRAILER is
 	//supported by the backend details can be find in issue

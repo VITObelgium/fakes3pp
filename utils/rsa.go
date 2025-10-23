@@ -11,7 +11,7 @@ import (
 
 func PrivateKeyFromPem(pemBytes []byte) (*rsa.PrivateKey, error) {
 	pemBlock, _ := pem.Decode(pemBytes)
-    key, err := x509.ParsePKCS1PrivateKey(pemBlock.Bytes)
+	key, err := x509.ParsePKCS1PrivateKey(pemBlock.Bytes)
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +40,7 @@ func PublicKeyFromPem(pemBytes []byte) (*rsa.PublicKey, error) {
 		pubKey, err := x509.ParsePKCS1PublicKey(pemBlock.Bytes)
 		return pubKey, err
 	}
-	
+
 }
 
 func PublickKeyFromPemFile(filePath string) (*rsa.PublicKey, error) {
@@ -65,25 +65,24 @@ type KeyPairKeeper interface {
 }
 
 type JWTVerifier interface {
-	GetJwtKeyFunc() (jwt.Keyfunc)
+	GetJwtKeyFunc() jwt.Keyfunc
 }
 
-//This is just a very basic privateKeyStorage container which only contains a single
-//keypair
+// This is just a very basic privateKeyStorage container which only contains a single
+// keypair
 type privateKeyStorage struct {
 	privateKey *rsa.PrivateKey
 }
 
 func (s *privateKeyStorage) GetPrivateKey() (*rsa.PrivateKey, error) {
-	return s.privateKey, nil 
+	return s.privateKey, nil
 }
 
 func (s *privateKeyStorage) GetPublicKey() (*rsa.PublicKey, error) {
-	return &s.privateKey.PublicKey, nil 
+	return &s.privateKey.PublicKey, nil
 }
 
-
-func (s *privateKeyStorage) GetJwtKeyFunc() (jwt.Keyfunc) {
+func (s *privateKeyStorage) GetJwtKeyFunc() jwt.Keyfunc {
 	return func(t *jwt.Token) (interface{}, error) {
 		//Give that there is only 1 keypair no real checking based on key info is to be done.
 		return s.GetPublicKey()
@@ -99,4 +98,3 @@ func NewKeyStorage(pathToPemEncodedPrivateKey string) (KeyPairKeeper, error) {
 		privateKey: key,
 	}, nil
 }
-

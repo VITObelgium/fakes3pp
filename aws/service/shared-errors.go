@@ -19,5 +19,4 @@ const (
 
 type ErrorReporter interface {
 	WriteErrorResponse(ctx context.Context, w http.ResponseWriter, errCode AWSErrorCode, err error)
-
 }

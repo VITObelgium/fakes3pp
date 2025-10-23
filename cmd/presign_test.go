@@ -17,7 +17,7 @@ import (
 
 var testDefaultBackendRegion = "waw3-1"
 
-func setConfigForPresign(t testing.TB){
+func setConfigForPresign(t testing.TB) {
 	backendConfigFile = stageTestingBackendsConfig(t)
 	viper.Set(s3ProxyFQDN, []string{"localhost", "localhost2"})
 	viper.Set(s3ProxyPort, 8443)
@@ -42,10 +42,10 @@ func TestValidPreSignWithServerCreds(t *testing.T) {
 	if err != nil {
 		t.Errorf("Url should have been valid but %s", err)
 	}
-	if !isValid{
+	if !isValid {
 		t.Error("Url was not valid")
 	}
-	if isExpired{
+	if isExpired {
 		t.Error("Url was expired")
 	}
 }
@@ -68,9 +68,9 @@ func TestValidPreSignWithTempCreds(t *testing.T) {
 	}
 
 	creds := aws.Credentials{
-		AccessKeyID: "myAccessKeyId",
+		AccessKeyID:     "myAccessKeyId",
 		SecretAccessKey: secretKey,
-		SessionToken: "Incredibly secure",
+		SessionToken:    "Incredibly secure",
 	}
 
 	//Given we have a valid signed URI valid for 1 second
@@ -85,7 +85,6 @@ func TestValidPreSignWithTempCreds(t *testing.T) {
 	if err != nil {
 		t.Errorf("error when signing request with creds: %s", err)
 	}
-	
 
 	//When we check the signature within 1 second
 	isValid, isExpired, err := presign.IsPresignedUrlWithValidSignature(context.Background(), uri, creds)
@@ -96,7 +95,7 @@ func TestValidPreSignWithTempCreds(t *testing.T) {
 	if !isValid {
 		t.Error("Url was not valid")
 	}
-	if isExpired{
+	if isExpired {
 		t.Error("Url was expired")
 	}
 }
@@ -123,7 +122,7 @@ func TestExpiredPreSign(t *testing.T) {
 	if !isValid {
 		t.Errorf("Url was not valid")
 	}
-	if isExpired{
+	if isExpired {
 		t.Error("Url was expired")
 	}
 	//When we would check the url after 1 second
@@ -136,7 +135,7 @@ func TestExpiredPreSign(t *testing.T) {
 	if !isValid {
 		t.Errorf("Url not valid but calculated signatur should be valid only expired")
 	}
-	if !isExpired{
+	if !isExpired {
 		t.Error("Url was not yet expired")
 	}
 }

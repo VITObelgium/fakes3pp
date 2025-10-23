@@ -23,17 +23,17 @@ import (
 	"github.com/golang-jwt/jwt/v5"
 )
 
-const L_AKID = "AKID"  // Access Key ID
+const L_AKID = "AKID" // Access Key ID
 
-//Authentication middleware is responsible for the following:
-//Add the authentication type to the access log
-//Verify signature and its expiry as part of authentication
-//Add Access Key Id to access log
-//Add Session token to request context
-//Add Region to request context (as it is in parts that might be cleaned up)
-//Cleanup the request to not have lingering parts that could cause issues with request downstream.
+// Authentication middleware is responsible for the following:
+// Add the authentication type to the access log
+// Verify signature and its expiry as part of authentication
+// Add Access Key Id to access log
+// Add Session token to request context
+// Add Region to request context (as it is in parts that might be cleaned up)
+// Cleanup the request to not have lingering parts that could cause issues with request downstream.
 func AWSAuthN(keyStorage utils.KeyPairKeeper, e service.ErrorReporter, backendManager interfaces.BackendManager, presignOptions *AuthenticationOptions) Middleware {
-    return func(next http.HandlerFunc) http.HandlerFunc {
+	return func(next http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			var shouldContinue bool
 			if IsPresignedAWSRequest(r) {
@@ -50,7 +50,7 @@ func AWSAuthN(keyStorage utils.KeyPairKeeper, e service.ErrorReporter, backendMa
 
 func cleanRemovableQueryParameters(r *http.Request, presignAuthOptions *AuthenticationOptions) {
 	urlVals := r.URL.Query()
-	
+
 	for urlValKey := range urlVals {
 		for _, keyToRemove := range presignAuthOptions.RemovableQueryParams {
 			matchedString := keyToRemove.FindString(urlValKey)
@@ -63,7 +63,7 @@ func cleanRemovableQueryParameters(r *http.Request, presignAuthOptions *Authenti
 	r.URL.RawQuery = urlVals.Encode()
 }
 
-//Authenticate a presigned request see responsibilities AWSAuthN
+// Authenticate a presigned request see responsibilities AWSAuthN
 func handleAuthNPresigned(w http.ResponseWriter, r *http.Request, keyStorage utils.KeyPairKeeper, e service.ErrorReporter, backendManager interfaces.BackendManager, presignAuthOptions *AuthenticationOptions) bool {
 	requestctx.SetAuthType(r, authtypes.AuthTypeQueryString)
 	cleanRemovableQueryParameters(r, presignAuthOptions)
@@ -77,7 +77,7 @@ func handleAuthNPresigned(w http.ResponseWriter, r *http.Request, keyStorage uti
 	var toCheck = r
 
 	if r.URL.Query().Get(constants.HeadAsGet) != "" {
-		defer func(){
+		defer func() {
 			//Always remove the Proxy query parameter
 			urlVals := r.URL.Query()
 			urlVals.Del(constants.HeadAsGet)
@@ -95,7 +95,7 @@ func handleAuthNPresigned(w http.ResponseWriter, r *http.Request, keyStorage uti
 		e.WriteErrorResponse(r.Context(), w, service.ErrAWSInternalError, err)
 		return false
 	}
-	isValid, creds, expires, err:= presignedUrl.GetPresignedUrlDetails(r.Context(), secretDeriver)
+	isValid, creds, expires, err := presignedUrl.GetPresignedUrlDetails(r.Context(), secretDeriver)
 	if err != nil {
 		err := fmt.Errorf("error geting details of presigned url: %w", err)
 		e.WriteErrorResponse(r.Context(), w, service.ErrAWSInternalError, err)
@@ -131,7 +131,7 @@ func handleAuthNPresigned(w http.ResponseWriter, r *http.Request, keyStorage uti
 	return true
 }
 
-func IsPresignedAWSRequest(r *http.Request) (bool){
+func IsPresignedAWSRequest(r *http.Request) bool {
 	queryValues := r.URL.Query()
 	if queryValues.Has("Signature") && queryValues.Has("x-amz-security-token") && queryValues.Has("AWSAccessKeyId") {
 		return true
@@ -148,7 +148,7 @@ func addRegionToSession(r *http.Request, backendManager interfaces.BackendManage
 	requestctx.AddAccessLogInfo(r, "s3", slog.String("TargetRegion", targetBackendId))
 }
 
-//Authenticate a normal request see responsibilities AWSAuthN
+// Authenticate a normal request see responsibilities AWSAuthN
 func handleAuthNNormal(w http.ResponseWriter, r *http.Request, keyStorage utils.KeyPairKeeper, e service.ErrorReporter, backendManager interfaces.BackendManager) bool {
 	if r.Header.Get(constants.AuthorizationHeader) == "" {
 		requestctx.SetAuthType(r, authtypes.AuthTypeNone)
@@ -194,9 +194,9 @@ func handleAuthNNormal(w http.ResponseWriter, r *http.Request, keyStorage utils.
 	}
 	clonedReq := r.Clone(r.Context())
 	creds := aws.Credentials{
-		AccessKeyID: accessKeyId,
+		AccessKeyID:     accessKeyId,
 		SecretAccessKey: secretAccessKey,
-		SessionToken: sessionToken,
+		SessionToken:    sessionToken,
 	}
 	err = presign.SignWithCreds(r.Context(), clonedReq, creds, "ThisShouldNotBeUsedForSigv4Requests258")
 	if err != nil {
@@ -204,19 +204,18 @@ func handleAuthNNormal(w http.ResponseWriter, r *http.Request, keyStorage utils.
 		e.WriteErrorResponse(r.Context(), w, service.ErrAWSInternalError, err)
 		return false
 	}
-	calculatedSignature := clonedReq.Header.Get(constants.AuthorizationHeader) 
+	calculatedSignature := clonedReq.Header.Get(constants.AuthorizationHeader)
 
 	reAddHeaders(r)
 	//Cleaning could have removed content length
 	r.ContentLength = backupContentLength
 	slog.DebugContext(r.Context(), "ContentLength after manipualation", "ContentLength", r.ContentLength)
 
-
 	if strings.ReplaceAll(calculatedSignature, " ", "") != strings.ReplaceAll(passedSignature, " ", "") {
 		slog.DebugContext(
 			r.Context(),
-			"Invalid signature", 
-			"calculated", calculatedSignature, 
+			"Invalid signature",
+			"calculated", calculatedSignature,
 			"received", passedSignature,
 		)
 		e.WriteErrorResponse(r.Context(), w, service.ErrAWSInvalidSignature, nil)
@@ -225,8 +224,8 @@ func handleAuthNNormal(w http.ResponseWriter, r *http.Request, keyStorage utils.
 	return true
 }
 
-//Make sure the provided session token matches the used credentials
-//If not return an error
+// Make sure the provided session token matches the used credentials
+// If not return an error
 func makeSureSessionTokenIsForAccessKey(sessionToken, accessKeyId string, keyFunc jwt.Keyfunc, authOptions *AuthenticationOptions) (invalidToken error) {
 	var parserOptions []jwt.ParserOption
 	if authOptions != nil {
@@ -246,12 +245,9 @@ func makeSureSessionTokenIsForAccessKey(sessionToken, accessKeyId string, keyFun
 	return fmt.Errorf("mismatch between session token and access key i:d %s <> %s", claims.AccessKeyID, accessKeyId)
 }
 
-//For requests the access key and token are send over the wire
+// For requests the access key and token are send over the wire
 func getCredentialsFromRequest(r *http.Request) (accessKeyId, sessionToken string, err error) {
 	sessionToken = r.Header.Get(constants.AmzSecurityTokenKey)
 	accessKeyId, err = requestutils.GetSignatureCredentialPartFromRequest(r, requestutils.CredentialPartAccessKeyId)
 	return
 }
-
-
-

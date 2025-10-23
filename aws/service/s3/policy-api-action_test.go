@@ -11,15 +11,14 @@ import (
 	"github.com/VITObelgium/fakes3pp/requestctx"
 )
 
-
-type StubJustReturnApiAction struct{
+type StubJustReturnApiAction struct {
 	t *testing.T
 }
 
 var globalLastApiActionStubJustReturnApiAction api.S3Operation = api.UnknownOperation
 
-func (p *StubJustReturnApiAction) Build(backendManager interfaces.BackendManager, corsHandler interfaces.CORSHandler) http.HandlerFunc{
-	return func (w http.ResponseWriter, r *http.Request)  {
+func (p *StubJustReturnApiAction) Build(backendManager interfaces.BackendManager, corsHandler interfaces.CORSHandler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
 		//AWS CLI expects certain structure for ok responses
 		//For error we could use the message field to pass a message regardless
 		//of the api action

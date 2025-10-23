@@ -22,71 +22,70 @@ type envVarDef struct {
 	//Explain what this env var is for
 	description string
 	//The cli commands for which it is used
-	cmds        []string
+	cmds []string
 }
 
-func (e envVarDef) shouldBeSetFor(cmd string) (bool) {
+func (e envVarDef) shouldBeSetFor(cmd string) bool {
 	for _, applicableCmd := range e.cmds {
 		if applicableCmd == cmd {
 			return true
 		}
 	}
 	return false
-} 
+}
 
-const(
-	s3ProxyFQDN = "s3ProxyFQDN"
-	s3ProxyPort = "s3ProxyPort"
-	s3ProxyCertFile = "s3ProxyCertFile"
-	s3ProxyKeyFile = "s3ProxyKeyFile"
-	s3ProxyJwtPublicRSAKey = "s3ProxyJwtPublicRSAKey"
-	s3ProxyJwtPrivateRSAKey = "s3ProxyJwtPrivateRSAKey"
-	s3ProxyRemovableQueryParams = "s3ProxyRemovableQueryParams"
-	stsProxyFQDN = "stsProxyFQDN"
-	stsProxyPort = "stsProxyPort"
-	stsProxyCertFile = "stsProxyCertFile"
-	stsProxyKeyFile = "stsProxyKeyFile"
-	stsMinimalDurationSeconds = "stsMinimalDurationSeconds"
-	rolePolicyPath = "rolePolicyPath"
-	secure = "secure"
-	stsOIDCConfigFile = "stsOIDCConfigFile"
-	s3BackendConfigFile = "s3BackendConfigFile"
-	stsMaxDurationSeconds = "stsMaxDurationSeconds"
-	signedUrlGraceTimeSeconds = "signedUrlGraceTimeSeconds"
+const (
+	s3ProxyFQDN                                      = "s3ProxyFQDN"
+	s3ProxyPort                                      = "s3ProxyPort"
+	s3ProxyCertFile                                  = "s3ProxyCertFile"
+	s3ProxyKeyFile                                   = "s3ProxyKeyFile"
+	s3ProxyJwtPublicRSAKey                           = "s3ProxyJwtPublicRSAKey"
+	s3ProxyJwtPrivateRSAKey                          = "s3ProxyJwtPrivateRSAKey"
+	s3ProxyRemovableQueryParams                      = "s3ProxyRemovableQueryParams"
+	stsProxyFQDN                                     = "stsProxyFQDN"
+	stsProxyPort                                     = "stsProxyPort"
+	stsProxyCertFile                                 = "stsProxyCertFile"
+	stsProxyKeyFile                                  = "stsProxyKeyFile"
+	stsMinimalDurationSeconds                        = "stsMinimalDurationSeconds"
+	rolePolicyPath                                   = "rolePolicyPath"
+	secure                                           = "secure"
+	stsOIDCConfigFile                                = "stsOIDCConfigFile"
+	s3BackendConfigFile                              = "s3BackendConfigFile"
+	stsMaxDurationSeconds                            = "stsMaxDurationSeconds"
+	signedUrlGraceTimeSeconds                        = "signedUrlGraceTimeSeconds"
 	enableLegacyBehaviorInvalidRegionToDefaultRegion = "enableLegacyBehaviorInvalidRegionToDefaultRegion"
-	logLevel = "logLevel"
-	metricsPort = "metricsPort"
-	s3CorsStrategy = "corsStrategy"
-	
+	logLevel                                         = "logLevel"
+	metricsPort                                      = "metricsPort"
+	s3CorsStrategy                                   = "corsStrategy"
 
 	//Environment variables are upper cased
 	//Unless they are wellknown environment variables they should be prefixed
-	FAKES3PP_S3_PROXY_FQDN = "FAKES3PP_S3_PROXY_FQDN"
-	FAKES3PP_S3_PROXY_PORT = "FAKES3PP_S3_PROXY_PORT"
-	FAKES3PP_S3_PROXY_CERT_FILE = "FAKES3PP_S3_PROXY_CERT_FILE"
-	FAKES3PP_S3_PROXY_KEY_FILE = "FAKES3PP_S3_PROXY_KEY_FILE"
-	FAKES3PP_S3_PROXY_JWT_PUBLIC_RSA_KEY = "FAKES3PP_S3_PROXY_JWT_PUBLIC_RSA_KEY"
-	FAKES3PP_S3_PROXY_JWT_PRIVATE_RSA_KEY = "FAKES3PP_S3_PROXY_JWT_PRIVATE_RSA_KEY"
+	FAKES3PP_S3_PROXY_FQDN                   = "FAKES3PP_S3_PROXY_FQDN"
+	FAKES3PP_S3_PROXY_PORT                   = "FAKES3PP_S3_PROXY_PORT"
+	FAKES3PP_S3_PROXY_CERT_FILE              = "FAKES3PP_S3_PROXY_CERT_FILE"
+	FAKES3PP_S3_PROXY_KEY_FILE               = "FAKES3PP_S3_PROXY_KEY_FILE"
+	FAKES3PP_S3_PROXY_JWT_PUBLIC_RSA_KEY     = "FAKES3PP_S3_PROXY_JWT_PUBLIC_RSA_KEY"
+	FAKES3PP_S3_PROXY_JWT_PRIVATE_RSA_KEY    = "FAKES3PP_S3_PROXY_JWT_PRIVATE_RSA_KEY"
 	FAKES3PP_S3_PROXY_REMOVABLE_QUERY_PARAMS = "FAKES3PP_S3_PROXY_REMOVABLE_QUERY_PARAMS"
-	FAKES3PP_S3_CORS_STRATEGY = "FAKES3PP_S3_CORS_STRATEGY"
-	FAKES3PP_S3_CORS_STATIC_ALLOWED_ORIGIN = "FAKES3PP_S3_CORS_STATIC_ALLOWED_ORIGIN"
+	FAKES3PP_S3_CORS_STRATEGY                = "FAKES3PP_S3_CORS_STRATEGY"
+	FAKES3PP_S3_CORS_STATIC_ALLOWED_ORIGIN   = "FAKES3PP_S3_CORS_STATIC_ALLOWED_ORIGIN"
 
-	FAKES3PP_STS_PROXY_FQDN = "FAKES3PP_STS_PROXY_FQDN"
-	FAKES3PP_STS_PROXY_PORT = "FAKES3PP_STS_PROXY_PORT"
-	FAKES3PP_STS_PROXY_CERT_FILE = "FAKES3PP_STS_PROXY_CERT_FILE"
-	FAKES3PP_STS_PROXY_KEY_FILE = "FAKES3PP_STS_PROXY_KEY_FILE"
-	FAKES3PP_STS_MINIMAL_DURATION_SECONDS = "FAKES3PP_STS_MINIMAL_DURATION_SECONDS"
-	FAKES3PP_SECURE = "FAKES3PP_SECURE"
-	FAKES3PP_STS_OIDC_CONFIG = "FAKES3PP_STS_OIDC_CONFIG"
-	FAKES3PP_S3_BACKEND_CONFIG = "FAKES3PP_S3_BACKEND_CONFIG"
-	FAKES3PP_ROLE_POLICY_PATH = "FAKES3PP_ROLE_POLICY_PATH"
-	FAKES3PP_STS_MAX_DURATION_SECONDS = "FAKES3PP_STS_MAX_DURATION_SECONDS"
-	FAKES3PP_SIGNEDURL_GRACE_TIME_SECONDS = "FAKES3PP_SIGNEDURL_GRACE_TIME_SECONDS"
+	FAKES3PP_STS_PROXY_FQDN                                 = "FAKES3PP_STS_PROXY_FQDN"
+	FAKES3PP_STS_PROXY_PORT                                 = "FAKES3PP_STS_PROXY_PORT"
+	FAKES3PP_STS_PROXY_CERT_FILE                            = "FAKES3PP_STS_PROXY_CERT_FILE"
+	FAKES3PP_STS_PROXY_KEY_FILE                             = "FAKES3PP_STS_PROXY_KEY_FILE"
+	FAKES3PP_STS_MINIMAL_DURATION_SECONDS                   = "FAKES3PP_STS_MINIMAL_DURATION_SECONDS"
+	FAKES3PP_SECURE                                         = "FAKES3PP_SECURE"
+	FAKES3PP_STS_OIDC_CONFIG                                = "FAKES3PP_STS_OIDC_CONFIG"
+	FAKES3PP_S3_BACKEND_CONFIG                              = "FAKES3PP_S3_BACKEND_CONFIG"
+	FAKES3PP_ROLE_POLICY_PATH                               = "FAKES3PP_ROLE_POLICY_PATH"
+	FAKES3PP_STS_MAX_DURATION_SECONDS                       = "FAKES3PP_STS_MAX_DURATION_SECONDS"
+	FAKES3PP_SIGNEDURL_GRACE_TIME_SECONDS                   = "FAKES3PP_SIGNEDURL_GRACE_TIME_SECONDS"
 	ENABLE_LEGACY_BEHAVIOR_INVALID_REGION_TO_DEFAULT_REGION = "ENABLE_LEGACY_BEHAVIOR_INVALID_REGION_TO_DEFAULT_REGION"
-	LOG_LEVEL = "LOG_LEVEL"
-	FAKES3PP_METRICS_PORT = "FAKES3PP_METRICS_PORT"
+	LOG_LEVEL                                               = "LOG_LEVEL"
+	FAKES3PP_METRICS_PORT                                   = "FAKES3PP_METRICS_PORT"
 
-	valueStatic = "static"
+	valueStatic  = "static"
 	valueDenyAll = "deny-all"
 )
 
@@ -263,7 +262,7 @@ var envVarDefs = []envVarDef{
 func getMinStsDurationSeconds() int {
 	minDurationSeconds := viper.GetInt(stsMinimalDurationSeconds)
 	if minDurationSeconds == 0 {
-		return 15 * 60  // We take same minimum as AWS does: https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRoleWithWebIdentity.html
+		return 15 * 60 // We take same minimum as AWS does: https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRoleWithWebIdentity.html
 	}
 	return minDurationSeconds
 }
@@ -276,11 +275,11 @@ func getMaxStsDurationSeconds() int {
 	return maxDurationSeconds
 }
 
-func getMaxStsDuration() (time.Duration) {
+func getMaxStsDuration() time.Duration {
 	return time.Second * time.Duration(getMaxStsDurationSeconds())
 }
 
-//The Fully Qualified Domain names for the S3 proxy
+// The Fully Qualified Domain names for the S3 proxy
 var s3ProxyFQDNs []string
 
 func getStsProxyFQDNs() ([]string, error) {
@@ -301,8 +300,8 @@ func getS3ProxyFQDNs() ([]string, error) {
 	return fqdns, nil
 }
 
-//Retrieve the regular expressions that are passed in for removal of query parameter keys that
-//should be removed. Makes sure they compile and fail fast if there is an invalid regex.
+// Retrieve the regular expressions that are passed in for removal of query parameter keys that
+// should be removed. Makes sure they compile and fail fast if there is an invalid regex.
 func getS3RemovableQueryParamRegexes() ([]*regexp.Regexp, error) {
 	var queryParamNames []string
 	var queryParamNameRegexes = make([]*regexp.Regexp, 0)
@@ -321,8 +320,8 @@ func getS3RemovableQueryParamRegexes() ([]*regexp.Regexp, error) {
 	return queryParamNameRegexes, nil
 }
 
-//TODO: make sure same is used for STS
-//get all the FQDNs associated with the S3 Proxy
+// TODO: make sure same is used for STS
+// get all the FQDNs associated with the S3 Proxy
 func getS3ProxyLCFQDNs() ([]string, error) {
 	if s3ProxyFQDNs == nil {
 		tmpS3ProxyFQDNS, err := getS3ProxyFQDNs()
@@ -333,11 +332,11 @@ func getS3ProxyLCFQDNs() ([]string, error) {
 		for i, tmpFQDN := range tmpS3ProxyFQDNS {
 			s3ProxyFQDNs[i] = strings.ToLower(tmpFQDN)
 		}
-	}	
+	}
 	return s3ProxyFQDNs, nil
 }
 
-//get the main FQDN associated with the S3 proxy
+// get the main FQDN associated with the S3 proxy
 func getMainS3ProxyFQDN() (string, error) {
 	fqdns, err := getS3ProxyLCFQDNs()
 	if err != nil {
@@ -349,7 +348,7 @@ func getMainS3ProxyFQDN() (string, error) {
 	return fqdns[0], nil
 }
 
-//Bind the environment variables for a command
+// Bind the environment variables for a command
 func BindEnvVariables(cmd string) {
 	for _, evd := range envVarDefs {
 		if evd.shouldBeSetFor(cmd) {

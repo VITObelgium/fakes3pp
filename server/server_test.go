@@ -17,11 +17,10 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-
-func CreateTestHandler(t testing.TB, sendSize int64) http.HandlerFunc{
+func CreateTestHandler(t testing.TB, sendSize int64) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		_, err := io.Copy(io.Discard, r.Body)
-	
+
 		if err != nil {
 			t.Error("Got a problem when reading all the bytes")
 			t.FailNow()
@@ -44,7 +43,7 @@ func isMetricOfInterest(metricName string) bool {
 	return true
 }
 
-func getMetrics(t testing.TB, r io.Reader) (metrics map[string][]*io_prometheus_client.Metric){
+func getMetrics(t testing.TB, r io.Reader) (metrics map[string][]*io_prometheus_client.Metric) {
 	var tp expfmt.TextParser
 	notNormalized, err := tp.TextToMetricFamilies(r)
 	if err != nil {
@@ -65,8 +64,8 @@ func getMetrics(t testing.TB, r io.Reader) (metrics map[string][]*io_prometheus_
 	return metrics
 }
 
-//Get metrics from a counter where n is the amount of actual metic measurements.
-func getCounterMetric(t testing.TB, metricsPort int, metricName string) (n int, sum float64){
+// Get metrics from a counter where n is the amount of actual metic measurements.
+func getCounterMetric(t testing.TB, metricsPort int, metricName string) (n int, sum float64) {
 	res, err := http.Get(fmt.Sprintf("http://localhost:%d/metrics", metricsPort))
 	if err != nil {
 		t.Error("Cannot get metrics", "error", err)
@@ -78,12 +77,11 @@ func getCounterMetric(t testing.TB, metricsPort int, metricName string) (n int, 
 	if !ok {
 		return 0, 0
 	}
-	n , sum = sumCounters(requestSizeBytesMetrics)
+	n, sum = sumCounters(requestSizeBytesMetrics)
 	return
 }
 
-
-//A test to make sure metrics are expose when metrics are enabled and they must be close to reality.
+// A test to make sure metrics are expose when metrics are enabled and they must be close to reality.
 func TestCheckMetricsServer(t *testing.T) {
 	//Given responseSize
 	var responseSize int64 = 123043
@@ -93,7 +91,7 @@ func TestCheckMetricsServer(t *testing.T) {
 	//Given a test server which sends a response of a given size and reads everythign
 	s := server.NewBasicServer(testPort, "localhost", "", "", CreateTestHandler(t, int64(responseSize)))
 	//Given it is started with metrics exposed
-	wg, ts, err :=server.CreateAndAwaitHealthy(s, server.ServerOpts{MetricsPort: metricsPort})
+	wg, ts, err := server.CreateAndAwaitHealthy(s, server.ServerOpts{MetricsPort: metricsPort})
 	if err != nil {
 		t.Error("Could not start server")
 		t.FailNow()
@@ -115,9 +113,9 @@ func TestCheckMetricsServer(t *testing.T) {
 
 	//THEN the metrics must become available in scrapes
 	//At least within due time which should be rather fast
-	n := 0 
+	n := 0
 	var requestSizeBytes float64
-	for i := 0 ; i < 3 ; i++ { // First time fetching metrics make sure they have actually propagated.
+	for i := 0; i < 3; i++ { // First time fetching metrics make sure they have actually propagated.
 		n, requestSizeBytes = getCounterMetric(t, metricsPort, "http_request_size_bytes")
 		if n != 0 {
 			break
@@ -171,16 +169,18 @@ func sumCounters(metrics []*io_prometheus_client.Metric) (n int, sum float64) {
 	for _, m := range metrics {
 		n += 1
 		counter := m.GetCounter()
-		if counter == nil { continue }
+		if counter == nil {
+			continue
+		}
 		sum += *counter.Value
 	}
 	return n, sum
 }
 
-//percentage is how close it needs to be for example 0.01 means it should be +- 1 percent
+// percentage is how close it needs to be for example 0.01 means it should be +- 1 percent
 func assertCloseEnough(t testing.TB, targetValue int64, actualValue float64, percentage float64) {
-	lowerBound := float64(targetValue) - float64(targetValue) * float64(percentage)
-	upperBound := float64(targetValue) + float64(targetValue) * float64(percentage)
+	lowerBound := float64(targetValue) - float64(targetValue)*float64(percentage)
+	upperBound := float64(targetValue) + float64(targetValue)*float64(percentage)
 	if actualValue < lowerBound {
 		t.Errorf("Actual value too small expected %d, got %f", targetValue, actualValue)
 	}

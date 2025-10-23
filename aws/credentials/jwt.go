@@ -13,11 +13,11 @@ import (
 
 type IDPClaims struct {
 	//The optional session tags
-	Tags session.AWSSessionTags `json:"https://aws.amazon.com/tags,omitempty"` 
+	Tags session.AWSSessionTags `json:"https://aws.amazon.com/tags,omitempty"`
 	jwt.RegisteredClaims
 }
 
-func NewIDPClaims(issuer, subject string, expiry time.Duration, tags session.AWSSessionTags) (*IDPClaims) {
+func NewIDPClaims(issuer, subject string, expiry time.Duration, tags session.AWSSessionTags) *IDPClaims {
 	return &IDPClaims{
 		tags,
 		jwt.RegisteredClaims{
@@ -41,25 +41,24 @@ type SessionClaims struct {
 	AccessKeyID string `json:"access_key_id"`
 }
 
-
-//AWSSessionTokenClaims follow the jwt Claims interface but additionally
-//allows to embed an AccessKeyId during signing
+// AWSSessionTokenClaims follow the jwt Claims interface but additionally
+// allows to embed an AccessKeyId during signing
 type AWSSessionTokenClaims interface {
 	jwt.Claims
 
-	SetAccessKeyId(akid string) ()
+	SetAccessKeyId(akid string)
 	GetAccessKeyId() string
 }
 
-func (s *SessionClaims) SetAccessKeyId(akid string) () {
+func (s *SessionClaims) SetAccessKeyId(akid string) {
 	s.AccessKeyID = akid
 }
 
-func (s *SessionClaims) GetAccessKeyId() (string) {
+func (s *SessionClaims) GetAccessKeyId() string {
 	return s.AccessKeyID
 }
 
-func CreateRS256PolicyToken(issuer, iIssuer, subject, roleARN string, expiry time.Duration, tags session.AWSSessionTags) (*jwt.Token) {
+func CreateRS256PolicyToken(issuer, iIssuer, subject, roleARN string, expiry time.Duration, tags session.AWSSessionTags) *jwt.Token {
 	claims := &SessionClaims{
 		roleARN,
 		iIssuer,
@@ -90,13 +89,11 @@ func CreateSignedToken(t *jwt.Token, keyStorage utils.PrivateKeyKeeper) (string,
 	return tokenStr, err
 }
 
-
 // ExtractOIDCTokenClaims extracts JWT claims from a security token using the public key of the
 // OIDC provider if the OIDC provider is registered key
 func ExtractOIDCTokenClaims(token string, oidcKeyFunc jwt.Keyfunc) (*SessionClaims, error) {
 	return ExtractTokenClaims(token, oidcKeyFunc)
 }
-
 
 // ExtractTokenClaims extracts JWT claims using a key functions
 func ExtractTokenClaims(token string, keyFunc jwt.Keyfunc, options ...jwt.ParserOption) (*SessionClaims, error) {
@@ -110,7 +107,7 @@ func ExtractTokenClaims(token string, keyFunc jwt.Keyfunc, options ...jwt.Parser
 	if keyFunc == nil {
 		_, _, err = jwt.NewParser(options...).ParseUnverified(token, &policyClaims)
 	} else {
-	    _, err = jwt.NewParser(options...).ParseWithClaims(token, &policyClaims, keyFunc)
+		_, err = jwt.NewParser(options...).ParseWithClaims(token, &policyClaims, keyFunc)
 	}
 	if err != nil {
 		if err.Error() == "token has invalid claims: token is expired" {

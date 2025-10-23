@@ -57,7 +57,7 @@ func init() {
 }
 
 func loadEnvVarsFromDotEnv() {
-	for _, dotEnv := range strings.Split(envFiles, ","){
+	for _, dotEnv := range strings.Split(envFiles, ",") {
 		if dotEnv == "skip" {
 			slog.Info("Skip dotEnv filename %s", "filename", dotEnv)
 			return
@@ -67,9 +67,9 @@ func loadEnvVarsFromDotEnv() {
 		}
 		err := godotenv.Load(dotEnv)
 		if err != nil {
-		  dir, _ := os.Getwd()
-		  slog.Error("Error loading .env file", "cwd", dir, "filepath", dotEnv)
-		  os.Exit(1)
+			dir, _ := os.Getwd()
+			slog.Error("Error loading .env file", "cwd", dir, "filepath", dotEnv)
+			os.Exit(1)
 		}
 	}
 }

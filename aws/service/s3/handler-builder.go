@@ -31,16 +31,16 @@ type handlerBuilder struct {
 
 var handlerBuilderToJustProxy interfaces.HandlerBuilderI = handlerBuilder{proxyFunc: justProxy, requester: defaultRequester}
 
-func getS3Action(r *http.Request) (api.S3Operation) {
+func getS3Action(r *http.Request) api.S3Operation {
 	action, actionOk := requestctx.GetOperation(r).(api.S3Operation)
-	if !actionOk{
+	if !actionOk {
 		slog.WarnContext(r.Context(), "Could not get operation for authorization")
 		action = api.UnknownOperation
 	}
 	return action
 }
 
-func (hb handlerBuilder) Build(backendManager interfaces.BackendManager, corsHandler interfaces.CORSHandler) (http.HandlerFunc) {
+func (hb handlerBuilder) Build(backendManager interfaces.BackendManager, corsHandler interfaces.CORSHandler) http.HandlerFunc {
 	if backendManager == nil {
 		panic("This is a programming mistake and server should not even start.")
 	}
@@ -61,8 +61,7 @@ func defaultRequester(r *http.Request) (*http.Response, error) {
 	return client.Do(r)
 }
 
-
-func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request, targetBackendId string,  backendManager interfaces.BackendManager,
+func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request, targetBackendId string, backendManager interfaces.BackendManager,
 	requester requesterFunc, corsHandler interfaces.CORSHandler) {
 	err := reTargetRequest(ctx, r, targetBackendId, backendManager)
 	if err == errInvalidBackendErr {
@@ -82,22 +81,22 @@ func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request, targ
 	}
 	payloadHash := r.Header.Get(constants.AmzContentSHAKey)
 	if payloadHash == "STREAMING-UNSIGNED-PAYLOAD-TRAILER" {
-		if !backendManager.HasCapability(targetBackendId, interfaces.S3CapabilityStreamingUnsignedPayloadTrailer){
+		if !backendManager.HasCapability(targetBackendId, interfaces.S3CapabilityStreamingUnsignedPayloadTrailer) {
 			slog.InfoContext(
 				r.Context(),
 				"STREAMING-UNSIGNED-PAYLOAD-TRAILER for unsupported backend",
 				"backendId", targetBackendId,
 			)
 			writeS3ErrorResponse(
-				ctx, 
-				w, 
-				ErrS3InternalError, 
+				ctx,
+				w,
+				ErrS3InternalError,
 				usererror.New(
-					errors.New("unsupported encryption to be implemented so giving internal error to user"), 
+					errors.New("unsupported encryption to be implemented so giving internal error to user"),
 					`We do not support STREAMING-UNSIGNED-PAYLOAD-TRAILER yet.
 					For details or to upvote see https://github.com/VITObelgium/fakes3pp/issues/27
 					`),
-				)
+			)
 			return
 		}
 	}
@@ -137,7 +136,7 @@ func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request, targ
 	if resp.StatusCode != http.StatusForbidden {
 		corsHandler.SetHeaders(w, requestctx.GetAccessLogStringInfo(r, "s3", L_BUCKET), targetBackendId, backendManager)
 	}
-	
+
 	slog.DebugContext(ctx, "Response status", "status", resp.StatusCode)
 	for hk, hvs := range resp.Header {
 		for _, hv := range hvs {
@@ -158,7 +157,7 @@ func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request, targ
 // Adapt Host to the new target
 // We also have to clear RequestURI and set URL appropriately as explained in
 // https://stackoverflow.com/questions/19595860/http-request-requesturi-field-when-making-request-in-go
-func reTargetRequest(ctx context.Context, r *http.Request, backendId string, backendResolver interfaces.BackendLocator) (error) {
+func reTargetRequest(ctx context.Context, r *http.Request, backendId string, backendResolver interfaces.BackendLocator) error {
 	// Old signature
 	r.Header.Del("Authorization")
 	// Old session token
@@ -174,12 +173,12 @@ func reTargetRequest(ctx context.Context, r *http.Request, backendId string, bac
 	slog.DebugContext(ctx, "Stored orig RawQuery", "raw_query", origRawQuery)
 
 	u, err := url.Parse(fmt.Sprintf("%s%s", endpoint.GetBaseURI(), r.RequestURI))
-    if err != nil {
-        return err
-    }
+	if err != nil {
+		return err
+	}
 	r.RequestURI = ""
 	r.RemoteAddr = ""
-    r.URL = u
+	r.URL = u
 
 	r.URL.RawQuery = origRawQuery
 	slog.DebugContext(ctx, "RawQuery that is put in place", "raw_query", r.URL.RawQuery)

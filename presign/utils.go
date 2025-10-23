@@ -5,7 +5,6 @@ import (
 	"time"
 )
 
-
 func epochStrToTime(in string) (time.Time, error) {
 	expiresInt, err := strconv.Atoi(in)
 	if err != nil {

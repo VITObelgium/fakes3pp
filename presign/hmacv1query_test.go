@@ -10,25 +10,25 @@ import (
 
 //START OF GENERATED CONTENT (see query_string_test.py)
 
-var testUrl = "https://s3.test.com/my-bucket/path/to/my_file" 
+var testUrl = "https://s3.test.com/my-bucket/path/to/my_file"
 var testAccessKeyId = "0123455678910abcdef09459"
 var testSecretAccessKey = "YWUzOTQyM2FlMDMzNDlkNjk0M2FmZDE1OWE1ZGRkMT"
 var testSessionToken = "FQoGZXIvYXdzEBYaDkiOiJ7XG5cdFwiVmVyc2lvblwiOiBcIjIwMTItMTAtMTdcIixcblx0XCJT"
 var testExpires = "1727389975"
 var testExpectedPresignedUrlTemp = "https://s3.test.com/my-bucket/path/to/my_file?AWSAccessKeyId=0123455678910abcdef09459&Signature=UAK8QHRI55lzlVoLFM6Fj7T98a8%3D&x-amz-security-token=FQoGZXIvYXdzEBYaDkiOiJ7XG5cdFwiVmVyc2lvblwiOiBcIjIwMTItMTAtMTdcIixcblx0XCJT&Expires=1727389975"
 var testExpectedPresignedUrlPerm = "https://s3.test.com/my-bucket/path/to/my_file?AWSAccessKeyId=0123455678910abcdef09459&Signature=O%2FybXwQdy0cISlo6ly4Lit6s%2BlE%3D&Expires=1727389975"
+
 //END OF GENERATED CONTENT
 
 var testCredsPerm = aws.Credentials{
-	AccessKeyID: testAccessKeyId,
+	AccessKeyID:     testAccessKeyId,
 	SecretAccessKey: testSecretAccessKey,
 }
 var testCredsTemp = aws.Credentials{
-	AccessKeyID: testAccessKeyId,
+	AccessKeyID:     testAccessKeyId,
 	SecretAccessKey: testSecretAccessKey,
-	SessionToken: testSessionToken,
+	SessionToken:    testSessionToken,
 }
-
 
 func TestIfNoExpiresInUrlAndNoExpiryThenWeMustFail(t *testing.T) {
 	req, err := http.NewRequest(http.MethodGet, "http://s3.test/bucket/key", nil)
@@ -54,7 +54,7 @@ func TestIfExpiresInUrlAndExpiryThenWeMustFail(t *testing.T) {
 	}
 }
 
-var testCasesValidUrls = []struct{
+var testCasesValidUrls = []struct {
 	Description string
 	Creds       aws.Credentials
 	ExpectedUrl string
@@ -89,7 +89,7 @@ func TestGenerateS3PresignedGetObjectWithTemporaryCreds(t *testing.T) {
 	}
 }
 
-func TestValidateS3GetPresignedUrlsForValidUrls(t *testing.T){
+func TestValidateS3GetPresignedUrlsForValidUrls(t *testing.T) {
 	var testExpectedExpiresTime, err = epochStrToTime(testExpires)
 	if err != nil {
 		t.Errorf("Could not calculated expected expires time")

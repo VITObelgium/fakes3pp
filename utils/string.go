@@ -6,7 +6,6 @@ import (
 	"unicode/utf8"
 )
 
-
 func CapitalizeFirstLetter(s string) string {
 	if len(s) == 0 {
 		return s
@@ -19,8 +18,8 @@ func CapitalizeFirstLetter(s string) string {
 			sBytes[size:],
 		}
 		return string(
-				bytes.Join(byteSlices, []byte("")),
-			)
+			bytes.Join(byteSlices, []byte("")),
+		)
 	} else {
 		return s
 	}

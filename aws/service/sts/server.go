@@ -22,8 +22,7 @@ import (
 	"github.com/minio/mux"
 )
 
-
-type STSServer struct{
+type STSServer struct {
 	server.BasicServer
 
 	//The Key material that is used for signing JWT tokens.
@@ -97,11 +96,11 @@ func newSTSServer(
 		return nil, errors.New("must pass at least 1 FQDN")
 	}
 	s = &STSServer{
-		BasicServer: *server.NewBasicServer(serverPort, fqdns[0], tlsCertFilePath, tlsKeyFilePath, nil),
-		jwtKeyMaterial: key,
-		fqdns: fqdns,
-		oidcVerifier: oidcVerifier,
-		pm: pm,
+		BasicServer:        *server.NewBasicServer(serverPort, fqdns[0], tlsCertFilePath, tlsKeyFilePath, nil),
+		jwtKeyMaterial:     key,
+		fqdns:              fqdns,
+		oidcVerifier:       oidcVerifier,
+		pm:                 pm,
 		maxAllowedDuration: time.Duration(maxDurationSeconds) * time.Second,
 		minAllowedDuration: time.Duration(minDurationSeconds) * time.Second,
 	}
@@ -126,9 +125,9 @@ func justLog(w http.ResponseWriter, r *http.Request) {
 	slog.InfoContext(r.Context(), "Unknown/Unsupported type of operation")
 }
 
-//Generic processing of POST. For an API request that handle a POST
-//The parameters can be as form data which hinders from routing more
-//fine-grained
+// Generic processing of POST. For an API request that handle a POST
+// The parameters can be as form data which hinders from routing more
+// fine-grained
 func (s *STSServer) processSTSPost(w http.ResponseWriter, r *http.Request) {
 	//At the final end discard what is being sent.
 	//If not some clients might not check the response that is being sent and hang untill timeout
@@ -171,11 +170,11 @@ type stsClaims map[string]interface{}
 // An assumeRoleWithWebIdentity is an API call that happens anonymously but where a token is send as part of the API
 // Call. That token will be exchanged for credentials.
 // Request parameters that we support:
-// - DurationSeconds 
+// - DurationSeconds
 // - RoleArn
 // - RoleSessionName
-// - WebIdentityToken following the structure 
-func (s *STSServer)assumeRoleWithWebIdentity(ctx context.Context, w http.ResponseWriter, r *http.Request) {
+// - WebIdentityToken following the structure
+func (s *STSServer) assumeRoleWithWebIdentity(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	requestctx.SetOperation(r, api.AssumeRoleWithWebIdentity)
 	claims := stsClaims{}
 	defer slog.InfoContext(ctx, "Auditlog", "claims", claims)
@@ -207,7 +206,6 @@ func (s *STSServer)assumeRoleWithWebIdentity(ctx context.Context, w http.Respons
 	subFromToken := fmt.Sprintf("%s:%s", issuer, subject)
 	subFromTokenSha1 := utils.Sha1sum(subFromToken)
 	slog.InfoContext(ctx, "User hash calculated", "subject", subFromToken, "hash", subFromTokenSha1)
-
 
 	expiry, err := claimsMap.GetExpirationTime()
 	if err != nil {
@@ -242,7 +240,7 @@ func (s *STSServer)assumeRoleWithWebIdentity(ctx context.Context, w http.Respons
 		writeSTSErrorResponse(ctx, w, ErrSTSInvalidParameterValue, fmt.Errorf("invalid value for %s: %s", stsRoleArn, roleArn))
 		return
 	}
-	
+
 	newToken := s.newProxyIssuedToken(subject, issuer, roleArn, *duration, claimsMap.Tags)
 
 	cred, err := credentials.NewAWSCredentials(newToken, *duration, s.jwtKeyMaterial)
@@ -251,7 +249,6 @@ func (s *STSServer)assumeRoleWithWebIdentity(ctx context.Context, w http.Respons
 		writeSTSErrorResponse(ctx, w, ErrSTSInternalError, err)
 		return
 	}
-
 
 	var encodedSuccessResponse []byte
 
@@ -267,7 +264,7 @@ func (s *STSServer)assumeRoleWithWebIdentity(ctx context.Context, w http.Respons
 	service.WriteSuccessResponseXML(ctx, w, encodedSuccessResponse)
 }
 
-func (s *STSServer)newProxyIssuedToken(subject, issuer, roleARN string, expiry time.Duration, tags session.AWSSessionTags) (token *jwt.Token) {
+func (s *STSServer) newProxyIssuedToken(subject, issuer, roleARN string, expiry time.Duration, tags session.AWSSessionTags) (token *jwt.Token) {
 	return credentials.CreateRS256PolicyToken(s.GetIssuer(), issuer, subject, roleARN, expiry, tags)
 }
 

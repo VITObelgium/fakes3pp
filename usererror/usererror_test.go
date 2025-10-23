@@ -9,8 +9,7 @@ import (
 	"github.com/VITObelgium/fakes3pp/usererror"
 )
 
-
-func TestUserErrorGiveCorrectString(t *testing.T){
+func TestUserErrorGiveCorrectString(t *testing.T) {
 	//Given internal and userfacing error details
 	secretDetails := "Very hush hush info"
 	internalErr := errors.New(secretDetails)
@@ -18,7 +17,7 @@ func TestUserErrorGiveCorrectString(t *testing.T){
 
 	//When we create a user error out of it
 	ue := usererror.New(internalErr, publicDetails)
-	
+
 	//Then it should be user facing
 	if !usererror.IsUserFacing(ue) {
 		t.Error("Error was not user facing")
@@ -29,7 +28,7 @@ func TestUserErrorGiveCorrectString(t *testing.T){
 	}
 }
 
-func TestWrappedUserErrorGiveCorrectString(t *testing.T){
+func TestWrappedUserErrorGiveCorrectString(t *testing.T) {
 	//Given internal and userfacing error details in a user error
 	secretDetails := "Very hush hush info"
 	internalErr := errors.New(secretDetails)
@@ -46,7 +45,7 @@ func TestWrappedUserErrorGiveCorrectString(t *testing.T){
 
 	//When we use the Get method
 	gottenError := usererror.Get(wrappedErr)
-	
+
 	//Then the retrieved error is user facing
 	if !usererror.IsUserFacing(gottenError) {
 		t.Error("Error was not user facing")
@@ -119,10 +118,10 @@ func TestGetUserErrorIsSafeOnAllError(t *testing.T) {
 
 func TestGetUserErrorIsSafeOnNil(t *testing.T) {
 	//Given an error that is actuall nil
-	var err = func() (error) {
+	var err = func() error {
 		return nil
 	}()
-	
+
 	//WHEN getting userfacing error from that
 	ue := usererror.Get(err)
 

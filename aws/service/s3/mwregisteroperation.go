@@ -11,14 +11,13 @@ import (
 	"github.com/minio/mux"
 )
 
-func registerOperation(operation fmt.Stringer) func(w http.ResponseWriter, r *http.Request){
+func registerOperation(operation fmt.Stringer) func(w http.ResponseWriter, r *http.Request) {
 	return func(w http.ResponseWriter, r *http.Request) {
 		requestctx.SetOperation(r, operation)
 	}
 }
 
-//Register an operation into the requestctx such that it can be retrieved by the context
-//
+// Register an operation into the requestctx such that it can be retrieved by the context
 func RegisterOperation() middleware.Middleware {
 	router := mux.NewRouter().SkipClean(true).UseEncodedPath()
 	s3Router := router.NewRoute().PathPrefix(server.SlashSeparator).Subrouter()
@@ -45,11 +44,10 @@ func RegisterOperation() middleware.Middleware {
 	s3Router.Methods(http.MethodDelete).Queries("uploadId", "{id:.*}").HandlerFunc(
 		registerOperation(api.AbortMultipartUpload))
 
-	
-    return func(next http.HandlerFunc) http.HandlerFunc {
-        return func(w http.ResponseWriter, r *http.Request) {
+	return func(next http.HandlerFunc) http.HandlerFunc {
+		return func(w http.ResponseWriter, r *http.Request) {
 			router.ServeHTTP(w, r)
 			next.ServeHTTP(w, r)
-        }
-    }
+		}
+	}
 }

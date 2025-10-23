@@ -63,4 +63,3 @@ const (
 	// Means response type is XML.
 	MimeXML MimeType = "application/xml"
 )
-

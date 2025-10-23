@@ -19,10 +19,9 @@ import (
 const PathSeparator = "/"
 const policySuffix = ".json.tmpl"
 
-
-type LocalPolicyRetriever struct{
+type LocalPolicyRetriever struct {
 	rolePolicyPath string
-	
+
 	//To communicate cache invalidation.
 	pm *PolicyManager
 
@@ -35,12 +34,11 @@ func NewPolicyManagerForLocalPolicies(policyPath string) (*PolicyManager, error)
 		NewLocalPolicyRetriever(policyPath),
 	)
 	err := pm.PreWarm()
-	if err != nil{
+	if err != nil {
 		return nil, err
 	}
 	return pm, err
 }
-
 
 var localPolicyRetrievers map[string]*LocalPolicyRetriever = map[string]*LocalPolicyRetriever{}
 
@@ -82,9 +80,9 @@ func NewLocalPolicyRetriever(stsRolePolicyPath string) *LocalPolicyRetriever {
 	}
 
 	watcher := createFileWatcherAndStartWatching(fileUpdated, fileDeleted)
-	lp =  &LocalPolicyRetriever{
+	lp = &LocalPolicyRetriever{
 		rolePolicyPath: stsRolePolicyPath,
-		watcher: watcher,
+		watcher:        watcher,
 	}
 
 	localPolicyRetrievers[stsRolePolicyPath] = lp
@@ -92,11 +90,11 @@ func NewLocalPolicyRetriever(stsRolePolicyPath string) *LocalPolicyRetriever {
 	return lp
 }
 
-func (r *LocalPolicyRetriever) getPolicyPathPrefix() (string) {
+func (r *LocalPolicyRetriever) getPolicyPathPrefix() string {
 	return fmt.Sprintf("%s%s", r.rolePolicyPath, PathSeparator)
 }
 
-func (r *LocalPolicyRetriever) getPolicyPath(arn string) (string) {
+func (r *LocalPolicyRetriever) getPolicyPath(arn string) string {
 	safeRoleArn := utils.B32(arn)
 	return fmt.Sprintf("%s%s%s", r.getPolicyPathPrefix(), safeRoleArn, policySuffix)
 }
@@ -105,11 +103,11 @@ func (r *LocalPolicyRetriever) getPolicyArn(filePath string) (string, error) {
 	prefix := r.getPolicyPathPrefix()
 	suffix := policySuffix
 
-	if len(suffix) > len(filePath) || len(prefix) > len(filePath) - len(suffix) {
+	if len(suffix) > len(filePath) || len(prefix) > len(filePath)-len(suffix) {
 		slog.Warn("Invalid file path for policy", "filepath", filePath)
 	}
 
-	safePolicyName := filePath[len(prefix):len(filePath) - len(suffix)]
+	safePolicyName := filePath[len(prefix) : len(filePath)-len(suffix)]
 	policyArn, err := utils.B32Decode(safePolicyName)
 	if err != nil {
 		return "", err
@@ -120,18 +118,18 @@ func (r *LocalPolicyRetriever) getPolicyArn(filePath string) (string, error) {
 func (r LocalPolicyRetriever) retrieveAllIdentifiers() ([]string, error) {
 	prefix := r.getPolicyPathPrefix()
 	suffix := policySuffix
-	matches, err := filepath.Glob(fmt.Sprintf("%s*%s", prefix , suffix))
+	matches, err := filepath.Glob(fmt.Sprintf("%s*%s", prefix, suffix))
 	if err != nil {
 		return nil, err
 	}
 	cleanedMatches := make([]string, len(matches))
 	for i, match := range matches {
-		safePolicyName := match[len(prefix):len(match) - len(suffix)]
+		safePolicyName := match[len(prefix) : len(match)-len(suffix)]
 		cleanedMatches[i], err = utils.B32Decode(safePolicyName)
 		if err != nil {
 			return nil, err
-		} 
-	}	
+		}
+	}
 	return cleanedMatches, err
 }
 
@@ -167,17 +165,17 @@ type PolicyManager struct {
 	retriever PolicyRetriever
 	templates map[string]*template.Template
 	//Mutex for local template access
-	tMux      *sync.RWMutex
+	tMux *sync.RWMutex
 }
 
-//Check if a policy manager can get a policy corresponding to an ARN
+// Check if a policy manager can get a policy corresponding to an ARN
 func (m *PolicyManager) DoesPolicyExist(arn string) bool {
 
 	_, err := m.getPolicyTemplate(arn)
 	return err == nil
 }
 
-//Check if a policy manager can get a policy corresponding to an ARN
+// Check if a policy manager can get a policy corresponding to an ARN
 func (m *PolicyManager) PreWarm() error {
 	ids, err := m.retriever.retrieveAllIdentifiers()
 	if err != nil {
@@ -185,14 +183,14 @@ func (m *PolicyManager) PreWarm() error {
 	}
 	for _, policyId := range ids {
 		_, err := m.getPolicyTemplate(policyId)
-		if err != nil{
+		if err != nil {
 			return err
 		}
 	}
-	return nil	
+	return nil
 }
 
-//Get template from local cache and nil if it does not exist
+// Get template from local cache and nil if it does not exist
 func (m *PolicyManager) getPolicyTemplateFromCache(arn string) (tmpl *template.Template) {
 	m.tMux.RLock()
 	defer m.tMux.RUnlock()
@@ -228,21 +226,19 @@ func (m *PolicyManager) getPolicyTemplate(arn string) (tmpl *template.Template, 
 	} else {
 		return nil, err
 	}
-	return 
+	return
 }
-
 
 type PolicySessionClaims struct {
 	Subject string
-	Issuer string
+	Issuer  string
 }
 
-
-//This is the structure that will be made available during templating and
-//thus is available to be used in policies.
+// This is the structure that will be made available during templating and
+// thus is available to be used in policies.
 type PolicySessionData struct {
-	Claims PolicySessionClaims
-	Tags session.AWSSessionTags
+	Claims          PolicySessionClaims
+	Tags            session.AWSSessionTags
 	RequestedRegion string
 }
 
@@ -254,12 +250,11 @@ func GetPolicySessionDataFromClaims(claims *credentials.SessionClaims) *PolicySe
 	return &PolicySessionData{
 		Claims: PolicySessionClaims{
 			Subject: claims.Subject,
-			Issuer: issuer,
+			Issuer:  issuer,
 		},
 		Tags: claims.Tags,
 	}
 }
-
 
 func (m *PolicyManager) GetPolicy(arn string, data *PolicySessionData) (string, error) {
 	tmpl, err := m.getPolicyTemplate(arn)
@@ -285,74 +280,73 @@ func (m *PolicyManager) deletePolicyCacheEntry(arn string) {
 	}
 }
 
-func NewPolicyManager(r PolicyRetriever) *PolicyManager{
+func NewPolicyManager(r PolicyRetriever) *PolicyManager {
 	pm := &PolicyManager{
 		retriever: r,
 		templates: map[string]*template.Template{},
-		tMux: &sync.RWMutex{},
+		tMux:      &sync.RWMutex{},
 	}
 	r.registerPolicyManager(pm)
 	return pm
 }
 
-//A callback function that takes a filepath to action a change to a file.
-type fileCallback func(string) ()
+// A callback function that takes a filepath to action a change to a file.
+type fileCallback func(string)
 
-
-//Start a watcher to keep an eye on files
+// Start a watcher to keep an eye on files
 //
-//This will start watching later on 
-func createFileWatcherAndStartWatching(fileChanged, fileDeleted fileCallback) (*fsnotify.Watcher) {
+// This will start watching later on
+func createFileWatcherAndStartWatching(fileChanged, fileDeleted fileCallback) *fsnotify.Watcher {
 	//See https://github.com/fsnotify/fsnotify
 	watcher, err := fsnotify.NewWatcher()
-    if err != nil {
-        slog.Error("Could not create new watcher", "error", err)
-    }
+	if err != nil {
+		slog.Error("Could not create new watcher", "error", err)
+	}
 
-    // Start listening for events.
-    go func() {
-        for {
-            select {
-            case event, ok := <-watcher.Events:
-                if !ok {
-                    return
-                }
+	// Start listening for events.
+	go func() {
+		for {
+			select {
+			case event, ok := <-watcher.Events:
+				if !ok {
+					return
+				}
 				slog.Debug("Config watcher event", "event", event)
-                if event.Has(fsnotify.Write) {
-                    slog.Debug("Write notification", "event", event)
+				if event.Has(fsnotify.Write) {
+					slog.Debug("Write notification", "event", event)
 					fileChanged(event.Name)
-                }
+				}
 				if event.Has(fsnotify.Remove) {
 					slog.Debug("Deletion notification", "event", event)
 					fileDeleted(event.Name)
 					// See https://ahmet.im/blog/kubernetes-inotify/
 					restartWatching(watcher, event.Name)
 				}
-            case err, ok := <-watcher.Errors:
-                if !ok {
-                    return
-                }
-                slog.Warn("error with file watcher", "error", err)
-            }
-        }
-    }()
+			case err, ok := <-watcher.Errors:
+				if !ok {
+					return
+				}
+				slog.Warn("error with file watcher", "error", err)
+			}
+		}
+	}()
 	return watcher
 }
 
 func startWatching(watcher *fsnotify.Watcher, fileName string) {
-    err := watcher.Add(fileName)
-    if err != nil {
-        slog.Error("Could not add watcher", "filename", fileName, "error", err)
-    } else {
+	err := watcher.Add(fileName)
+	if err != nil {
+		slog.Error("Could not add watcher", "filename", fileName, "error", err)
+	} else {
 		slog.Debug("Started watching file", "filename", fileName)
 	}
 }
 
 func restartWatching(watcher *fsnotify.Watcher, fileName string) {
 	err := watcher.Remove(fileName)
-    if err != nil {
-        slog.Debug("Wanted to stop watching file but watcher was gone", "filename", fileName)
-    } else {
+	if err != nil {
+		slog.Debug("Wanted to stop watching file but watcher was gone", "filename", fileName)
+	} else {
 		slog.Debug("Stopped watching file", "filename", fileName)
 	}
 	if _, err := os.Stat(fileName); errors.Is(err, os.ErrNotExist) {
@@ -362,16 +356,16 @@ func restartWatching(watcher *fsnotify.Watcher, fileName string) {
 	}
 }
 
-//Because other packages will have to create test coverage for IAM scenarios
-type TestPolicyRetriever struct{
+// Because other packages will have to create test coverage for IAM scenarios
+type TestPolicyRetriever struct {
 	testPolicies map[string]string
 }
 
-func NewTestPolicyManager(policies map[string]string) (*PolicyManager) {
+func NewTestPolicyManager(policies map[string]string) *PolicyManager {
 	return NewPolicyManager(
 		TestPolicyRetriever{
 			testPolicies: policies,
-			},
+		},
 	)
 }
 
@@ -380,7 +374,7 @@ func (r TestPolicyRetriever) retrievePolicyStr(arn string) (string, error) {
 	if !ok {
 		return "", fmt.Errorf("no test policy named %s", arn)
 	}
-	return policy, nil 
+	return policy, nil
 }
 
 func (r TestPolicyRetriever) registerPolicyManager(pm *PolicyManager) {

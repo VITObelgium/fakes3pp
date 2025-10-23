@@ -16,7 +16,7 @@ func CreateTempTestCopy(t testing.TB, filepath string) (filepathCopy string) {
 		t.FailNow()
 	}
 	defer utils.Close(f, fmt.Sprintf("CreateTempTestCopy srcFile %s", filepath), nil)
-	
+
 	copyFile, err := os.CreateTemp(t.TempDir(), "*")
 	if err != nil {
 		t.Error("Could not open temp file to create copy", "error", err)

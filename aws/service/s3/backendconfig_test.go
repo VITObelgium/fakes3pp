@@ -10,23 +10,22 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 )
 
-
 var testDefaultBackendRegion = "waw3-1"
 var testSecondBackendRegion = "eu-nl"
 var testDefaultBackendCredentials = aws.Credentials{
-	AccessKeyID: "fake_key_id",
+	AccessKeyID:     "fake_key_id",
 	SecretAccessKey: "fake_secret",
 }
 var testSecondaryBackendCredentials = aws.Credentials{
-	AccessKeyID: "fake_key_id_otc",
+	AccessKeyID:     "fake_key_id_otc",
 	SecretAccessKey: "fake_secret_otc",
-	SessionToken: "fakeSessionTokOtc1",
-	CanExpire: true,
+	SessionToken:    "fakeSessionTokOtc1",
+	CanExpire:       true,
 }
 var relativeEtcPathForS3Package = "../../../etc"
 
 func TestLoadingOfExampleConfig(t *testing.T) {
-	cfg , err := getBackendsConfig(path.Join(relativeEtcPathForS3Package, "backend-config.yaml"), true)
+	cfg, err := getBackendsConfig(path.Join(relativeEtcPathForS3Package, "backend-config.yaml"), true)
 	if err != nil {
 		t.Error("Could not load S3 backend config")
 		t.FailNow()
@@ -83,7 +82,7 @@ default:  waw3-1
 	relativepath := relativeEtcPathForS3Package
 
 	//WHEN we load the config file
-	cfg , err := getBackendsConfigFromBytes([]byte(backendConfigYaml), true, relativepath)
+	cfg, err := getBackendsConfigFromBytes([]byte(backendConfigYaml), true, relativepath)
 	//THEN it loads correctly and we can get the different config values
 	if err != nil {
 		t.Errorf("Could not load S3 backend config: %s", err)

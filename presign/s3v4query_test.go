@@ -19,7 +19,7 @@ import (
 // # For eu-central-1 (euc1)
 // aws s3 presign "s3://my-bucket/path/to/my_file" --expires-in 7200  --endpoint-url "https://s3.test.com" --region eu-central-1
 
-//Gave following output
+// Gave following output
 var testAwsCliPresignedUrlEuw1 = "https://s3.test.com/my-bucket/path/to/my_file?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Credential=0123455678910abcdef09459%2F20241009%2Feu-west-1%2Fs3%2Faws4_request&X-Amz-Date=20241009T082516Z&X-Amz-Expires=7200&X-Amz-SignedHeaders=host&X-Amz-Security-Token=FQoGZXIvYXdzEBYaDkiOiJ7XG5cdFwiVmVyc2lvblwiOiBcIjIwMTItMTAtMTdcIixcblx0XCJT&X-Amz-Signature=1b93b39ab2886ac528aa17afe626e6c864ee27c705ece48079c01205ffad518a"
 var testSigningDateEuw1 = "20241009T082516Z"
 var testExpirySeconds = 7200
@@ -28,9 +28,8 @@ var testSigningDateEuc1 = "20241009T115034Z"
 
 //END OF GENERATED CONTENT
 
-
 func TestAwsCliGeneratedURLMustWork(t *testing.T) {
-	var testCases = []struct{
+	var testCases = []struct {
 		RegionName  string
 		ExpectedUrl string
 		SignDateStr string
@@ -50,8 +49,6 @@ func TestAwsCliGeneratedURLMustWork(t *testing.T) {
 	creds := testCredsTemp
 	ctx := context.Background()
 
-
-
 	for _, tc := range testCases {
 		signDate, err := XAmzDateToTime(tc.SignDateStr)
 		if err != nil {
@@ -67,7 +64,7 @@ func TestAwsCliGeneratedURLMustWork(t *testing.T) {
 			t.Errorf("Could not create request: %s", err)
 			t.FailNow()
 		}
-	
+
 		signedUri, _, err := PreSignRequestWithCreds(ctx, req, testExpirySeconds, signDate, creds, "eu-west-1")
 		if err != nil {
 			t.Errorf("Did not expect error. Got %s", err)

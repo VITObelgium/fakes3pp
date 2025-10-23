@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-//utility function to avoid slowing down all unittest runs
+// utility function to avoid slowing down all unittest runs
 func SkipIfNoSlowUnittests(t testing.TB) {
 	//HASTE AND SPEED IS RARELY GOOD is too Flenglish:-)
 	if os.Getenv("HASTE_MAKES_WASTE") == "" {

@@ -18,13 +18,13 @@ import (
 	"github.com/VITObelgium/fakes3pp/utils"
 )
 
-const L_BUCKET = "Bucket"  // The Bucket used in the request
+const L_BUCKET = "Bucket" // The Bucket used in the request
 
-//Authorization middleware is responsible for the following:
-//Make sure the action is authorized as per request context
+// Authorization middleware is responsible for the following:
+// Make sure the action is authorized as per request context
 func AWSAuthZS3(keyStorage utils.JWTVerifier, backendManager interfaces.BackendManager, policyRetriever iaminterfaces.PolicyRetriever,
 	presignCutoff interfaces.CutoffDecider, vhi interfaces.VirtualHosterIdentifier) middleware.Middleware {
-    return func(next http.HandlerFunc) http.HandlerFunc {
+	return func(next http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			targetRegion, err := requestctx.GetTargetRegion(r)
 			if err != nil {
@@ -42,7 +42,7 @@ func AWSAuthZS3(keyStorage utils.JWTVerifier, backendManager interfaces.BackendM
 				maxExpiryTime = presignCutoff.GetCutoffForPresignedUrl()
 			}
 
-			if authorizeS3Action(r.Context(), sessionToken, targetRegion, getS3Action(r), w, r, maxExpiryTime, keyStorage, policyRetriever, vhi){
+			if authorizeS3Action(r.Context(), sessionToken, targetRegion, getS3Action(r), w, r, maxExpiryTime, keyStorage, policyRetriever, vhi) {
 				next(w, r)
 			}
 		}
@@ -51,7 +51,7 @@ func AWSAuthZS3(keyStorage utils.JWTVerifier, backendManager interfaces.BackendM
 
 // Authorize an S3 action
 // maxExpiryTime is an upperbound for the expiry of the session token
-func authorizeS3Action(ctx context.Context, sessionToken, targetRegion string, action api.S3Operation, w http.ResponseWriter, r *http.Request, 
+func authorizeS3Action(ctx context.Context, sessionToken, targetRegion string, action api.S3Operation, w http.ResponseWriter, r *http.Request,
 	maxExpiryTime time.Time, jwtVerifier utils.JWTVerifier, policyRetriever iaminterfaces.PolicyRetriever, vhi interfaces.VirtualHosterIdentifier) (allowed bool) {
 	allowed = false
 	var jwtKeyFunc = jwtVerifier.GetJwtKeyFunc()

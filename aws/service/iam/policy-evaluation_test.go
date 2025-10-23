@@ -9,10 +9,11 @@ import (
 	"github.com/micahhausler/aws-iam-policy/policy"
 )
 
-
 var testBucketName = "bucket1"
+
 const testAllowedPrefix = "okprefix/"
 const testAllowedPrefix2 = "okprefix2/"
+
 var testBucketARN = fmt.Sprintf("arn:aws:s3:::%s", testBucketName)
 
 var allowedWriteARNStart = fmt.Sprintf("%s/%s", testBucketARN, testAllowedPrefix)
@@ -34,7 +35,6 @@ var testPolScen1AllowPutWithinPrefix = fmt.Sprintf(`
 	]
 }
 `, actionnames.IAMActionS3PutObject, allowedWriteARN)
-
 
 var testPolScen2AllowListingBucketWithinPrefix = fmt.Sprintf(`
 {
@@ -192,7 +192,7 @@ var testSessionDataQaDeparment = &PolicySessionData{
 
 func TestPolicyEvaluations(t *testing.T) {
 	policyTests := []struct {
-        Description     string 
+		Description     string
 		PolicyString    string
 		Action          IAMAction
 		ShouldBeAllowed bool
@@ -202,7 +202,7 @@ func TestPolicyEvaluations(t *testing.T) {
 			"A PutObject in an allowed prefix should be allowed",
 			testPolScen1AllowPutWithinPrefix,
 			IAMAction{
-				Action: actionnames.IAMActionS3PutObject,
+				Action:   actionnames.IAMActionS3PutObject,
 				Resource: fmt.Sprintf("%s/my_object", allowedWriteARNStart),
 			},
 			true,
@@ -212,7 +212,7 @@ func TestPolicyEvaluations(t *testing.T) {
 			"A PutObject in an not allowed prefix shouldn't be allowed",
 			testPolScen1AllowPutWithinPrefix,
 			IAMAction{
-				Action: actionnames.IAMActionS3PutObject,
+				Action:   actionnames.IAMActionS3PutObject,
 				Resource: fmt.Sprintf("%s/my_object", notAllowedARNStart),
 			},
 			false,
@@ -222,7 +222,7 @@ func TestPolicyEvaluations(t *testing.T) {
 			"A GetObject is not allowed as we only allow puts in our policy",
 			testPolScen1AllowPutWithinPrefix,
 			IAMAction{
-				Action: actionnames.IAMActionS3GetObject,
+				Action:   actionnames.IAMActionS3GetObject,
 				Resource: fmt.Sprintf("%s/my_object", allowedWriteARNStart),
 			},
 			false,
@@ -232,7 +232,7 @@ func TestPolicyEvaluations(t *testing.T) {
 			"A listBucket is allowed if it is under the conditioned prefix",
 			testPolScen2AllowListingBucketWithinPrefix,
 			IAMAction{
-				Action: actionnames.IAMActionS3ListBucket,
+				Action:   actionnames.IAMActionS3ListBucket,
 				Resource: testBucketARN,
 				Context: map[string]*policy.ConditionValue{
 					actionnames.IAMConditionS3Prefix: policy.NewConditionValueString(true, fmt.Sprintf("%ssubprefix/", testAllowedPrefix)),
@@ -245,7 +245,7 @@ func TestPolicyEvaluations(t *testing.T) {
 			"A listBucket is not allowed if it is without prefix but policy does specify a conditioned prefix",
 			testPolScen2AllowListingBucketWithinPrefix,
 			IAMAction{
-				Action: actionnames.IAMActionS3ListBucket,
+				Action:   actionnames.IAMActionS3ListBucket,
 				Resource: testBucketARN,
 				Context: map[string]*policy.ConditionValue{
 					actionnames.IAMConditionS3Prefix: policy.NewConditionValueString(true, ""),
@@ -258,7 +258,7 @@ func TestPolicyEvaluations(t *testing.T) {
 			"A listBucket is allowed if it is under the conditioned prefix with multiple prefixes (prefix1)",
 			testPolScen2AllowListingBucketWithinPrefixes,
 			IAMAction{
-				Action: actionnames.IAMActionS3ListBucket,
+				Action:   actionnames.IAMActionS3ListBucket,
 				Resource: testBucketARN,
 				Context: map[string]*policy.ConditionValue{
 					actionnames.IAMConditionS3Prefix: policy.NewConditionValueString(true, fmt.Sprintf("%ssubprefix/", testAllowedPrefix)),
@@ -271,7 +271,7 @@ func TestPolicyEvaluations(t *testing.T) {
 			"A listBucket is allowed if it is under the conditioned prefix with multiple prefixes (prefix2)",
 			testPolScen2AllowListingBucketWithinPrefixes,
 			IAMAction{
-				Action: actionnames.IAMActionS3ListBucket,
+				Action:   actionnames.IAMActionS3ListBucket,
 				Resource: testBucketARN,
 				Context: map[string]*policy.ConditionValue{
 					actionnames.IAMConditionS3Prefix: policy.NewConditionValueString(true, fmt.Sprintf("%ssubprefix/", testAllowedPrefix2)),
@@ -322,7 +322,7 @@ func TestPolicyEvaluations(t *testing.T) {
 				&PolicySessionData{
 					Claims: PolicySessionClaims{
 						Subject: "master",
-						Issuer: "specificissuer",
+						Issuer:  "specificissuer",
 					},
 				},
 			),
@@ -338,7 +338,7 @@ func TestPolicyEvaluations(t *testing.T) {
 				&PolicySessionData{
 					Claims: PolicySessionClaims{
 						Subject: "dobby",
-						Issuer: "specificissuer",
+						Issuer:  "specificissuer",
 					},
 				},
 			),
@@ -354,7 +354,7 @@ func TestPolicyEvaluations(t *testing.T) {
 				&PolicySessionData{
 					Claims: PolicySessionClaims{
 						Subject: "master",
-						Issuer: "specificissuer",
+						Issuer:  "specificissuer",
 					},
 				},
 			),
@@ -370,7 +370,7 @@ func TestPolicyEvaluations(t *testing.T) {
 				&PolicySessionData{
 					Claims: PolicySessionClaims{
 						Subject: "master",
-						Issuer: "other-issuer",
+						Issuer:  "other-issuer",
 					},
 				},
 			),
@@ -395,5 +395,5 @@ func TestPolicyEvaluations(t *testing.T) {
 			t.Errorf("%s: Expected '%s' got '%s'", policyTest.Description, policyTest.ExpectedReason, reason)
 		}
 	}
-	
+
 }

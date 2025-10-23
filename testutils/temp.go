@@ -24,7 +24,6 @@ func tempFile(t testing.TB, content, filePattern string) (fileName string) {
 	return fileName
 }
 
-
 func TempYamlFile(t testing.TB, content string) (fileName string) {
 	return tempFile(t, content, "*.yaml")
 }
@@ -34,7 +33,7 @@ func StagePoliciesInTempDir(t testing.TB, policies map[string]string) (policyDir
 	for policyArn, policyContent := range policies {
 		fileName := fmt.Sprintf("%s.json.tmpl", utils.B32(policyArn))
 		fullFilename := fmt.Sprintf("%s/%s", policyDir, fileName)
-		func () {
+		func() {
 			f, err := os.Create(fullFilename)
 			if err != nil {
 				t.Error("Could not create temp file", "error", err)

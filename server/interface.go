@@ -16,4 +16,3 @@ type Serverable interface {
 	//Get information to setup TLS
 	GetTls() (enabled bool, certFile string, keyFile string)
 }
-

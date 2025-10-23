@@ -10,15 +10,14 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 )
 
-
 func MakePresignedUrl(r *http.Request) (u PresignedUrl, err error) {
 	if isHmacV1Query(r) {
 		//&& r.URL.Query().Get(constants.AmzSecurityTokenKey) != ""
 		u = presignedUrlHmacv1queryFromRequest(r)
-		return 
+		return
 	} else if isS3V4Query(r) {
 		u = presignedUrlS3V4QueryFromRequest(r)
-		return 
+		return
 	}
 
 	return nil, fmt.Errorf("unsupported presign request; %s", url.FullUrlFromRequest(r))
@@ -39,7 +38,7 @@ func IsPresignedUrlWithValidSignature(ctx context.Context, url string, creds aws
 			return "", err
 		}
 		return creds.SecretAccessKey, nil
-	} 
+	}
 	isValid, _, expires, err := purl.GetPresignedUrlDetails(ctx, secretDeriver)
 	isExpired = time.Now().UTC().After(expires)
 	return

@@ -6,7 +6,7 @@ import (
 	"github.com/VITObelgium/fakes3pp/constants"
 )
 
-//Convert query parameter like X-Amz-Date=20240914T190903Z
+// Convert query parameter like X-Amz-Date=20240914T190903Z
 func XAmzDateToTime(XAmzDate string) (time.Time, error) {
 	return time.Parse(constants.TimeFormat, XAmzDate)
 }

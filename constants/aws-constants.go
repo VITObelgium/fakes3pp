@@ -1,12 +1,12 @@
 package constants
 
-//The AWS SDK does not seem to provide packages that export these constants :(
+// The AWS SDK does not seem to provide packages that export these constants :(
 const (
 	// AmzSecurityTokenKey indicates the security token to be used with temporary credentials
 	AmzSecurityTokenKey = "X-Amz-Security-Token"
 
 	// Source: https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/internal/v4a/internal/v4
-	
+
 	// EmptyStringSHA256 is the hex encoded sha256 value of an empty string
 	EmptyStringSHA256 = `e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855`
 
@@ -46,4 +46,3 @@ const (
 	// TimeFormat is the time format to be used in the X-Amz-Date header or query parameter
 	TimeFormat = "20060102T150405Z"
 )
-

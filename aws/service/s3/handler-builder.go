@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/url"
-	"slices"
 
 	"github.com/VITObelgium/fakes3pp/aws/service/s3/api"
 	"github.com/VITObelgium/fakes3pp/aws/service/s3/interfaces"
@@ -61,41 +60,6 @@ func defaultRequester(r *http.Request) (*http.Response, error) {
 	return client.Do(r)
 }
 
-//Temporary remove headers and return callback to reinstantiate headers
-func temporaryRemoveHeaders(r *http.Request, headersToKeep []string) (reAddHeaders func(*http.Request)()) {
-	headers := map[string]string{}
-
-	for headerName, _ := range r.Header {
-		if slices.Contains(headersToKeep, headerName) {
-			continue
-		}
-		headers[headerName] = r.Header.Get(headerName)
-		r.Header.Del(headerName)
-	}
-
-	reAddHeaders = func (req *http.Request)()  {
-		for headerName, headerVal := range headers {
-			req.Header.Add(headerName, headerVal)
-		}
-	}
-
-	return reAddHeaders
-}
-
-//Headers that are added by our middleware and which should never be filtered.
-var alwaysSignHeaders = []string{
-	"X-Amz-Content-Sha256",
-	"Host",
-}
-
-func temporaryRemoveUntrustedHeaders(r *http.Request) (reAddHeaders func(*http.Request)(), err error) {
-	headersToKeep, err := requestctx.GetSignedHeaders(r)
-	if err != nil {
-		return
-	}
-	headersToKeep = append(headersToKeep, alwaysSignHeaders...)
-	return temporaryRemoveHeaders(r, headersToKeep), nil
-}
 
 func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request, targetBackendId string,  backendManager interfaces.BackendManager,
 	requester requesterFunc, corsHandler interfaces.CORSHandler) {
@@ -138,7 +102,7 @@ func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request, targ
 	}
 	//Browsers or even malicious people can use a presigned url and add headers to the request
 	//during signing we should only sign what was signed in the original signature or what we have added.
-	reinstantiateHeaders, err := temporaryRemoveUntrustedHeaders(r)
+	reinstantiateHeaders, err := presign.TemporaryRemoveUntrustedHeaders(r)
 	if err != nil {
 		slog.ErrorContext(ctx, "Issue removing signed headers", "error", err)
 		writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)

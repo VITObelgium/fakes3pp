@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/VITObelgium/fakes3pp/constants"
 	"github.com/VITObelgium/fakes3pp/requestutils"
+	"github.com/VITObelgium/fakes3pp/usererror"
 	"github.com/aws/aws-sdk-go-v2/aws"
 )
 
@@ -48,14 +48,6 @@ func (u presignedUrlS3V4Query) getSignTime() (time.Time, error) {
 	return XAmzDateToTime(XAmzDate)
 }
 
-func (u presignedUrlS3V4Query) getSignedHeaders() map[string]string {
-	var signedHeaders map[string]string = make(map[string]string)
-	for _, signedHeader := range strings.Split(u.URL.Query().Get(constants.AmzSignedHeadersKey), ";") {
-		signedHeaders[signedHeader] = ""
-	}
-	return signedHeaders
-}
-
 func (u presignedUrlS3V4Query) GetPresignedUrlDetails(ctx context.Context, deriver SecretDeriver) (isValid bool, creds aws.Credentials, expires time.Time, err error) {
 	accessKeyId, err := u.getAccessKeyId()
 	if err != nil {
@@ -85,11 +77,17 @@ func (u presignedUrlS3V4Query) GetPresignedUrlDetails(ctx context.Context, deriv
 
 	expires = signDate.Add(time.Duration(expirySeconds) * time.Second)
 	originalSignature := u.Request.URL.Query().Get(constants.AmzSignatureKey)
-	c := u.Request.Clone(ctx)
+	c := u.Clone(ctx)
 	if c.Header.Get("Host") == "" {
 		c.Header.Add("Host", c.Host)
 	}
-	CleanHeadersTo(ctx, c, u.getSignedHeaders(), CleanerOptions{AlwaysClean: true})
+	_, err = TemporaryRemoveUntrustedHeaders(c)
+	if err != nil {
+		ue := usererror.New(
+			fmt.Errorf("could not temporary remove untrusted headers %v", c.Header), "Invalid authorization header",
+		)
+		return false, creds, expires, ue
+	}
 	defaultRegion := ""  // A Sigv4 always has a region specified as part of the X-amz-credentials parameter so no fallback needed.
 	signedUri, _, err := PreSignRequestWithCreds(ctx, c, expirySeconds, signDate, creds, defaultRegion)
 	if err != nil {
@@ -113,7 +111,7 @@ func getSignatureFromV4QueryUrl(inputUrl string) (sig string, err error) {
     }
 	signature := q.Get(constants.AmzSignatureKey)
 	if signature == "" {
-		return signature, fmt.Errorf("Url got empty signature: %s", inputUrl)
+		return signature, fmt.Errorf("url got empty signature: %s", inputUrl)
 	}
 	return signature, nil
 }

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"reflect"
 	"sync"
+	"time"
 
 	"github.com/VITObelgium/fakes3pp/middleware"
 	"github.com/prometheus/client_golang/prometheus"
@@ -47,7 +48,10 @@ func StartPrometheusMetricsServer(port int) (func(), prometheus.Registerer) {
 
 	metricsSrvDone := &sync.WaitGroup{}
 	metricsSrvDone.Add(1)
-	var metricsSrv = &http.Server{Addr: addr}
+	var metricsSrv = &http.Server{
+		Addr:              addr,
+		ReadHeaderTimeout: 3 * time.Second, //Protect against potential slowloeris attack
+	}
 	metricsSrv.Handler = mux
 
 	go func() {
@@ -81,7 +85,10 @@ func CreateAndStart(s Serverable, opts ServerOpts) (*sync.WaitGroup, *http.Serve
 	listenAddress := fmt.Sprintf(":%d", portNr)
 	slog.Info("Started listening", "port", portNr)
 
-	srv := &http.Server{Addr: listenAddress}
+	srv := &http.Server{
+		Addr:              listenAddress,
+		ReadHeaderTimeout: 3 * time.Second, //Protect against potential slowloeris attack
+	}
 	if shutdownMetricsServerSync != nil {
 		srv.RegisterOnShutdown(shutdownMetricsServerSync)
 	}
@@ -153,7 +160,7 @@ func getProtocol(tlsEnabled bool) string {
 func awaitServerOnPort(port int, tlsEnabled bool) error {
 	attempts := 100
 	if tlsEnabled {
-		http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
+		http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true} // #nosec G402 -- for localhost check
 	}
 	client := &http.Client{}
 	req, _ := http.NewRequest("GET", fmt.Sprintf("%s://localhost:%d/ping", getProtocol(tlsEnabled), port), nil)

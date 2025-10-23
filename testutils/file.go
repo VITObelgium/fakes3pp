@@ -10,7 +10,7 @@ import (
 )
 
 func CreateTempTestCopy(t testing.TB, filepath string) (filepathCopy string) {
-	f, err := os.Open(filepath)
+	f, err := os.Open(filepath) // #nosec G304 -- just for testing
 	if err != nil {
 		t.Error("Could not open file to create copy", "error", err)
 		t.FailNow()

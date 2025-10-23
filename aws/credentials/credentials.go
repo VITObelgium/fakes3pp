@@ -2,7 +2,7 @@ package credentials
 
 import (
 	"context"
-	"crypto/sha1"
+	"crypto/sha1" // #nosec G505
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -84,7 +84,7 @@ func NewAccessKey() string {
 // since that allows calculation everywhere without keeping state to lookup secret key for an access key
 func CalculateSecretKey(accessKey string, keyStorage utils.PrivateKeyKeeper) (string, error) {
 	secretKeyLength := 42
-	hasher := sha1.New()
+	hasher := sha1.New() // #nosec G401 -- Used temporarily and not stored anywhere
 	signingkey, err := keyStorage.GetPrivateKey()
 	if err != nil {
 		return "", err

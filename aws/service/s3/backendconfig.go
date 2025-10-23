@@ -57,7 +57,7 @@ func (entry backendConfigFileEntry) getCredentials(relativepath string) (creds a
 		if !path.IsAbs(filePath) {
 			filePath = path.Join(relativepath, filePath)
 		}
-		buf, err := os.ReadFile(filePath)
+		buf, err := os.ReadFile(filePath) // #nosec G304 -- platform provided files
 		if err != nil {
 			return buildCredentialErrorf("could not read credentials file %s; %s", filePath, err)
 		}
@@ -114,7 +114,7 @@ type backendsConfigFile struct {
 
 // TODO: legacyBehavior
 func getBackendsConfig(filename string, legacyBehavior bool) (*backendsConfig, error) {
-	buf, err := os.ReadFile(filename)
+	buf, err := os.ReadFile(filename) // #nosec G304 -- platform provided files
 	if err != nil {
 		return nil, err
 	}

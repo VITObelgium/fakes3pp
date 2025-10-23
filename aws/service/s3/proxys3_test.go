@@ -390,23 +390,6 @@ func createHeaderAdder(headersToAdd map[string]string) (func (http.Header) ()) {
 //helper to not manipulate headers
 var doNotAddAnyHeader = createHeaderAdder(map[string]string{})
 
-//When having other headers added that might influence the behavior
-func TestWithValidCredsButUntrustedHeaders(t *testing.T) {
-	teardownSuite, s := setupSuiteProxyS3(t, testStubJustProxy, nil, nil, nil, true, nil, nil)
-	defer teardownSuite(t)
-
-	//Given headers are added by a proxy component
-	maliciousHeaderAdder := createHeaderAdder(map [string]string{"allYourBases": "belongToUs"})
-
-	//When doing a valid request where headers are added by an intermediate stop
-	resp := performValidListObjectTestRequest(t, s, doNotAddAnyHeader, maliciousHeaderAdder)
-
-	//Then the result should be a bad request
-	if resp.StatusCode != http.StatusBadRequest {
-		t.Errorf("Should have gotten a bad signature ")
-	}
-}
-
 //AWS SDKs have ", " to separate authorization header parts but other implementations
 //(e.g. GDAL) just use "," which can make it tricky
 func TestWithValidCredsWhereNoSpacesInAuthorizationHeader(t *testing.T) {

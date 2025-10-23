@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"net/textproto"
 	"os"
 	"strings"
 	"time"
@@ -127,14 +126,6 @@ func handleAuthNPresigned(w http.ResponseWriter, r *http.Request, keyStorage uti
 		return false
 	}
 
-	err = cleanHeadersThatAreNotSignedInAuthHeader(r)
-	if err != nil {
-		slog.InfoContext(
-			r.Context(), 
-			"Encountered error when cleaning non-signed headers (likely unimportant for presigned request)", 
-			"error", err,
-		)
-	}
 	r.Header.Add(constants.AmzContentSHAKey, constants.EmptyStringSHA256)
 
 	return true
@@ -191,10 +182,12 @@ func handleAuthNNormal(w http.ResponseWriter, r *http.Request, keyStorage utils.
 	}
 	backupContentLength := r.ContentLength
 	//There is no use of passing the headers that are set by a proxy and which we haven't verified.
-	err = cleanHeadersThatAreNotSignedInAuthHeader(r)
+	passedSignature := r.Header.Get(constants.AuthorizationHeader)
+
+	reAddHeaders, err := presign.TemporaryRemoveUntrustedHeaders(r)
 	if err != nil {
 		ue := usererror.New(
-			fmt.Errorf("could not clean not signed headers %v", r.Header), "Invalid authorization header",
+			fmt.Errorf("could not temporary remove untrusted headers %v", r.Header), "Invalid authorization header",
 		)
 		e.WriteErrorResponse(r.Context(), w, service.ErrAuthorizationHeaderMalformed, ue)
 		return false
@@ -212,7 +205,8 @@ func handleAuthNNormal(w http.ResponseWriter, r *http.Request, keyStorage utils.
 		return false
 	}
 	calculatedSignature := clonedReq.Header.Get(constants.AuthorizationHeader) 
-	passedSignature := r.Header.Get(constants.AuthorizationHeader)
+
+	reAddHeaders(r)
 	//Cleaning could have removed content length
 	r.ContentLength = backupContentLength
 	slog.DebugContext(r.Context(), "ContentLength after manipualation", "ContentLength", r.ContentLength)
@@ -259,56 +253,5 @@ func getCredentialsFromRequest(r *http.Request) (accessKeyId, sessionToken strin
 	return
 }
 
-//cleanHeadersThatAreNotSignedInAuthHeader removes headers which are potentially added along the way
-func cleanHeadersThatAreNotSignedInAuthHeader(req *http.Request) (error) {
-	slog.DebugContext(req.Context(), "Headers before manipualation", "Headers", req.Header)
 
-	signedHeaders, err := getSignedHeadersFromRequest(req)
-	if err != nil {
-		return err
-	}
-	addSignedHeadersToRequestCtx(req, signedHeaders)
 
-	presign.CleanHeadersTo(req.Context(), req, signedHeaders, presign.CleanerOptions{})
-	return nil
-}
-
-func addSignedHeadersToRequestCtx(r *http.Request, signedHeaders map[string]string) {
-	headerlist := make([]string, 0)
-	for headerName, _ := range signedHeaders {
-		headerlist = append(headerlist, textproto.CanonicalMIMEHeaderKey(headerName))
-	}
-	requestctx.SetSignedHeaders(r, headerlist)
-}
-
-const signedHeadersPrefix = "SignedHeaders="
-
-func getSignedHeadersFromRequest(req *http.Request) (signedHeaders map[string]string, err error) {
-	//TODO: ideally this should also take care of signed headers in the presigned url
-	// at the moment host header is the only signed header known to be set so does not
-	// seem critical
-	signedHeaders = map[string]string{}
-	ah := req.Header.Get(constants.AuthorizationHeader)
-	if ah == "" {
-		return signedHeaders, errors.New("no authorization header")
-	}
-	authorizationParts := strings.Split(ah, ",")
-	if len(authorizationParts) != 3 {
-		return signedHeaders, usererror.New(
-			fmt.Errorf("signature not as expected; got: %s", ah),
-			"Authorization header has invalid structure",
-		)
-	}
-	signedHeadersPart := strings.TrimLeft(authorizationParts[1], " ")
-	if !strings.HasPrefix(signedHeadersPart, signedHeadersPrefix) {
-		return signedHeaders, usererror.New(
-			fmt.Errorf("signature did not have expected signed headers prefix; got: %s", ah),
-			"Authorization header has invalid structure",
-		)
-	}
-	signedHeadersPart = signedHeadersPart[len(signedHeadersPrefix):]
-	for _, signedHeader := range strings.Split(signedHeadersPart, ";") {
-		signedHeaders[signedHeader] = ""
-	}
-	return signedHeaders, nil
-}

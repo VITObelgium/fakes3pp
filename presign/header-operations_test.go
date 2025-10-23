@@ -1,7 +1,8 @@
-package middleware
+package presign
 
 import (
 	"net/http"
+	"slices"
 	"testing"
 )
 
@@ -24,15 +25,13 @@ func TestGetSignedHeadersWithSpaces(t *testing.T) {
 	}
 
 	//THEN we should have host as signed header
-	_, ok := signedHeaders["host"]
-	if !ok {
+	if !slices.Contains(signedHeaders, "Host") {
 		t.Errorf("Host header is signed header and should be returned correctly")
 	}
 
 	//Then we should have x-amz-date as signed header
-	_, ok = signedHeaders["x-amz-date"]
-	if !ok {
-		t.Errorf("Host header is signed header and should be returned correctly")
+	if !slices.Contains(signedHeaders,  "X-Amz-Date"){
+		t.Errorf("X-Amz-Date header is signed header and should be returned correctly")
 	}
 }
 
@@ -55,14 +54,12 @@ func TestGetSignedHeadersWithoutSpaces(t *testing.T) {
 
 	//THEN we should not panick
 	//THEN we should have host as signed header
-	_, ok := signedHeaders["host"]
-	if !ok {
+	if !slices.Contains(signedHeaders, "Host")  {
 		t.Errorf("Host header is signed header and should be returned correctly")
 	}
 
 	//Then we should have x-amz-date as signed header
-	_, ok = signedHeaders["x-amz-date"]
-	if !ok {
-		t.Errorf("Host header is signed header and should be returned correctly")
+	if !slices.Contains(signedHeaders,  "X-Amz-Date") {
+		t.Errorf("X-Amz-Date header is signed header and should be returned correctly")
 	}
 }

@@ -1,101 +1,109 @@
 package presign
 
 import (
-	"context"
-	"log/slog"
+	"errors"
+	"fmt"
 	"net/http"
+	"net/textproto"
+	"slices"
 	"strings"
+
+	"github.com/VITObelgium/fakes3pp/constants"
+	"github.com/VITObelgium/fakes3pp/requestctx"
+	"github.com/VITObelgium/fakes3pp/usererror"
 )
 
+//Temporary remove headers and return callback to reinstantiate headers
+func temporaryRemoveHeaders(r *http.Request, headersToKeep []string) (reAddHeaders func(*http.Request)()) {
+	headers := map[string]string{}
 
-var cleanableHeaders = map[string]bool{
-	"accept-encoding": true,
-	"x-forwarded-for": true,
-	"x-forwarded-host": true,
-	"x-forwarded-port": true,
-	"x-forwarded-proto": true,
-	"x-forwarded-server": true,
-	"x-real-ip": true,
-	"amz-sdk-invocation-id": true, //Added by AWS SDKs after signing
-	"amz-sdk-request": true, //Added by AWS SDKs after signing
-	"content-length": true,
-	"sec-fetch-user": true,
-	"priority": true,
-	"te": true,
-	"accept": true,
-	"upgrade-insecure-requests": true,
-	"sec-fetch-dest": true,
-	"sec-fetch-mode": true,
-	"sec-fetch-Site": true,
-	"accept-language": true,
-}
-
-//It is not always clear which headers are OK to skip cleaning. These headers
-//have been skipped without issues.
-//Each entry should be lower case. The value is not used.
-var okToSkipHeadersForCleaning = map[string]bool {
-	"user-agent": true,
-	"authorization": true,
-	"expect": true,
-}
-
-func isCleanable(headerName string) bool {
-	value, ok := cleanableHeaders[strings.ToLower(headerName)]
-	if ok && value {
-		return true
-	}
-	return false
-}
-
-type CleanerOptions struct{
-	//If set we do not check against a list of headers that is safe to clean
-	//We just clean all that are not explicitly set to keep
-	AlwaysClean bool
-}
-
-//
-func CleanHeadersTo(ctx context.Context, req *http.Request, toKeep map[string]string, opts CleanerOptions) {
-	var cleaned = []string{}
-	var skipped = []string{}
-	var signed = []string{}
-	var riskySkips = 0
-
-	allHeadersInRequest := []string{}
-	for hearderName := range req.Header {
-		allHeadersInRequest = append(allHeadersInRequest, hearderName)
-	}
-
-	for _, header := range allHeadersInRequest {
-		headerLC := strings.ToLower(header)
-		_, ok := toKeep[headerLC]
-		if ok {
-			signed = append(signed, header)
+	for headerName := range r.Header {
+		if slices.Contains(headersToKeep, headerName) {
 			continue
 		}
-		if isCleanable(header) || opts.AlwaysClean {
-			//If content-length is to be cleaned it should
-			//also be <=0 otherwise it is taken in the signature
-			//-1 means unknown so let's fall back to that
-			if headerLC == "content-length" {
-				slog.DebugContext(
-					req.Context(),
-					"Cleaning Content-Length",
-					"header", req.Header.Get(header),
-					"reqValue", req.ContentLength,
-				)
-				req.ContentLength = -1
-			}
-			req.Header.Del(header)
-			cleaned = append(cleaned, header)
-		} else {
-			_, ok := okToSkipHeadersForCleaning[headerLC]
-			if !ok {
-				riskySkips += 1
-			}
-			skipped = append(skipped, header)
+		headers[headerName] = r.Header.Get(headerName)
+		r.Header.Del(headerName)
+	}
+
+	reAddHeaders = func (req *http.Request)()  {
+		for headerName, headerVal := range headers {
+			req.Header.Add(headerName, headerVal)
 		}
 	}
-	if riskySkips > 0 {
-		slog.WarnContext(ctx, "Cleaning of headers done but some where skipped.", "cleaned", cleaned, "skipped", skipped, "toKeep", signed)
+
+	return reAddHeaders
+}
+
+//Headers that are added by our middleware and which should never be filtered.
+var alwaysSignHeaders = []string{
+	"X-Amz-Content-Sha256",
+	"Host",
+	"Authorization",  //Not really signed but during signing it gets replaced anyway
+}
+
+func TemporaryRemoveUntrustedHeaders(r *http.Request) (reAddHeaders func(*http.Request)(), err error) {
+	signedHeaders, err := requestctx.GetSignedHeaders(r)
+	if err != nil || len(signedHeaders) == 0 {
+		signedHeaders, err = getSignedHeadersFromRequest(r)
+		if err != nil {
+			return nil, err
+		}
+		addSignedHeadersToRequestCtx(r, signedHeaders) 
 	}
+	signedHeaders = append(signedHeaders, alwaysSignHeaders...)
+	return temporaryRemoveHeaders(r, signedHeaders), nil
+}
+
+const signedHeadersPrefix = "SignedHeaders="
+
+//Inspect a http.Request and return a slice with header names in their canonical form
+//It handles requests with authorization headers as well as query parameters
+func getSignedHeadersFromRequest(req *http.Request) (signedHeaders []string, err error) {
+	signedHeaders = make([]string, 0)
+	ah := req.Header.Get(constants.AuthorizationHeader)
+	if ah == "" {
+		queryVals := req.URL.Query()
+		if queryVals.Has("Expires") && queryVals.Has("Signature") && queryVals.Has("AWSAccessKeyId") {
+			//sigv1
+			signedHeaders = append(signedHeaders, textproto.CanonicalMIMEHeaderKey("host"))
+		} else {
+			signedHeadersString := queryVals.Get("X-Amz-SignedHeaders")
+			switch signedHeadersString {
+			case "host", "Host":
+				signedHeaders = append(signedHeaders, textproto.CanonicalMIMEHeaderKey(signedHeadersString))
+			case "":
+				return signedHeaders, errors.New("no authorization header nor X-Amz-SignedHeaders query value")
+			default:
+				return signedHeaders, usererror.New(
+					fmt.Errorf("unsupported  X-Amz-SignedHeaders value: %s", signedHeadersString),
+					"Unsupported query value this is an error from the s3 proxy",
+				)
+			}
+		}
+		return signedHeaders, nil
+		
+	}
+	authorizationParts := strings.Split(ah, ",")
+	if len(authorizationParts) != 3 {
+		return signedHeaders, usererror.New(
+			fmt.Errorf("signature not as expected; got: %s", ah),
+			"Authorization header has invalid structure",
+		)
+	}
+	signedHeadersPart := strings.TrimLeft(authorizationParts[1], " ")
+	if !strings.HasPrefix(signedHeadersPart, signedHeadersPrefix) {
+		return signedHeaders, usererror.New(
+			fmt.Errorf("signature did not have expected signed headers prefix; got: %s", ah),
+			"Authorization header has invalid structure",
+		)
+	}
+	signedHeadersPart = signedHeadersPart[len(signedHeadersPrefix):]
+	for _, signedHeader := range strings.Split(signedHeadersPart, ";") {
+		signedHeaders = append(signedHeaders, textproto.CanonicalMIMEHeaderKey(signedHeader))
+	}
+	return signedHeaders, nil
+}
+
+func addSignedHeadersToRequestCtx(r *http.Request, signedHeaders []string) {
+	requestctx.SetSignedHeaders(r, signedHeaders)
 }

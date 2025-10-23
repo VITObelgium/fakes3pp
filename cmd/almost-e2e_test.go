@@ -91,7 +91,10 @@ func TestMain(m *testing.M) {
 		initializeTestLogging()
 	}
 	// For testing allow short duration for STS sessions
-	os.Setenv("FAKES3PP_STS_MINIMAL_DURATION_SECONDS", "1")
+	err := os.Setenv("FAKES3PP_STS_MINIMAL_DURATION_SECONDS", "1")
+	if err != nil {
+		panic(fmt.Sprintf("Error when preparing env for test: %s", err))
+	}
 	m.Run()
 }
 
@@ -473,7 +476,11 @@ func TestSigv4PresignedUrlsWorkAndCORSHeadersAreAdded(t *testing.T) {
 
 func TestSigv4PresignedUrlsWorkWithIgnorableQueryParams(t *testing.T) {
 	//Given ignore configuration
-	os.Setenv(FAKES3PP_S3_PROXY_REMOVABLE_QUERY_PARAMS, "^_origin$,Ignore")
+	err := os.Setenv(FAKES3PP_S3_PROXY_REMOVABLE_QUERY_PARAMS, "^_origin$,Ignore")
+	if err != nil {
+		t.Errorf("Error when preparing env for test: %s", err)
+	}
+	
 	//Given a running proxy and credentials against that proxy that allow access for the get operation
 	tearDown, getSignedToken, stsServer, s3Server := testingFixture(t)
 	defer tearDown()
@@ -1024,7 +1031,7 @@ func TestListingOfS3BucketHasExpectedObjects(t *testing.T) {
 	//Given credentials that use the policy that allow everything in Region1
 	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowAllInRegion1ARN, stsServer, nil)
 
-	var prefix string= ""
+	var prefix = ""
 
 	//WHEN we get an object in region 1
 	listObjects, err := listTestBucketObjects(t, testRegion1, prefix, credentials.FromAwsFormat(creds), s3Server)
@@ -1047,7 +1054,7 @@ func TestForHtmlEscaping(t *testing.T) {
 	//Given credentials that use the policy that allow everything in Region1
 	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowAllInRegion1ARN, stsServer, nil)
 
-	var key string= "unicodeTestσ"
+	var key = "unicodeTestσ"
 
 	//WHEN we pu an object in region 1
 	_, err := putTestBucketObject(t, testRegion1, key, "myContent", credentials.FromAwsFormat(creds), s3Server)

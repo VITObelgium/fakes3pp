@@ -469,7 +469,10 @@ func performValidListObjectTestRequest(t testing.TB, s *S3Server, headerModifier
 //When having other headers added that might influence the behavior
 func TestAllowEnablingTracingAtClientSide(t *testing.T) {
 	//Given the provider of the S3 proxy has configured a prefix to force logging
-	os.Setenv(logging.ENV_FORCE_LOGGING_FOR_REQUEST_ID_PREFIX, "00AABBCC")
+	err := os.Setenv(logging.ENV_FORCE_LOGGING_FOR_REQUEST_ID_PREFIX, "00AABBCC")
+	if err != nil {
+		t.Errorf("Error when preparing env for test: %s", err)
+	}
 	
 	//Given a way to capture logs
 	stopLogCapture, getLogLines := testutils.CaptureLogFixture(t, slog.LevelError, nil)

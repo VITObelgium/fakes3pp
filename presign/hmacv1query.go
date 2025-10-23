@@ -135,7 +135,7 @@ func buildHmacV1QueryUrl(req *http.Request, creds aws.Credentials, expires, sign
 	if creds.SessionToken != "" {
 		secToken = fmt.Sprintf("&x-amz-security-token=%s", url.QueryEscape(creds.SessionToken))
 	}
-	var scheme string = "https"
+	var scheme = "https"
 	if req.URL.Scheme != "" {
 		scheme = req.URL.Scheme
 	}

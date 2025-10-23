@@ -77,7 +77,7 @@ func (cred *AWSCredentials) IsValid(keyStorage utils.PrivateKeyKeeper) (error) {
 
 func NewAccessKey() (string) {
 	uuidString := uuid.New().String()
-	return strings.Replace(uuidString, "-", "", -1)
+	return strings.ReplaceAll(uuidString, "-", "")
 }
 
 //Probably not how AWS or another S3* service calculates the secret key but it doesn't really matter

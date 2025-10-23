@@ -16,7 +16,6 @@ import (
 	"github.com/VITObelgium/fakes3pp/middleware"
 	"github.com/VITObelgium/fakes3pp/requestctx"
 	"github.com/VITObelgium/fakes3pp/utils"
-	"github.com/golang-jwt/jwt/v5"
 )
 
 const L_BUCKET = "Bucket"  // The Bucket used in the request
@@ -55,7 +54,7 @@ func AWSAuthZS3(keyStorage utils.JWTVerifier, backendManager interfaces.BackendM
 func authorizeS3Action(ctx context.Context, sessionToken, targetRegion string, action api.S3Operation, w http.ResponseWriter, r *http.Request, 
 	maxExpiryTime time.Time, jwtVerifier utils.JWTVerifier, policyRetriever iaminterfaces.PolicyRetriever, vhi interfaces.VirtualHosterIdentifier) (allowed bool) {
 	allowed = false
-	var jwtKeyFunc jwt.Keyfunc = jwtVerifier.GetJwtKeyFunc()
+	var jwtKeyFunc = jwtVerifier.GetJwtKeyFunc()
 	if action == api.GetObject || action == api.HeadObject {
 		//Grace time is active and authentication has already checked token validity
 		jwtKeyFunc = nil

@@ -286,7 +286,7 @@ func (s *STSServer) calculateFinalDurationSeconds(apiProvidedDuration int, jwtEx
 	if providedExpiryTime.Before(minimalExpiryTime) {
 		return nil, fmt.Errorf("provided expiry time is before minimal time of %s", s.minAllowedDuration.String())
 	}
-	var finalDuration time.Duration = time.Duration(apiProvidedDuration) * time.Second
+	var finalDuration = time.Duration(apiProvidedDuration) * time.Second
 	if finalDuration > s.maxAllowedDuration {
 		//TODO: make sure this resulst in a Bad request rather than an internal server error
 		slog.Debug("Provided duration exceeds maximum of seconds", "providedDuration", finalDuration, "allowedDuration", s.maxAllowedDuration)

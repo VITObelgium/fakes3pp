@@ -22,11 +22,11 @@ func (c corsStatic) SetHeaders(w http.ResponseWriter, bucket, targetRegion strin
 type corsStaticOptFunc func(*corsStatic) ()
 
 func NewCORSStatic(optFuncs... corsStaticOptFunc) interfaces.CORSHandler {
-	var cd corsStatic = corsStatic{}
+	var corsStaticCfg = corsStatic{}
 	for _, optFunc := range optFuncs {
-		optFunc(&cd)
+		optFunc(&corsStaticCfg)
 	}
-	return &cd
+	return &corsStaticCfg
 }
 
 func WithAllowedOrigin(allowedOrigin string) corsStaticOptFunc {

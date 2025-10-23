@@ -9,6 +9,7 @@ import (
 	"github.com/VITObelgium/fakes3pp/httptracking"
 	"github.com/VITObelgium/fakes3pp/requestctx"
 	"github.com/VITObelgium/fakes3pp/requestctx/authtypes"
+	"github.com/VITObelgium/fakes3pp/utils"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
@@ -76,9 +77,7 @@ func LogMiddleware(requestLogLvl slog.Level, hc HealthChecker, promReg prometheu
             //At the final end discard what is being sent.
 			//If not some clients might not check the response that is being sent and hang untill timeout
 			//An example is boto3 where urllib3 won't check the response if it is still sending data
-			if r.Body != nil {
-				defer r.Body.Close()
-			}
+			defer utils.Close(r.Body, "LogMiddleware request body", r.Context())
 			
 			//Make sure we have a requestctx to know about RequestId and to track information
 			ctx := requestctx.NewContextFromHttpRequestWithStartTime(r, startTime)

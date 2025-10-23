@@ -16,5 +16,7 @@ jobs:
 
     - name: staticcheckinstall
       run: go install honnef.co/go/tools/cmd/staticcheck@latest
+    - name: gosecinstall
+      run: go install github.com/securego/gosec/v2/cmd/gosec@latest
     # - uses: actions/setup-python@v3
     - uses: pre-commit/action@v3.0.1

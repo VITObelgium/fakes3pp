@@ -1,6 +1,7 @@
 package presign
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/VITObelgium/fakes3pp/constants"
@@ -13,5 +14,11 @@ func XAmzDateToTime(XAmzDate string) (time.Time, error) {
 
 func XAmzExpiryToTime(XAmzDate string, expirySeconds uint) (time.Time, error) {
 	t, err := XAmzDateToTime(XAmzDate)
-	return t.Add(time.Duration(expirySeconds) * time.Second), err
+	if expirySeconds < 365*24*3600 {
+		expirySeconds64 := int64(expirySeconds)
+		return t.Add(time.Duration(expirySeconds64) * time.Second), err
+	} else {
+		return t, fmt.Errorf("invalid amount of expiry seconds %d", expirySeconds)
+	}
+
 }

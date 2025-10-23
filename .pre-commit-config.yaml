@@ -33,7 +33,10 @@ repos:
     #
     # GoSec
     #
-    # -   id: go-sec-mod  #TODO
+    -   id: go-sec-mod  #TODO
+        args: [
+          "-exclude=G101"  # We already detect secrets
+        ]
     #
     # StaticCheck
     #

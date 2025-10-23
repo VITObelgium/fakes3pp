@@ -34,7 +34,7 @@ func StagePoliciesInTempDir(t testing.TB, policies map[string]string) (policyDir
 		fileName := fmt.Sprintf("%s.json.tmpl", utils.B32(policyArn))
 		fullFilename := fmt.Sprintf("%s/%s", policyDir, fileName)
 		func() {
-			f, err := os.Create(fullFilename)
+			f, err := os.Create(fullFilename) // #nosec G304
 			if err != nil {
 				t.Error("Could not create temp file", "error", err)
 				t.FailNow()

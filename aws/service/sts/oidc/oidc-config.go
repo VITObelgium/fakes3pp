@@ -138,7 +138,7 @@ func (cfg *oidcConfig) GetKeyFunc() jwt.Keyfunc {
 }
 
 func getOidcProviderConfigFromIss(iss string) (*oidcProviderConfig, error) {
-	resp, err := http.Get(iss)
+	resp, err := http.Get(iss) // #nosec G107 -- variable url but under platform control
 	if err != nil {
 		return nil, err
 	}

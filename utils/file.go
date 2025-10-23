@@ -11,7 +11,7 @@ import (
 )
 
 func ReadFileFull(filePath string) ([]byte, error) {
-	f, err := os.Open(filePath)
+	f, err := os.Open(filePath) // #nosec G304
 	if err != nil {
 		return nil, err
 	}

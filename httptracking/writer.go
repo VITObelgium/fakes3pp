@@ -1,6 +1,7 @@
 package httptracking
 
 import (
+	"log/slog"
 	"net/http"
 
 	"github.com/VITObelgium/fakes3pp/requestctx"
@@ -23,7 +24,11 @@ func NewTrackingResponseWriter(w http.ResponseWriter, rCtx *requestctx.RequestCt
 
 func (w *trackingResponseWriter) Write(b []byte) (int, error) {
 	n, err := w.rWriter.Write(b)
-	w.requestCtx.BytesSent += uint64(n)
+	if n < 1000000000000000 && w.requestCtx.BytesSent < 1000000000000000 {
+		w.requestCtx.BytesSent += uint64(n)
+	} else {
+		slog.Warn("trackingResponseWriter wrote more than 1 peta-bytes request size will be wrong")
+	}
 	return n, err
 }
 

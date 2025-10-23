@@ -5,7 +5,7 @@ package presign
 import (
 	"context"
 	"crypto/hmac"
-	"crypto/sha1"
+	"crypto/sha1" // #nosec G505 -- required to support the aws signatures
 	"encoding/base64"
 	"errors"
 	"fmt"

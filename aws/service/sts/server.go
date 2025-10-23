@@ -133,9 +133,7 @@ func (s *STSServer) processSTSPost(w http.ResponseWriter, r *http.Request) {
 	//At the final end discard what is being sent.
 	//If not some clients might not check the response that is being sent and hang untill timeout
 	//An example is boto3 where urllib3 won't check the response if it is still sending data
-	if r.Body != nil {
-		defer r.Body.Close()
-	}
+	defer utils.Close(r.Body, "processSTSPost request body", r.Context())
 
 	ctx := r.Context()
 	// Parse the incoming form data.

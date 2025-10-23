@@ -205,7 +205,7 @@ func createTestPolicyFileForLocalPolicyRetriever(policyArn, policyContent string
 	_, err = f.Write([]byte(policyContent))
 	checkErrorTestDependency(err, t, fmt.Sprintf("Could not write policy content while creating test policy %s: %s", policyArn, policyContent))
 
-	defer f.Close()
+	defer utils.Close(f, fmt.Sprintf("CreateTestPolicyFileForLocalPolicyRetriever %s", policyArn), nil)
 }
 
 func deleteTestPolicyFileForLocalPolicyRetriever(policyArn string, pr *LocalPolicyRetriever, t *testing.T) {

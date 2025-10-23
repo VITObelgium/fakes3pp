@@ -15,7 +15,7 @@ func tempFile(t testing.TB, content, filePattern string) (fileName string) {
 		t.Error("Could not create temp file", "error", err)
 		t.FailNow()
 	}
-	defer f.Close()
+	defer utils.Close(f, fmt.Sprintf("testutils.tempFile %s", filePattern), nil)
 	fileName = f.Name()
 	_, err = f.Write([]byte(content))
 	if err != nil {
@@ -40,7 +40,7 @@ func StagePoliciesInTempDir(t testing.TB, policies map[string]string) (policyDir
 				t.Error("Could not create temp file", "error", err)
 				t.FailNow()
 			}
-			defer f.Close()
+			defer utils.Close(f, "StagePoliciesInTempDir", nil)
 			_, err = f.Write([]byte(policyContent))
 			if err != nil {
 				t.Error("Problem when writing file content", "error", err)

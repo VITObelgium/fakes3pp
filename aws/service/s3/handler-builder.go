@@ -15,6 +15,7 @@ import (
 	"github.com/VITObelgium/fakes3pp/presign"
 	"github.com/VITObelgium/fakes3pp/requestctx"
 	"github.com/VITObelgium/fakes3pp/usererror"
+	"github.com/VITObelgium/fakes3pp/utils"
 )
 
 type requesterFunc func(*http.Request) (*http.Response, error)
@@ -132,7 +133,7 @@ func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request, targ
 		writeS3ErrorResponse(ctx, w, ErrS3UpstreamError, err)
 		return
 	}
-	defer resp.Body.Close()
+	defer utils.Close(resp.Body, "justProxy upstream response body", ctx)
 	if resp.StatusCode != http.StatusForbidden {
 		corsHandler.SetHeaders(w, requestctx.GetAccessLogStringInfo(r, "s3", L_BUCKET), targetBackendId, backendManager)
 	}

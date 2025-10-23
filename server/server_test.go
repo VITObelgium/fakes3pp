@@ -11,6 +11,7 @@ import (
 
 	"github.com/VITObelgium/fakes3pp/server"
 	"github.com/VITObelgium/fakes3pp/testutils"
+	"github.com/VITObelgium/fakes3pp/utils"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
 	"google.golang.org/protobuf/proto"
@@ -110,7 +111,7 @@ func TestCheckMetricsServer(t *testing.T) {
 		t.FailNow()
 	}
 
-	defer res.Body.Close()
+	defer utils.Close(res.Body, "TestCheckMetricsServer", r.Context())
 
 	//THEN the metrics must become available in scrapes
 	//At least within due time which should be rather fast

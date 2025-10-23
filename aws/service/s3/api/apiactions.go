@@ -6,7 +6,7 @@ type S3Operation int
 const (
 	UnknownOperation S3Operation = iota
 	ListObjectsV2
-    GetObject
+	GetObject
 	ListBuckets
 	HeadBucket
 	HeadObject

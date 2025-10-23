@@ -27,14 +27,14 @@ type PolicyEvaluator struct {
 	p *policy.Policy
 }
 
-func NewPolicyEvaluator(pol *policy.Policy) (*PolicyEvaluator) {
+func NewPolicyEvaluator(pol *policy.Policy) *PolicyEvaluator {
 	pe := PolicyEvaluator{
 		p: pol,
 	}
 	return &pe
 }
 
-func NewPolicyEvaluatorFromStr(policyContent string)  (*PolicyEvaluator, error) {
+func NewPolicyEvaluatorFromStr(policyContent string) (*PolicyEvaluator, error) {
 	p, err := parsePolicy(policyContent)
 	if err != nil {
 		return nil, err
@@ -43,13 +43,14 @@ func NewPolicyEvaluatorFromStr(policyContent string)  (*PolicyEvaluator, error) 
 }
 
 type evalReason string
+
 const reasonActionIsAllowed evalReason = "Action is allowed"
 const reasonNoStatementAllowingAction evalReason = "No statement allows the action"
 const reasonExplicitDeny evalReason = "Explicit deny"
 const reasonErrorEncountered evalReason = "Error was encountered"
 
-//Allow wildcards like * and ? but escape other special characters
-//https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html
+// Allow wildcards like * and ? but escape other special characters
+// https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html
 func iamStringLike(patternString, literalStrin string) bool {
 	saferPattern := regexp.QuoteMeta(patternString)
 	pattern := strings.NewReplacer("\\*", ".*", "\\?", ".").Replace(saferPattern)
@@ -60,15 +61,15 @@ func iamStringLike(patternString, literalStrin string) bool {
 	return match
 }
 
-//The statement resource can have wildcards like * and ?
-//so use the StringLike to check it
+// The statement resource can have wildcards like * and ?
+// so use the StringLike to check it
 func doesResourceMatch(statementResource, resource string) bool {
 	return iamStringLike(statementResource, resource)
 }
 
-//To check whether all the values in the passed context are singular depending on the
-//condition operator this might be necessary
-func areAllConditionValuesSingular(context map[string]*policy.ConditionValue) (bool) {
+// To check whether all the values in the passed context are singular depending on the
+// condition operator this might be necessary
+func areAllConditionValuesSingular(context map[string]*policy.ConditionValue) bool {
 	for _, value := range context {
 		if !value.IsSingular() {
 			return false
@@ -77,8 +78,8 @@ func areAllConditionValuesSingular(context map[string]*policy.ConditionValue) (b
 	return true
 }
 
-//Evaluate what a StringLike operation does
-func evalStringLike(conditionDetails map[string]*policy.ConditionValue, context map[string]*policy.ConditionValue) (bool, error)  {
+// Evaluate what a StringLike operation does
+func evalStringLike(conditionDetails map[string]*policy.ConditionValue, context map[string]*policy.ConditionValue) (bool, error) {
 	if !areAllConditionValuesSingular(context) {
 		return false, fmt.Errorf("non-singular value got %v", context)
 	}
@@ -117,8 +118,7 @@ func isConditionMetForOperator(conditionOperator string, conditionDetails map[st
 	}
 }
 
-
-func isConditionMetForStringLike(statementValues, context *policy.ConditionValue) (bool) {
+func isConditionMetForStringLike(statementValues, context *policy.ConditionValue) bool {
 	ctxStrValues, _, _ := context.Values()
 	ctxStrValue := ctxStrValues[0]
 	strValues, _, _ := statementValues.Values()
@@ -130,15 +130,15 @@ func isConditionMetForStringLike(statementValues, context *policy.ConditionValue
 	return false
 }
 
-//Check whether a policy Statement is relevent for a certain IAM action
+// Check whether a policy Statement is relevent for a certain IAM action
 func isRelevantFor(statement policy.Statement, a IAMAction) (bool, error) {
 	actionInScope := false
 	for _, statementAction := range statement.Action.Values() {
-		if statementAction == a.Action || iamStringLike(statementAction, a.Action){
+		if statementAction == a.Action || iamStringLike(statementAction, a.Action) {
 			actionInScope = true
 		}
 	}
-	if ! actionInScope {
+	if !actionInScope {
 		return false, nil
 	}
 
@@ -148,7 +148,7 @@ func isRelevantFor(statement policy.Statement, a IAMAction) (bool, error) {
 			resourceInScope = true
 		}
 	}
-	if ! resourceInScope {
+	if !resourceInScope {
 		return false, nil
 	}
 
@@ -187,14 +187,14 @@ func (e *PolicyEvaluator) Evaluate(a IAMAction) (isAllowed bool, reason evalReas
 				return false, reasonErrorEncountered, err
 			}
 			if relevant {
-				return false, reasonExplicitDeny, err 
+				return false, reasonExplicitDeny, err
 			}
 		}
 	}
 	return
 }
 
-//When evaluating multiple iamActions all must be allowed
+// When evaluating multiple iamActions all must be allowed
 func (e *PolicyEvaluator) EvaluateAll(actions []IAMAction) (isAllowed bool, reason evalReason, err error) {
 	if len(actions) < 1 {
 		return false, reasonNoStatementAllowingAction, errors.New("EvaluateAll must have at least 1 iamAction")

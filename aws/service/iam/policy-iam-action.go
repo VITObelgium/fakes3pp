@@ -6,40 +6,40 @@ import (
 	"github.com/micahhausler/aws-iam-policy/policy"
 )
 
-type IAMAction struct{
-	Action string          `json:"action"`
-	Resource string        `json:"resource"`
-	Context map[string]*policy.ConditionValue `json:"context,omitempty"`
+type IAMAction struct {
+	Action   string                            `json:"action"`
+	Resource string                            `json:"resource"`
+	Context  map[string]*policy.ConditionValue `json:"context,omitempty"`
 }
 
-func NewIamAction(action, resource string, session *PolicySessionData) IAMAction{
+func NewIamAction(action, resource string, session *PolicySessionData) IAMAction {
 	context := map[string]*policy.ConditionValue{}
 	addGenericSessionContextKeys(context, session)
 
 	return IAMAction{
-		Action: action,
+		Action:   action,
 		Resource: resource,
-		Context: context,
+		Context:  context,
 	}
 }
 
 // For a given IAM action add context specific for the action
-func (a IAMAction) AddContext(context map[string]*policy.ConditionValue) (IAMAction){
+func (a IAMAction) AddContext(context map[string]*policy.ConditionValue) IAMAction {
 	for contextKey, ContextKeyValues := range context {
 		a.Context[contextKey] = ContextKeyValues
 	}
 	return a
 }
 
-//Add context keys that are added to nearly all requests that contain information about the current session
+// Add context keys that are added to nearly all requests that contain information about the current session
 func addGenericSessionContextKeys(context map[string]*policy.ConditionValue, session *PolicySessionData) {
 	addAwsPrincipalTagConditionKeys(context, session)
 	addAwsRequestedRegionConditionKey(context, session)
 	addGenericTokenClaims(context, session)
 }
 
-//Add aws:PrincipalTag/tag-key keys that are added to nearly all requests that contain information about the current session
-//https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-keys.html#condition-keys-principaltag
+// Add aws:PrincipalTag/tag-key keys that are added to nearly all requests that contain information about the current session
+// https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-keys.html#condition-keys-principaltag
 func addAwsPrincipalTagConditionKeys(context map[string]*policy.ConditionValue, session *PolicySessionData) {
 	if session == nil {
 		return
@@ -49,8 +49,8 @@ func addAwsPrincipalTagConditionKeys(context map[string]*policy.ConditionValue, 
 	}
 }
 
-//Add aws:RequestedRegion key that are added to all requests
-//https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_examples_aws_deny-requested-region.html
+// Add aws:RequestedRegion key that are added to all requests
+// https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_examples_aws_deny-requested-region.html
 func addAwsRequestedRegionConditionKey(context map[string]*policy.ConditionValue, session *PolicySessionData) {
 	if session == nil {
 		return
@@ -60,7 +60,7 @@ func addAwsRequestedRegionConditionKey(context map[string]*policy.ConditionValue
 	}
 }
 
-//Add generic session claims
+// Add generic session claims
 func addGenericTokenClaims(context map[string]*policy.ConditionValue, session *PolicySessionData) {
 	if session == nil {
 		return

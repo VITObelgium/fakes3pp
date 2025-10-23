@@ -7,10 +7,10 @@ import (
 )
 
 func TestRelativeFilePaths(t *testing.T) {
-	testcases := []struct{
-		Name string
-		FullFilePath string
-		ExpectedFilename string
+	testcases := []struct {
+		Name                 string
+		FullFilePath         string
+		ExpectedFilename     string
 		ExpectedRelativepath string
 	}{
 		{

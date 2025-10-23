@@ -36,12 +36,12 @@ func TestMain(m *testing.M) {
 
 var testRequests = []*http.Request{}
 
-var testProxyStub = func (ctx context.Context, w http.ResponseWriter, r *http.Request, backendId string, bm interfaces.BackendManager, f requesterFunc, ch interfaces.CORSHandler)  {
+var testProxyStub = func(ctx context.Context, w http.ResponseWriter, r *http.Request, backendId string, bm interfaces.BackendManager, f requesterFunc, ch interfaces.CORSHandler) {
 	testRequests = append(testRequests, r)
 	w.WriteHeader(http.StatusOK)
 }
 
-func popLastRequestByTestProxy() (*http.Request) {
+func popLastRequestByTestProxy() *http.Request {
 	if len(testRequests) == 0 {
 		return nil
 	}
@@ -49,30 +49,32 @@ func popLastRequestByTestProxy() (*http.Request) {
 	testRequests = testRequests[:len(testRequests)-1]
 	return lastRequest
 }
+
 var testStubJustProxy interfaces.HandlerBuilderI = handlerBuilder{proxyFunc: testProxyStub}
 
 const testS3Port = 8443
 const testS3Host = "localhost"
+
 var testEtcPath = "../../../etc"
 
-func getDefaultTestBackendConfig() (interfaces.BackendManager) {
+func getDefaultTestBackendConfig() interfaces.BackendManager {
 	return &backendsConfig{
 		backends: map[string]backendConfigEntry{
 			"waw3-1": {
 				credentials: aws.Credentials{
-					AccessKeyID: "testKeyIdWaw31",
+					AccessKeyID:     "testKeyIdWaw31",
 					SecretAccessKey: "testSecretKeyWaw31",
 				},
-				endpoint: "https://s3.waw3-1.cloudferro.com",
+				endpoint:     "https://s3.waw3-1.cloudferro.com",
 				capabilities: []interfaces.S3Capability{interfaces.S3CapabilityStreamingUnsignedPayloadTrailer},
 			},
 			"eu-nl": {
 				credentials: aws.Credentials{
-					AccessKeyID: "testKeyIdEuNl",
+					AccessKeyID:     "testKeyIdEuNl",
 					SecretAccessKey: "testSecretKeyEuNl",
-					SessionToken: "testSessionTokenEuNl",
+					SessionToken:    "testSessionTokenEuNl",
 				},
-				endpoint: "https://obs.eu-nl.otc.t-systems.com",
+				endpoint:     "https://obs.eu-nl.otc.t-systems.com",
 				capabilities: []interfaces.S3Capability{},
 			},
 		},
@@ -81,7 +83,7 @@ func getDefaultTestBackendConfig() (interfaces.BackendManager) {
 }
 
 func NewTestS3Server(t testing.TB, proxyHB interfaces.HandlerBuilderI, pm *iam.PolicyManager, bm interfaces.BackendManager,
-	mws []middleware.Middleware, isTlsEnabled bool, removableQueryParamRegexes []*regexp.Regexp, corsHandler interfaces.CORSHandler) (*S3Server) {
+	mws []middleware.Middleware, isTlsEnabled bool, removableQueryParamRegexes []*regexp.Regexp, corsHandler interfaces.CORSHandler) *S3Server {
 	tlsCert := ""
 	tlsKey := ""
 
@@ -93,14 +95,14 @@ func NewTestS3Server(t testing.TB, proxyHB interfaces.HandlerBuilderI, pm *iam.P
 		pm = newTestPolicyManager(t, nil)
 	}
 
-	if isTlsEnabled{
+	if isTlsEnabled {
 		tlsCert = fmt.Sprintf("%s/cert.pem", testEtcPath)
 		tlsKey = fmt.Sprintf("%s/key.pem", testEtcPath)
 	}
 	signedUrlGraceTimeSeconds := 3600
 
 	var jwtTestToken = fmt.Sprintf("%s/jwt_testing_rsa", testEtcPath)
-	s, err:= newS3Server(
+	s, err := newS3Server(
 		jwtTestToken,
 		testS3Port,
 		[]string{testS3Host},
@@ -122,7 +124,7 @@ func NewTestS3Server(t testing.TB, proxyHB interfaces.HandlerBuilderI, pm *iam.P
 }
 
 func setupSuiteProxyS3(
-	t testing.TB, proxyHB interfaces.HandlerBuilderI, pm *iam.PolicyManager, bm interfaces.BackendManager, mws []middleware.Middleware, 
+	t testing.TB, proxyHB interfaces.HandlerBuilderI, pm *iam.PolicyManager, bm interfaces.BackendManager, mws []middleware.Middleware,
 	tlsEnabled bool, removableQueryParamRegexes []*regexp.Regexp, ch interfaces.CORSHandler,
 ) (func(t testing.TB), *S3Server) {
 	s := NewTestS3Server(t, proxyHB, pm, bm, mws, tlsEnabled, removableQueryParamRegexes, ch)
@@ -150,11 +152,10 @@ func getS3ProxyUrlWithoutPort(_ testing.TB, s server.Serverable) string {
 	}
 }
 
-//Get the fully qualified URL to the S3 Proxy
+// Get the fully qualified URL to the S3 Proxy
 func getS3ProxyUrl(t testing.TB, s server.Serverable) string {
 	return fmt.Sprintf("%s:%d/", getS3ProxyUrlWithoutPort(t, s), s.GetPort())
 }
-
 
 var testPolicyNoPermissions string = `{
 	"Version": "2012-10-17",
@@ -177,22 +178,22 @@ var testPolicyNoPermissionsARN = "arn:aws:iam::000000000000:role/NoPermissions"
 
 func newTestPolicyManager(_ testing.TB, extraPolicies map[string]string) *iam.PolicyManager {
 	policyMap := map[string]string{
-		testPolicyAllowAllARN: testPolicyAllowAll,
+		testPolicyAllowAllARN:      testPolicyAllowAll,
 		testPolicyNoPermissionsARN: testPolicyNoPermissions,
 	}
 	if extraPolicies == nil {
 		extraPolicies = map[string]string{}
 	}
 	for k, v := range extraPolicies {
-		policyMap[k] = v 
+		policyMap[k] = v
 	}
 	return iam.NewTestPolicyManager(
 		policyMap,
 	)
 }
 
-func createTestCredentialsForPolicy(t testing.TB, policyArn string, keyStorage utils.KeyPairKeeper) (*credentials.AWSCredentials) {
-	token := credentials.CreateRS256PolicyToken("stsissuer", "initialIssuer", "userid", policyArn, 20 * time.Minute, session.AWSSessionTags{})
+func createTestCredentialsForPolicy(t testing.TB, policyArn string, keyStorage utils.KeyPairKeeper) *credentials.AWSCredentials {
+	token := credentials.CreateRS256PolicyToken("stsissuer", "initialIssuer", "userid", policyArn, 20*time.Minute, session.AWSSessionTags{})
 	cred, err := credentials.NewAWSCredentials(token, time.Hour, keyStorage)
 
 	if err != nil {
@@ -209,8 +210,8 @@ func TestWithValidCredsButNoAccess(t *testing.T) {
 	cred := createTestCredentialsForPolicy(t, testPolicyNoPermissionsARN, s.jwtKeyMaterial)
 
 	client := testutils.GetTestClientS3(t, "eu-west-1", cred, s)
-	
-	max1Sec, cancel := context.WithTimeout(context.Background(), 1000 * time.Second)
+
+	max1Sec, cancel := context.WithTimeout(context.Background(), 1000*time.Second)
 	testPrefix := "doesNotMatter"
 	input := s3.ListObjectsV2Input{
 		Bucket: &testBucketName,
@@ -235,7 +236,7 @@ func TestWithValidCreds(t *testing.T) {
 	cred := createTestCredentialsForPolicy(t, testPolicyAllowAllARN, s.jwtKeyMaterial)
 
 	client := testutils.GetTestClientS3(t, "eu-west-1", cred, s)
-	max1Sec, cancel := context.WithTimeout(context.Background(), 1000 * time.Second)
+	max1Sec, cancel := context.WithTimeout(context.Background(), 1000*time.Second)
 	testPrefix := "doesnotmatterAllareallowed/"
 	input := s3.ListObjectsV2Input{
 		Bucket: &testBucketName,
@@ -259,7 +260,7 @@ func TestWithInValidCreds(t *testing.T) {
 
 	client := testutils.GetTestClientS3(t, "eu-west-1", cred, s)
 
-	max1Sec, cancel := context.WithTimeout(context.Background(), 1000 * time.Second)
+	max1Sec, cancel := context.WithTimeout(context.Background(), 1000*time.Second)
 	input := s3.ListBucketsInput{}
 	defer cancel()
 	_, err := client.ListBuckets(max1Sec, &input)
@@ -278,7 +279,7 @@ func TestWithValidCredsOtherRegion(t *testing.T) {
 	//Given a client that goes to a different region
 	client := testutils.GetTestClientS3(t, "eu-west-1", cred, s)
 
-	max1Sec, cancel := context.WithTimeout(context.Background(), 1000 * time.Second)
+	max1Sec, cancel := context.WithTimeout(context.Background(), 1000*time.Second)
 	input := s3.ListBucketsInput{}
 	defer cancel()
 	_, err := client.ListBuckets(max1Sec, &input)
@@ -351,22 +352,22 @@ func assertHttpRequestOK(tb testing.TB, resp *http.Response) {
 	}
 }
 
-//When you go through a proxy it might add some headers
-//This will mess up the signature when they are considered in the signing
-//process
+// When you go through a proxy it might add some headers
+// This will mess up the signature when they are considered in the signing
+// process
 func TestWithValidCredsButProxyHeaders(t *testing.T) {
 	teardownSuite, s := setupSuiteProxyS3(t, testStubJustProxy, nil, nil, nil, true, nil, nil)
 	defer teardownSuite(t)
 
 	//Given headers that are added by a proxy component
-	proxyHeaderAdder := createHeaderAdder(map[string]string {
-		"accept-encoding": "gzip",
-		"x-forwarded-for": "",
-		"x-forwarded-host": "",
-		"x-forwarded-port": "443",
-		"x-forwarded-proto": "https",
+	proxyHeaderAdder := createHeaderAdder(map[string]string{
+		"accept-encoding":    "gzip",
+		"x-forwarded-for":    "",
+		"x-forwarded-host":   "",
+		"x-forwarded-port":   "443",
+		"x-forwarded-proto":  "https",
 		"x-forwarded-server": "",
-		"x-real-ip": "",
+		"x-real-ip":          "",
 	})
 
 	//When doing a valid request where headers are added by an intermediate stop (post-signing)
@@ -376,9 +377,9 @@ func TestWithValidCredsButProxyHeaders(t *testing.T) {
 	assertHttpRequestOK(t, resp)
 }
 
-//Create a function which adds headers to a http.Header object
-func createHeaderAdder(headersToAdd map[string]string) (func (http.Header) ()) {
-	var adder = func (header http.Header) {
+// Create a function which adds headers to a http.Header object
+func createHeaderAdder(headersToAdd map[string]string) func(http.Header) {
+	var adder = func(header http.Header) {
 		for headerName, headerValue := range headersToAdd {
 			header.Add(headerName, headerValue)
 		}
@@ -387,11 +388,11 @@ func createHeaderAdder(headersToAdd map[string]string) (func (http.Header) ()) {
 	return adder
 }
 
-//helper to not manipulate headers
+// helper to not manipulate headers
 var doNotAddAnyHeader = createHeaderAdder(map[string]string{})
 
-//AWS SDKs have ", " to separate authorization header parts but other implementations
-//(e.g. GDAL) just use "," which can make it tricky
+// AWS SDKs have ", " to separate authorization header parts but other implementations
+// (e.g. GDAL) just use "," which can make it tricky
 func TestWithValidCredsWhereNoSpacesInAuthorizationHeader(t *testing.T) {
 	teardownSuite, s := setupSuiteProxyS3(t, testStubJustProxy, nil, nil, nil, true, nil, nil)
 	defer teardownSuite(t)
@@ -402,8 +403,8 @@ func TestWithValidCredsWhereNoSpacesInAuthorizationHeader(t *testing.T) {
 		oldValueWithSpaces := h.Get(authKey)
 		newValueWithoutSpaces := strings.ReplaceAll(oldValueWithSpaces, " ", "")
 		h.Set(authKey, newValueWithoutSpaces)
-	} 
-	createHeaderAdder(map [string]string{"allYourBases": "belongToUs"})
+	}
+	createHeaderAdder(map[string]string{"allYourBases": "belongToUs"})
 
 	//When doing a valid request where headers are added by an intermediate stop
 	resp := performValidListObjectTestRequest(t, s, doNotAddAnyHeader, authSpaceRemover)
@@ -414,7 +415,6 @@ func TestWithValidCredsWhereNoSpacesInAuthorizationHeader(t *testing.T) {
 	}
 }
 
-
 func getTestUUID4WithPrefix(prefix string) string {
 	fully_random := uuid.New().String()
 	if prefix > fully_random {
@@ -423,9 +423,9 @@ func getTestUUID4WithPrefix(prefix string) string {
 	return strings.Join([]string{prefix, fully_random[len(prefix):]}, "")
 }
 
-//Perform a valid ListObject request for testing and allow manipulation of headers using callbacks before (pre) and after (post) signing
-//and return the response of the request
-func performValidListObjectTestRequest(t testing.TB, s *S3Server, headerModifierPreSign func (http.Header) (), headerModifierPostSign func (http.Header) ()) (*http.Response) {
+// Perform a valid ListObject request for testing and allow manipulation of headers using callbacks before (pre) and after (post) signing
+// and return the response of the request
+func performValidListObjectTestRequest(t testing.TB, s *S3Server, headerModifierPreSign func(http.Header), headerModifierPostSign func(http.Header)) *http.Response {
 	ctx := context.Background()
 
 	//Given valid credentials
@@ -465,15 +465,14 @@ func performValidListObjectTestRequest(t testing.TB, s *S3Server, headerModifier
 	return resp
 }
 
-
-//When having other headers added that might influence the behavior
+// When having other headers added that might influence the behavior
 func TestAllowEnablingTracingAtClientSide(t *testing.T) {
 	//Given the provider of the S3 proxy has configured a prefix to force logging
 	err := os.Setenv(logging.ENV_FORCE_LOGGING_FOR_REQUEST_ID_PREFIX, "00AABBCC")
 	if err != nil {
 		t.Errorf("Error when preparing env for test: %s", err)
 	}
-	
+
 	//Given a way to capture logs
 	stopLogCapture, getLogLines := testutils.CaptureLogFixture(t, slog.LevelError, nil)
 	defer stopLogCapture()
@@ -486,7 +485,7 @@ func TestAllowEnablingTracingAtClientSide(t *testing.T) {
 	defer teardownSuite(t)
 
 	//Given helper function that adds the chosen UUID4 as the X-Request-ID header
-	addUserChosenUUID4 := createHeaderAdder(map [string]string{requestctx.XRequestID: userChosenUuid4})
+	addUserChosenUUID4 := createHeaderAdder(map[string]string{requestctx.XRequestID: userChosenUuid4})
 
 	//When performing a valid request but without picking a request id
 	resp := performValidListObjectTestRequest(t, s, doNotAddAnyHeader, doNotAddAnyHeader)

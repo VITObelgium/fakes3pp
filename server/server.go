@@ -15,7 +15,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
-//Defines optional configuration for a Serverable
+// Defines optional configuration for a Serverable
 type ServerOpts struct {
 	//The default of 0 means no metrics are exposed
 	MetricsPort int
@@ -59,7 +59,7 @@ func StartPrometheusMetricsServer(port int) (func(), prometheus.Registerer) {
 		}
 	}()
 
-	shutdownMetricsServerSync := func(){
+	shutdownMetricsServerSync := func() {
 		err := metricsSrv.Shutdown(context.Background())
 		if err != nil {
 			panic(err)
@@ -69,8 +69,7 @@ func StartPrometheusMetricsServer(port int) (func(), prometheus.Registerer) {
 	return shutdownMetricsServerSync, reg
 }
 
-//Start a server in the background but return a waitGroup.
-//
+// Start a server in the background but return a waitGroup.
 func CreateAndStart(s Serverable, opts ServerOpts) (*sync.WaitGroup, *http.Server, error) {
 	shutdownMetricsServerSync, reg := StartPrometheusMetricsServer(opts.MetricsPort)
 
@@ -91,7 +90,7 @@ func CreateAndStart(s Serverable, opts ServerOpts) (*sync.WaitGroup, *http.Serve
 		healthchecker = middleware.NewPingPongHealthCheck(slog.LevelDebug)
 	}
 	srv.Handler = middleware.NewMiddlewarePrefixedHandler(
-		s, 
+		s,
 		middleware.LogMiddleware(opts.RequestLogLvl, healthchecker, reg),
 	)
 
@@ -115,7 +114,7 @@ func CreateAndStart(s Serverable, opts ServerOpts) (*sync.WaitGroup, *http.Serve
 	return serverDone, srv, nil
 }
 
-//Create a server and await until its health check is passing
+// Create a server and await until its health check is passing
 func CreateAndAwaitHealthy(s Serverable, opts ServerOpts) (*sync.WaitGroup, *http.Server, error) {
 	serverDone, srv, err := CreateAndStart(s, opts)
 	if err != nil {
@@ -153,14 +152,14 @@ func getProtocol(tlsEnabled bool) string {
 
 func awaitServerOnPort(port int, tlsEnabled bool) error {
 	attempts := 100
-	if tlsEnabled{
+	if tlsEnabled {
 		http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 	client := &http.Client{}
 	req, _ := http.NewRequest("GET", fmt.Sprintf("%s://localhost:%d/ping", getProtocol(tlsEnabled), port), nil)
 	var lastErr error
 	i := 0
-	for i < attempts{
+	for i < attempts {
 		i += 1
 		resp, err := client.Do(req)
 		if err == nil && resp.StatusCode == 200 {

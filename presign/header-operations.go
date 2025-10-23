@@ -13,8 +13,8 @@ import (
 	"github.com/VITObelgium/fakes3pp/usererror"
 )
 
-//Temporary remove headers and return callback to reinstantiate headers
-func temporaryRemoveHeaders(r *http.Request, headersToKeep []string) (reAddHeaders func(*http.Request)()) {
+// Temporary remove headers and return callback to reinstantiate headers
+func temporaryRemoveHeaders(r *http.Request, headersToKeep []string) (reAddHeaders func(*http.Request)) {
 	headers := map[string]string{}
 
 	for headerName := range r.Header {
@@ -25,7 +25,7 @@ func temporaryRemoveHeaders(r *http.Request, headersToKeep []string) (reAddHeade
 		r.Header.Del(headerName)
 	}
 
-	reAddHeaders = func (req *http.Request)()  {
+	reAddHeaders = func(req *http.Request) {
 		for headerName, headerVal := range headers {
 			req.Header.Add(headerName, headerVal)
 		}
@@ -34,21 +34,21 @@ func temporaryRemoveHeaders(r *http.Request, headersToKeep []string) (reAddHeade
 	return reAddHeaders
 }
 
-//Headers that are added by our middleware and which should never be filtered.
+// Headers that are added by our middleware and which should never be filtered.
 var alwaysSignHeaders = []string{
 	"X-Amz-Content-Sha256",
 	"Host",
-	"Authorization",  //Not really signed but during signing it gets replaced anyway
+	"Authorization", //Not really signed but during signing it gets replaced anyway
 }
 
-func TemporaryRemoveUntrustedHeaders(r *http.Request) (reAddHeaders func(*http.Request)(), err error) {
+func TemporaryRemoveUntrustedHeaders(r *http.Request) (reAddHeaders func(*http.Request), err error) {
 	signedHeaders, err := requestctx.GetSignedHeaders(r)
 	if err != nil || len(signedHeaders) == 0 {
 		signedHeaders, err = getSignedHeadersFromRequest(r)
 		if err != nil {
 			return nil, err
 		}
-		addSignedHeadersToRequestCtx(r, signedHeaders) 
+		addSignedHeadersToRequestCtx(r, signedHeaders)
 	}
 	signedHeaders = append(signedHeaders, alwaysSignHeaders...)
 	return temporaryRemoveHeaders(r, signedHeaders), nil
@@ -56,8 +56,8 @@ func TemporaryRemoveUntrustedHeaders(r *http.Request) (reAddHeaders func(*http.R
 
 const signedHeadersPrefix = "SignedHeaders="
 
-//Inspect a http.Request and return a slice with header names in their canonical form
-//It handles requests with authorization headers as well as query parameters
+// Inspect a http.Request and return a slice with header names in their canonical form
+// It handles requests with authorization headers as well as query parameters
 func getSignedHeadersFromRequest(req *http.Request) (signedHeaders []string, err error) {
 	signedHeaders = make([]string, 0)
 	ah := req.Header.Get(constants.AuthorizationHeader)
@@ -81,7 +81,7 @@ func getSignedHeadersFromRequest(req *http.Request) (signedHeaders []string, err
 			}
 		}
 		return signedHeaders, nil
-		
+
 	}
 	authorizationParts := strings.Split(ah, ",")
 	if len(authorizationParts) != 3 {

@@ -13,7 +13,7 @@ import (
 type JSONRequestCtxHandler struct {
 	wrappedHandler slog.Handler
 
-	//A hook to make sure records are logged if they are of a certain level or a specific context was passed 
+	//A hook to make sure records are logged if they are of a certain level or a specific context was passed
 	forceEnabler ForceEnabler
 }
 
@@ -50,6 +50,6 @@ func (h *JSONRequestCtxHandler) Handle(ctx context.Context, r slog.Record) error
 	if ok && rCtx.RequestID != "" {
 		r.AddAttrs(slog.String("RequestId", rCtx.RequestID))
 	}
-	
+
 	return h.wrappedHandler.Handle(ctx, r)
 }

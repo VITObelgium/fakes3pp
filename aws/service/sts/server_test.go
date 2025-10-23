@@ -19,6 +19,7 @@ import (
 )
 
 const testStsEndpoint = "https://localstshost:8444/"
+
 var testEtcPath = "../../../etc"
 
 var testFakeIssuer string = "https://localhost/auth/realms/testing"
@@ -33,22 +34,20 @@ var testProviderFakeTesting string = fmt.Sprintf(`
 
 var testOIDCConfigFakeTesting string = fmt.Sprintf("providers:%s", testProviderFakeTesting)
 
-
-
 var testSTSFQDN = "localhost"
 var testSTSPort = 8444
 
-func NewTestSTSServer(t testing.TB, pm *iam.PolicyManager, maxDurationSeconds int, oidcConfig string, isTlsEnabled bool) (*STSServer) {
+func NewTestSTSServer(t testing.TB, pm *iam.PolicyManager, maxDurationSeconds int, oidcConfig string, isTlsEnabled bool) *STSServer {
 	tlsCert := ""
 	tlsKey := ""
 
-	if isTlsEnabled{
+	if isTlsEnabled {
 		tlsCert = fmt.Sprintf("%s/cert.pem", testEtcPath)
 		tlsKey = fmt.Sprintf("%s/key.pem", testEtcPath)
 	}
 
 	var jwtTestToken = fmt.Sprintf("%s/jwt_testing_rsa", testEtcPath)
-	s, err:= newSTSServer(
+	s, err := newSTSServer(
 		jwtTestToken,
 		testSTSPort,
 		[]string{testSTSFQDN},
@@ -66,15 +65,16 @@ func NewTestSTSServer(t testing.TB, pm *iam.PolicyManager, maxDurationSeconds in
 	return s
 }
 
-func buildAssumeRoleWithIdentityTokenUrl(duration int, roleSessionName, roleArn, token string) (string) {
+func buildAssumeRoleWithIdentityTokenUrl(duration int, roleSessionName, roleArn, token string) string {
 	return fmt.Sprintf(
-		"%s?Action=AssumeRoleWithWebIdentity&DurationSeconds=%d&RoleSessionName=%s&RoleArn=%s&WebIdentityToken=%s&Version=2011-06-15", 
+		"%s?Action=AssumeRoleWithWebIdentity&DurationSeconds=%d&RoleSessionName=%s&RoleArn=%s&WebIdentityToken=%s&Version=2011-06-15",
 		testStsEndpoint, duration, roleSessionName, roleArn, token,
 	)
 }
 
 var testPolicyArnForTestPM = "arn:aws:iam::000000000000:role/S3Access"
-func getNewTestPM(t testing.TB) (*iam.PolicyManager) {
+
+func getNewTestPM(t testing.TB) *iam.PolicyManager {
 	pm, err := iam.NewPolicyManagerForLocalPolicies(fmt.Sprintf("%s/policies", testEtcPath))
 	if err != nil {
 		t.Error("Could not get testing Policy Manager)", "error", err)
@@ -83,7 +83,7 @@ func getNewTestPM(t testing.TB) (*iam.PolicyManager) {
 	return pm
 }
 
-func getWebIdentityTestingToken(t testing.TB, keyStorage utils.PrivateKeyKeeper, d time.Duration, tags *session.AWSSessionTags) string{
+func getWebIdentityTestingToken(t testing.TB, keyStorage utils.PrivateKeyKeeper, d time.Duration, tags *session.AWSSessionTags) string {
 	token, err := CreateSignedOIDCTestingToken(keyStorage, d, tags)
 	if err != nil {
 		t.Errorf("Could not create a testing token %s", err)
@@ -92,7 +92,7 @@ func getWebIdentityTestingToken(t testing.TB, keyStorage utils.PrivateKeyKeeper,
 	return token
 }
 
-//Create a signed OIDC testing TOken
+// Create a signed OIDC testing TOken
 func CreateSignedOIDCTestingToken(keyStorage utils.PrivateKeyKeeper, d time.Duration, tags *session.AWSSessionTags) (string, error) {
 	if tags == nil {
 		tags = &session.AWSSessionTags{}
@@ -115,15 +115,15 @@ func TestProxySts(t *testing.T) {
 	s := NewTestSTSServer(t, pm, 3600, testOIDCConfigFakeTesting, true)
 
 	//Given a valid testing token
-	token := getWebIdentityTestingToken(t, s.jwtKeyMaterial, 10 * time.Minute, nil)
+	token := getWebIdentityTestingToken(t, s.jwtKeyMaterial, 10*time.Minute, nil)
 
 	//When an assume role with WebIdentity request is done
 	url := buildAssumeRoleWithIdentityTokenUrl(901, "mysession", testPolicyArnForTestPM, token)
 	req, err := http.NewRequest("POST", url, nil)
 
-    if err != nil {
-        t.Fatal(err)
-    }
+	if err != nil {
+		t.Fatal(err)
+	}
 	rr := httptest.NewRecorder()
 	s.processSTSPost(rr, req)
 	//Then the result must be OK
@@ -132,7 +132,7 @@ func TestProxySts(t *testing.T) {
 	}
 }
 
-func createBasicRS256PolicyToken(issuer, subject string, expiry time.Duration) (*jwt.Token) {
+func createBasicRS256PolicyToken(issuer, subject string, expiry time.Duration) *jwt.Token {
 	claims := &jwt.RegisteredClaims{
 		ExpiresAt: jwt.NewNumericDate(time.Now().UTC().Add(expiry)),
 		IssuedAt:  jwt.NewNumericDate(time.Now().UTC()),
@@ -146,7 +146,7 @@ func createBasicRS256PolicyToken(issuer, subject string, expiry time.Duration) (
 	return token
 }
 
-//Test the most basic web identity token which only has the subject
+// Test the most basic web identity token which only has the subject
 func TestProxyStsAssumeRoleWithWebIdentityBasicToken(t *testing.T) {
 	//Given the policy Manager that has roleArn for the testARN
 	pm := getNewTestPM(t)
@@ -156,7 +156,7 @@ func TestProxyStsAssumeRoleWithWebIdentityBasicToken(t *testing.T) {
 
 	//Given a valid testing token
 	token, err := credentials.CreateSignedToken(
-		createBasicRS256PolicyToken(testFakeIssuer, "test-user", time.Minute), 
+		createBasicRS256PolicyToken(testFakeIssuer, "test-user", time.Minute),
 		s.jwtKeyMaterial,
 	)
 	if err != nil {
@@ -167,9 +167,9 @@ func TestProxyStsAssumeRoleWithWebIdentityBasicToken(t *testing.T) {
 	url := buildAssumeRoleWithIdentityTokenUrl(901, "mysession", testPolicyArnForTestPM, token)
 	req, err := http.NewRequest("POST", url, nil)
 
-    if err != nil {
-        t.Fatal(err)
-    }
+	if err != nil {
+		t.Fatal(err)
+	}
 	rr := httptest.NewRecorder()
 	s.processSTSPost(rr, req)
 	if rr.Result().StatusCode != http.StatusOK {
@@ -184,7 +184,7 @@ var testSessionTagsCustomIdA = session.AWSSessionTags{
 	TransitiveTagKeys: []string{"custom_id"},
 }
 
-//Test the most basic web identity token which only has the subject
+// Test the most basic web identity token which only has the subject
 func TestProxyStsAssumeRoleWithWebIdentitySessionTagsToken(t *testing.T) {
 	//Given the policy Manager that has roleArn for the testARN
 	pm := getNewTestPM(t)
@@ -193,21 +193,20 @@ func TestProxyStsAssumeRoleWithWebIdentitySessionTagsToken(t *testing.T) {
 	s := NewTestSTSServer(t, pm, 3600, testOIDCConfigFakeTesting, true)
 
 	//Given a valid testing token
-	token := getWebIdentityTestingToken(t, s.jwtKeyMaterial, 20* time.Minute, &testSessionTagsCustomIdA)
+	token := getWebIdentityTestingToken(t, s.jwtKeyMaterial, 20*time.Minute, &testSessionTagsCustomIdA)
 
 	url := buildAssumeRoleWithIdentityTokenUrl(901, "mysession", testPolicyArnForTestPM, token)
 	req, err := http.NewRequest("POST", url, nil)
 
-    if err != nil {
-        t.Fatal(err)
-    }
+	if err != nil {
+		t.Fatal(err)
+	}
 	rr := httptest.NewRecorder()
 	s.processSTSPost(rr, req)
 	if rr.Result().StatusCode != http.StatusOK {
 		t.Errorf("Could not assume role with testing token: %v", rr)
 	}
 }
-
 
 // This works like a fixture see https://medium.com/nerd-for-tech/setup-and-teardown-unit-test-in-go-bd6fa1b785cd
 func setupSuiteProxySTS(t testing.TB, pm *iam.PolicyManager, oidcConfig string, tlsEnabled bool) (func(t testing.TB), *STSServer) {
@@ -232,9 +231,9 @@ func TestProxyStsViaSTSClient(t *testing.T) {
 		func() { // Make it easy to use defer for the teardown
 			teardownSuite, s := setupSuiteProxySTS(t, getNewTestPM(t), testOIDCConfigFakeTesting, tlsEnabled)
 			defer teardownSuite(t)
-		
+
 			token := getWebIdentityTestingToken(t, s.jwtKeyMaterial, 20*time.Minute, nil)
-		
+
 			_, err := testutils.AssumeRoleWithWebIdentityAgainstTestStsProxy(t, token, "my-session", testPolicyArnForTestPM, s, nil)
 			if err != nil {
 				t.Errorf("encountered error when assuming role: %s", err)

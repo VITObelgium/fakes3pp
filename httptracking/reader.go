@@ -6,13 +6,12 @@ import (
 	"github.com/VITObelgium/fakes3pp/requestctx"
 )
 
-
-type trackingReadCloser struct{
+type trackingReadCloser struct {
 	rc         io.ReadCloser
 	requestCtx *requestctx.RequestCtx
 }
 
-func NewTrackingBody(body io.ReadCloser, rCtx *requestctx.RequestCtx) *trackingReadCloser{
+func NewTrackingBody(body io.ReadCloser, rCtx *requestctx.RequestCtx) *trackingReadCloser {
 	return &trackingReadCloser{
 		rc:         body,
 		requestCtx: rCtx,

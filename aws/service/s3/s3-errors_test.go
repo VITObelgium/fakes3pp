@@ -18,7 +18,7 @@ func removeNewlines(s string) string {
 
 func TestS3Error(t *testing.T) {
 	r, err := http.NewRequest(http.MethodGet, "https://localhost:8443/noAccess", nil)
-	if err != nil{
+	if err != nil {
 		t.Errorf("Could not build request for TestS3Error %s", err)
 	}
 	var testReqID = "FFFFFFFF-FFFF-FFFF-FFFF-FFFFFFFFFFFF"

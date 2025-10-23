@@ -15,7 +15,7 @@ import (
 
 const proxys3 = "proxys3"
 
-func buildS3Server() (server.Serverable) {
+func buildS3Server() server.Serverable {
 	BindEnvVariables(proxys3)
 
 	pm, err := initializePolicyManager()
@@ -83,7 +83,7 @@ func init() {
 
 }
 
-func getS3CORSHandler() (interfaces.CORSHandler) {
+func getS3CORSHandler() interfaces.CORSHandler {
 	strategy := viper.GetString(s3CorsStrategy)
 	switch strings.ToLower(strategy) {
 	case valueStatic:

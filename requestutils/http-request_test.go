@@ -11,7 +11,7 @@ import (
 )
 
 func TestGetUrlFromRequest(t *testing.T) {
-	var testCasesValidUrls = []struct{
+	var testCasesValidUrls = []struct {
 		Description string
 		Url         string
 	}{
@@ -22,7 +22,7 @@ func TestGetUrlFromRequest(t *testing.T) {
 		{
 			"Permanent credentials Url",
 			"https://s3.test.com/my-bucket/path/to/my_file?AWSAccessKeyId=0123455678910abcdef09459&Signature=O%2FybXwQdy0cISlo6ly4Lit6s%2BlE%3D&Expires=1727389975",
- 		},
+		},
 	}
 
 	for _, tc := range testCasesValidUrls {
@@ -34,7 +34,6 @@ func TestGetUrlFromRequest(t *testing.T) {
 	}
 }
 
-
 func buildGetRequest(url string, t *testing.T) *http.Request {
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
@@ -45,13 +44,13 @@ func buildGetRequest(url string, t *testing.T) *http.Request {
 }
 
 func TestCompareRequestWithUrl(t *testing.T) {
-	var testCases = []struct{
+	var testCases = []struct {
 		Description  string
 		Url          string
 		Req          *http.Request
-		isSameScheme bool 
-		isSameHost   bool 
-		isSamePath   bool 
+		isSameScheme bool
+		isSameHost   bool
+		isSamePath   bool
 		isSameQuery  bool
 		errContains  string // String representation of the error should contain this
 	}{
@@ -172,7 +171,7 @@ func TestCompareRequestWithUrl(t *testing.T) {
 			if tc.isSameScheme != isSameScheme {
 				fail("scheme not meeting expectation")
 			}
-			
+
 			if tc.isSameHost != isSameHost {
 				fail("host not meeting expectation")
 			}

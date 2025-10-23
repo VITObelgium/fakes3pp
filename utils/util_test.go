@@ -6,10 +6,9 @@ import (
 	"github.com/VITObelgium/fakes3pp/utils"
 )
 
-
 func TestCaptilizeFirstLetter(t *testing.T) {
 	testCases := []struct {
-        Description string
+		Description string
 		input       string
 		expected    string
 	}{
@@ -42,4 +41,3 @@ func TestCaptilizeFirstLetter(t *testing.T) {
 		}
 	}
 }
-

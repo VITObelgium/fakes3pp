@@ -38,8 +38,8 @@ func getS3ObjectFromRequest(req *http.Request, vhi interfaces.VirtualHosterIdent
 	}
 }
 
-//Buid a new IAM action based out of an HTTP Request. The IAM action should resemble the required
-//Permissions. The api_action is passed in as a string argument
+// Buid a new IAM action based out of an HTTP Request. The IAM action should resemble the required
+// Permissions. The api_action is passed in as a string argument
 func newIamActionsFromS3Request(api_action api.S3Operation, req *http.Request, session *iam.PolicySessionData, vhi interfaces.VirtualHosterIdentifier) (actions []iam.IAMAction, err error) {
 	var bucket string
 	defer requestctx.AddAccessLogInfo(req, "s3", slog.String(L_BUCKET, bucket))
@@ -51,7 +51,7 @@ func newIamActionsFromS3Request(api_action api.S3Operation, req *http.Request, s
 		if err != nil {
 			return nil, err
 		}
-		a :=iam.NewIamAction(
+		a := iam.NewIamAction(
 			actionnames.IAMActionS3PutObject,
 			makeS3ObjectArn(bucket, key),
 			session,
@@ -97,7 +97,7 @@ func newIamActionsFromS3Request(api_action api.S3Operation, req *http.Request, s
 	case api.ListBuckets:
 		a := iam.NewIamAction(
 			actionnames.IAMActionS3ListAllMyBuckets,
-			"*",  //Can only be granted on *
+			"*", //Can only be granted on *
 			session,
 		)
 		actions = append(actions, a)

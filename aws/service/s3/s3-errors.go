@@ -33,20 +33,21 @@ import (
 	"github.com/VITObelgium/fakes3pp/utils"
 )
 
-type s3ErrorReporter struct {}
+type s3ErrorReporter struct{}
+
 var s3ErrorReporterInstance = &s3ErrorReporter{}
 
-func (er * s3ErrorReporter) WriteErrorResponse(ctx context.Context, w http.ResponseWriter, errCode service.AWSErrorCode, err error) {
+func (er *s3ErrorReporter) WriteErrorResponse(ctx context.Context, w http.ResponseWriter, errCode service.AWSErrorCode, err error) {
 	s3ErrCode := toS3ErrorCode(ctx, errCode)
 	writeS3ErrorResponse(ctx, w, s3ErrCode, err)
 
 }
 
-var awsToS3ErrorCode = map[service.AWSErrorCode]S3ErrorCode {
-	service.ErrAWSAccessDenied: ErrS3AccessDenied,
-	service.ErrAWSInternalError: ErrS3InternalError,
-	service.ErrAWSInvalidSignature: ErrS3InvalidSignature,
-	service.ErrInvalidAccessKeyId: ErrS3InvalidAccessKeyId,
+var awsToS3ErrorCode = map[service.AWSErrorCode]S3ErrorCode{
+	service.ErrAWSAccessDenied:              ErrS3AccessDenied,
+	service.ErrAWSInternalError:             ErrS3InternalError,
+	service.ErrAWSInvalidSignature:          ErrS3InvalidSignature,
+	service.ErrInvalidAccessKeyId:           ErrS3InvalidAccessKeyId,
 	service.ErrAuthorizationHeaderMalformed: ErrS3AuthorizationHeaderMalformed,
 }
 
@@ -88,11 +89,11 @@ func writeS3ErrorResponse(ctx context.Context, w http.ResponseWriter, errCode S3
 }
 
 type S3ErrorResponse struct {
-	XMLName xml.Name `xml:"Error" json:"-"`
-	Code    string `xml:"Code"`
-	Message string `xml:"Message"`
-	RequestID string `xml:"RequestId"`
-	HostId string `xml:"HostId"`
+	XMLName   xml.Name `xml:"Error" json:"-"`
+	Code      string   `xml:"Code"`
+	Message   string   `xml:"Message"`
+	RequestID string   `xml:"RequestId"`
+	HostId    string   `xml:"HostId"`
 }
 
 type S3Error struct {
@@ -117,7 +118,6 @@ const (
 	ErrS3AuthorizationHeaderMalformed
 )
 
-
 type s3ErrorCodeMap map[S3ErrorCode]S3Error
 
 func (e s3ErrorCodeMap) ToS3Err(errCode S3ErrorCode) S3Error {
@@ -128,7 +128,7 @@ func (e s3ErrorCodeMap) ToS3Err(errCode S3ErrorCode) S3Error {
 	return apiErr
 }
 
-//https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html
+// https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html
 var s3ErrCodes = s3ErrorCodeMap{
 	ErrS3AccessDenied: {
 		Code:           "AccessDenied",

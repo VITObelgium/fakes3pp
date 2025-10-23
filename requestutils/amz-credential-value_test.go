@@ -5,7 +5,6 @@ import (
 	"testing"
 )
 
-
 func assertEqualStr(tb testing.TB, reason, expected, got any) {
 	if expected != got {
 		tb.Errorf("%s\n\texpected: %s\n\tgot     : %s", reason, expected, got)
@@ -68,13 +67,13 @@ func TestExtractCredentialParts(t *testing.T) {
 		t.Errorf("was not able to get access key id: %s", err)
 	}
 	assertEqualStr(t, "akid validation", givenAkid, akid)
-	
+
 	date, err := GetCredentialPart(credString, CredentialPartDate)
 	if err != nil {
 		t.Errorf("was not able to get date key: %s", err)
 	}
 	assertEqualStr(t, "date validation", givenDate, date)
-	
+
 	region, err := GetCredentialPart(credString, CredentialPartRegionName)
 	if err != nil {
 		t.Errorf("was not able to get region: %s", err)

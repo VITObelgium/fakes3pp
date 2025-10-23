@@ -10,8 +10,7 @@ import (
 	"github.com/VITObelgium/fakes3pp/requestctx"
 )
 
-
-func TestGetAccessLogStringInfo(t *testing.T){
+func TestGetAccessLogStringInfo(t *testing.T) {
 	//Given a new requestObject without context
 	r, err := http.NewRequest(http.MethodGet, "http://www.google.be", strings.NewReader(""))
 	if err != nil {
@@ -22,14 +21,14 @@ func TestGetAccessLogStringInfo(t *testing.T){
 	retrievedStr := requestctx.GetAccessLogStringInfo(r, "s3", "Bucket")
 	expectedStr := ""
 
-	//Then we should get an empty string since it did not exist 
+	//Then we should get an empty string since it did not exist
 	if retrievedStr != expectedStr {
 		t.Errorf("Expected '%s', got '%s'", expectedStr, retrievedStr)
 		t.FailNow()
 	}
 }
 
-func TestGetAccessLogStringInfoWhenSet(t *testing.T){
+func TestGetAccessLogStringInfoWhenSet(t *testing.T) {
 	//Given a new requestObject with context
 	r, err := http.NewRequest(http.MethodGet, "http://www.google.be", strings.NewReader(""))
 	if err != nil {
@@ -52,7 +51,7 @@ func TestGetAccessLogStringInfoWhenSet(t *testing.T){
 	retrievedStr := requestctx.GetAccessLogStringInfo(r, testGroup, testKey)
 	expectedStr := testValue
 
-	//Then we should get the expected value 
+	//Then we should get the expected value
 	if retrievedStr != expectedStr {
 		t.Errorf("Expected '%s', got '%s'", expectedStr, retrievedStr)
 		t.FailNow()

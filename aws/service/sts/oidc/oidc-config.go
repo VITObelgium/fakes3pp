@@ -16,22 +16,21 @@ import (
 
 type OIDCVerifier interface {
 	//
-	GetKeyFunc() (jwt.Keyfunc)
+	GetKeyFunc() jwt.Keyfunc
 }
 
 func NewOIDCVerifierFromConfigFile(cfgFile string) (OIDCVerifier, error) {
 	return loadOidcConfigFile(cfgFile)
 }
 
-
 type oidcProviderConfig struct {
-	Realm            string `json:"realm" yaml:"realm"`
-	PublicKey        string `json:"public_key" yaml:"public_key"`
-	TokenService     string `json:"token-service" yaml:"token-service"`
-	AccountService   string `json:"account-service" yaml:"account-service"`
+	Realm           string `json:"realm" yaml:"realm"`
+	PublicKey       string `json:"public_key" yaml:"public_key"`
+	TokenService    string `json:"token-service" yaml:"token-service"`
+	AccountService  string `json:"account-service" yaml:"account-service"`
 	TokensNotBefore int    `json:"tokens-not-before" yaml:"tokens-not-before"`
 	// issuer url will be used to load other fields if not all required info is there
-	Iss               string `json:"iss" yaml:"iss"`
+	Iss string `json:"iss" yaml:"iss"`
 }
 
 func (c *oidcProviderConfig) getPublicKey() (*rsa.PublicKey, error) {
@@ -42,10 +41,10 @@ func (c *oidcProviderConfig) getPublicKey() (*rsa.PublicKey, error) {
 type oidcConfig struct {
 	Providers map[string]*oidcProviderConfig `yaml:"providers"`
 	//Issuers to provider names
-	Issuers map[string]string 
+	Issuers map[string]string
 }
 
-func (c *oidcConfig) getProviderNames() ([]string) {
+func (c *oidcConfig) getProviderNames() []string {
 	providerNames := []string{}
 	for providerName := range c.Providers {
 		providerNames = append(providerNames, providerName)
@@ -53,7 +52,7 @@ func (c *oidcConfig) getProviderNames() ([]string) {
 	return providerNames
 }
 
-func (c *oidcConfig) String() (string) {
+func (c *oidcConfig) String() string {
 	bytes, err := yaml.Marshal(c)
 	if err != nil {
 		return "Failed marshalling OIDConfig"
@@ -73,7 +72,6 @@ func loadOidcConfigFile(configFile string) (*oidcConfig, error) {
 	}
 	return oidcConfig, nil
 }
-
 
 func loadOidcConfig(inCfg []byte) (*oidcConfig, error) {
 	var cfg oidcConfig
@@ -112,8 +110,8 @@ func loadOidcConfig(inCfg []byte) (*oidcConfig, error) {
 	return &cfg, nil
 }
 
-func (cfg *oidcConfig) GetKeyFunc() (jwt.Keyfunc) {
-	return func (t *jwt.Token) (interface{}, error) {
+func (cfg *oidcConfig) GetKeyFunc() jwt.Keyfunc {
+	return func(t *jwt.Token) (interface{}, error) {
 		issuer, err := t.Claims.GetIssuer()
 		if err != nil {
 			return nil, fmt.Errorf("could not get Issuer from token: %s", err)
@@ -130,7 +128,7 @@ func (cfg *oidcConfig) GetKeyFunc() (jwt.Keyfunc) {
 		issuerConfig, ok := cfg.Providers[issuer]
 		if !ok {
 			return nil, fmt.Errorf("could not find issuer: %s", issuer)
-		} 
+		}
 		publicKey, err := issuerConfig.getPublicKey()
 		if err != nil {
 			return nil, fmt.Errorf("could not find public key config for issuer: %s", issuer)

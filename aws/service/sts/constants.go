@@ -19,17 +19,16 @@
 
 package sts
 
-
 const (
 	// STS API version.
-	stsAPIVersion             = "2011-06-15"
-	stsVersion                = "Version"
-	stsAction                 = "Action"
-	stsPolicy                 = "Policy"
-	stsToken                  = "Token"
-	stsRoleArn                = "RoleArn"
-	stsWebIdentityToken       = "WebIdentityToken"
-	stsDurationSeconds        = "DurationSeconds"
+	stsAPIVersion       = "2011-06-15"
+	stsVersion          = "Version"
+	stsAction           = "Action"
+	stsPolicy           = "Policy"
+	stsToken            = "Token"
+	stsRoleArn          = "RoleArn"
+	stsWebIdentityToken = "WebIdentityToken"
+	stsDurationSeconds  = "DurationSeconds"
 
 	// STS API action constants
 	clientGrants        = "AssumeRoleWithClientGrants"

@@ -49,9 +49,9 @@ func checkPresignRequiredFlags() {
 	}
 }
 
-var	cliBucket string
-var	cliKey string
-var	cliExpiry int
+var cliBucket string
+var cliKey string
+var cliExpiry int
 var cliRegion string
 var backendConfigFile string
 
@@ -66,16 +66,15 @@ func init() {
 	checkPresignRequiredFlags()
 }
 
-//Pre-sign the requests with the credentials that are used by the proxy itself
-func preSignRequestWithServerCreds(req *http.Request, exiryInSeconds int, signingTime time.Time, defaultRegion, backendCfgFile string) (signedURI string, signedHeaders http.Header, err error){
+// Pre-sign the requests with the credentials that are used by the proxy itself
+func preSignRequestWithServerCreds(req *http.Request, exiryInSeconds int, signingTime time.Time, defaultRegion, backendCfgFile string) (signedURI string, signedHeaders http.Header, err error) {
 
-	
 	ctx := context.Background()
 
 	region := requestutils.GetRegionFromRequest(req, defaultRegion)
 	creds, err := s3.GetBackendCredentials(backendCfgFile, region)
 	if err != nil {
-		return 
+		return
 	}
 
 	return presign.PreSignRequestWithCreds(
@@ -88,7 +87,6 @@ func preSignRequestWithServerCreds(req *http.Request, exiryInSeconds int, signin
 	)
 }
 
-
 func preSignRequestForGet(bucket, key, region, backendCfgFile string, signingTime time.Time, expirySeconds int) (string, error) {
 	mainS3ProxyFQDN, err := getMainS3ProxyFQDN()
 	if err != nil {
@@ -99,6 +97,6 @@ func preSignRequestForGet(bucket, key, region, backendCfgFile string, signingTim
 	if err != nil {
 		return "", fmt.Errorf("error when creating a request context for url: %s", err)
 	}
-	signedURI, _ , err := preSignRequestWithServerCreds(req, expirySeconds, signingTime, region, backendCfgFile)
+	signedURI, _, err := preSignRequestWithServerCreds(req, expirySeconds, signingTime, region, backendCfgFile)
 	return signedURI, err
 }

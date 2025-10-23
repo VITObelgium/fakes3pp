@@ -36,7 +36,6 @@ var testProviderEgiFull string = `
     tokens-not-before: 0
     iss: https://aai.egi.eu/auth/realms/egi`
 
-
 var testFakeIssuer string = "https://localhost/auth/realms/testing"
 
 var testProviderFakeTesting string = fmt.Sprintf(`
@@ -52,37 +51,37 @@ var testConfigAll string = fmt.Sprintf("providers:%s\n%s\n%s", testProviderCDSE,
 var testConfigCDSE string = fmt.Sprintf("providers:%s", testProviderCDSE)
 var testConfigEGI string = fmt.Sprintf("providers:%s", testProviderEgiFull)
 
-
 const (
-	testCDSERealm string = "CDSE"
-	testCDSEPublicKey string = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAp6LwUL4v3SjzOdBYr4IxRRwsSJQ6lRvwS/7GiO77RO63+73Ne6htXmM6L/iDP1RLKT0N3rVp1oAnX/9HEd+s/xP7rXS6TmDG3mlSwQ/PKlILpqiatesaPo/tp/RUYyREjHeuUj/bzEVJUhC/rsjY5R1jwVlnSRAJ8VYTrwXiV7S87oxH+SL3XtuCpheGIm2QjJrVHGJ9kfanZouqKIk2MF54loCQ8EDxpQCEJFnY8l1+2qh7+6J1rRHromwgx0seUtbi+tQmVANkJrWOaMgJvORd4EDdouDa3nRy0BkLBQTJwZOXKhQKf0w2SchcZx2cy4iaMVa2O8o4lbIvrw++GwIDAQAB"
-    testCDSETokenService string = "https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect" 
-    testCDSEAccountService string = "https://identity.dataspace.copernicus.eu/auth/realms/CDSE/account"
-    testCDSETokensNotBefore int = 0
-	testEGIRealm string = "egi"
-	testEGIPublicKey string = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArqwhdua+/zTG5SDw/dFkW+OzYMh5e7e3+neeiZy/ajKVRCHGky4jSx5WjoVxfWvqt/JpGbCQ/Vk9x19UiRQlSBNmufJtVtrBHcXSrppTjABg20TVY+mRK2WJfdwK2YUc8xtNw1rCMOQQk0CC5j2AeUgwAY02WLaU0FYKmypJgfSQEeW1Cywl8OrkkYhcnEET7EwgemuEbqDY+pcqd3kIH++kwgjymUQ8CJgIgI3/zHLVrJsCxdADDP/zFFsTOnE205nMoBMTk10EcdTGAUBj3IosTn7HirVyQgiFL2stsjmxK3TeBli0YzVqlP0iuSA9FCPC4nqzRIDynjy70z2hZwIDAQAB"
-    testEGITokenService string = "https://aai.egi.eu/auth/realms/egi/protocol/openid-connect"
-    testEGIAccountService string = "https://aai.egi.eu/auth/realms/egi/account"
-    testEGITokensNotBefore int = 0
+	testCDSERealm           string = "CDSE"
+	testCDSEPublicKey       string = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAp6LwUL4v3SjzOdBYr4IxRRwsSJQ6lRvwS/7GiO77RO63+73Ne6htXmM6L/iDP1RLKT0N3rVp1oAnX/9HEd+s/xP7rXS6TmDG3mlSwQ/PKlILpqiatesaPo/tp/RUYyREjHeuUj/bzEVJUhC/rsjY5R1jwVlnSRAJ8VYTrwXiV7S87oxH+SL3XtuCpheGIm2QjJrVHGJ9kfanZouqKIk2MF54loCQ8EDxpQCEJFnY8l1+2qh7+6J1rRHromwgx0seUtbi+tQmVANkJrWOaMgJvORd4EDdouDa3nRy0BkLBQTJwZOXKhQKf0w2SchcZx2cy4iaMVa2O8o4lbIvrw++GwIDAQAB"
+	testCDSETokenService    string = "https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect"
+	testCDSEAccountService  string = "https://identity.dataspace.copernicus.eu/auth/realms/CDSE/account"
+	testCDSETokensNotBefore int    = 0
+	testEGIRealm            string = "egi"
+	testEGIPublicKey        string = "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArqwhdua+/zTG5SDw/dFkW+OzYMh5e7e3+neeiZy/ajKVRCHGky4jSx5WjoVxfWvqt/JpGbCQ/Vk9x19UiRQlSBNmufJtVtrBHcXSrppTjABg20TVY+mRK2WJfdwK2YUc8xtNw1rCMOQQk0CC5j2AeUgwAY02WLaU0FYKmypJgfSQEeW1Cywl8OrkkYhcnEET7EwgemuEbqDY+pcqd3kIH++kwgjymUQ8CJgIgI3/zHLVrJsCxdADDP/zFFsTOnE205nMoBMTk10EcdTGAUBj3IosTn7HirVyQgiFL2stsjmxK3TeBli0YzVqlP0iuSA9FCPC4nqzRIDynjy70z2hZwIDAQAB"
+	testEGITokenService     string = "https://aai.egi.eu/auth/realms/egi/protocol/openid-connect"
+	testEGIAccountService   string = "https://aai.egi.eu/auth/realms/egi/account"
+	testEGITokensNotBefore  int    = 0
 )
+
 var testCDSECfg *oidcProviderConfig = &oidcProviderConfig{
-	Realm: testCDSERealm,
-	PublicKey: testCDSEPublicKey,
-	TokenService: testCDSETokenService,
-	AccountService: testCDSEAccountService,
+	Realm:           testCDSERealm,
+	PublicKey:       testCDSEPublicKey,
+	TokenService:    testCDSETokenService,
+	AccountService:  testCDSEAccountService,
 	TokensNotBefore: testCDSETokensNotBefore,
 }
 var testEGICfg *oidcProviderConfig = &oidcProviderConfig{
-	Realm: testEGIRealm,
-	PublicKey: testEGIPublicKey,
-	TokenService: testEGITokenService,
-	AccountService: testEGIAccountService,
+	Realm:           testEGIRealm,
+	PublicKey:       testEGIPublicKey,
+	TokenService:    testEGITokenService,
+	AccountService:  testEGIAccountService,
 	TokensNotBefore: testEGITokensNotBefore,
 }
 var testProvidersTruth *oidcConfig = &oidcConfig{
 	Providers: map[string]*oidcProviderConfig{
 		"CDSE": testCDSECfg,
-		"egi": testEGICfg,
+		"egi":  testEGICfg,
 	},
 }
 
@@ -126,7 +125,7 @@ func TestLoadConfig(t *testing.T) {
 				t.Errorf("OIDC provider config for %s is not equal %s", providerName, err)
 			}
 		}
-	} 
+	}
 }
 
 var testPolicyAllowAll string = `{
@@ -140,7 +139,7 @@ var testPolicyAllowAll string = `{
 	]
 }`
 
-func TestGetCDSEPublicKey (t *testing.T) {
+func TestGetCDSEPublicKey(t *testing.T) {
 	cfg, err := loadOidcConfig([]byte(testConfigCDSE))
 	if err != nil {
 		t.Errorf("Failed to load OIDC config due to %s", err)
@@ -156,7 +155,7 @@ func TestGetCDSEPublicKey (t *testing.T) {
 
 }
 
-func TestGetEGIPublicKey (t *testing.T) {
+func TestGetEGIPublicKey(t *testing.T) {
 	cfg, err := loadOidcConfig([]byte(testConfigEGI))
 	if err != nil {
 		t.Errorf("Failed to load OIDC config due to %s", err)
@@ -176,7 +175,7 @@ func TestGetTokenClaims(t *testing.T) {
 	expiry := time.Hour
 	tags := session.AWSSessionTags{}
 	unsignedToken := jwt.NewWithClaims(
-		jwt.SigningMethodRS256, 
+		jwt.SigningMethodRS256,
 		credentials.NewIDPClaims(testFakeIssuer, testSubject, expiry, tags),
 	)
 	keyStorage, err := utils.NewKeyStorage("../../../../etc/jwt_testing_rsa")
@@ -190,7 +189,7 @@ func TestGetTokenClaims(t *testing.T) {
 		t.Errorf("Could create signed token with subject %s and tags %v: %s", testSubject, tags, err)
 		t.FailNow()
 	}
-	claimMap, err :=credentials.ExtractOIDCTokenClaims(token, keyStorage.GetJwtKeyFunc())
+	claimMap, err := credentials.ExtractOIDCTokenClaims(token, keyStorage.GetJwtKeyFunc())
 	if err != nil {
 		t.Errorf("Could not get claims from testing token %s: %s", token, err)
 		t.Fail()

@@ -34,11 +34,11 @@ import (
 
 const proxysts = "proxysts"
 
-func initializePolicyManager() (pm *iam.PolicyManager, err error){
+func initializePolicyManager() (pm *iam.PolicyManager, err error) {
 	return iam.NewPolicyManagerForLocalPolicies(viper.GetString(rolePolicyPath))
 }
 
-func buildSTSServer() (server.Serverable) {
+func buildSTSServer() server.Serverable {
 	BindEnvVariables(proxysts)
 	pm, err := initializePolicyManager()
 	if err != nil {
@@ -70,7 +70,7 @@ func buildSTSServer() (server.Serverable) {
 	return s
 }
 
-func getServerOptsFromViper() server.ServerOpts{
+func getServerOptsFromViper() server.ServerOpts {
 	return server.ServerOpts{
 		MetricsPort: viper.GetInt(metricsPort),
 	}

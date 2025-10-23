@@ -35,7 +35,7 @@ func isHmacV1Query(r *http.Request) bool {
 	return r.URL.Query().Get(constants.SignatureKey) != "" && r.URL.Query().Get(constants.AccessKeyId) != ""
 }
 
-//Presigned urls often get different casing (e.g. from boto3 library)
+// Presigned urls often get different casing (e.g. from boto3 library)
 func getHmacV1QuerySecurityToken(r *http.Request) string {
 	var result = r.URL.Query().Get("x-amz-security-token")
 	if result == "" {
@@ -53,9 +53,9 @@ func (u presignedUrlHmacv1Query) GetPresignedUrlDetails(ctx context.Context, der
 		return
 	}
 	creds = aws.Credentials{
-		AccessKeyID: accessKeyId,
+		AccessKeyID:     accessKeyId,
 		SecretAccessKey: secretAccessKey,
-		SessionToken: sessionToken,
+		SessionToken:    sessionToken,
 	}
 	isValid, err = u.hasValidSignature(creds)
 	if err != nil {
@@ -92,11 +92,11 @@ func (u presignedUrlHmacv1Query) getExpiresTime() (time.Time, error) {
 	return epochStrToTime(u.getExpires())
 }
 
-//Calculate a Presigned URL out of a Request using AWS Credentials
-//If you want to generate an URL for a new request set expirySeconds >0 to chose how long it will be valid
-//If expirySeconds is set to 0 it is expected that a query parameter Expires is passed as part of the URL
-//With a value an epoch timestamp
-//This function will not make changes to the passed in request
+// Calculate a Presigned URL out of a Request using AWS Credentials
+// If you want to generate an URL for a new request set expirySeconds >0 to chose how long it will be valid
+// If expirySeconds is set to 0 it is expected that a query parameter Expires is passed as part of the URL
+// With a value an epoch timestamp
+// This function will not make changes to the passed in request
 func CalculateS3PresignedHmacV1QueryUrl(req *http.Request, creds aws.Credentials, expirySeconds int) (string, error) {
 	var expires = getExpiresFromHmacv1QueryUrl(req)
 	if expires == "" && expirySeconds == 0 {
@@ -113,7 +113,7 @@ func CalculateS3PresignedHmacV1QueryUrl(req *http.Request, creds aws.Credentials
 
 func calculateS3PresignedHmacV1QueryUrlWithExpiryTime(req *http.Request, creds aws.Credentials, expires string) (string, error) {
 	r := req.Clone(context.Background())
-	
+
 	assureSecTokenHeader(r, creds)
 
 	cs, err := getCanonicalRequestString(r, expires)
@@ -130,7 +130,7 @@ func calculateS3PresignedHmacV1QueryUrlWithExpiryTime(req *http.Request, creds a
 	return buildHmacV1QueryUrl(r, creds, expires, signature), nil
 }
 
-func buildHmacV1QueryUrl(req *http.Request, creds aws.Credentials, expires, signature string) (string) {
+func buildHmacV1QueryUrl(req *http.Request, creds aws.Credentials, expires, signature string) string {
 	var secToken = ""
 	if creds.SessionToken != "" {
 		secToken = fmt.Sprintf("&x-amz-security-token=%s", url.QueryEscape(creds.SessionToken))
@@ -139,11 +139,11 @@ func buildHmacV1QueryUrl(req *http.Request, creds aws.Credentials, expires, sign
 	if req.URL.Scheme != "" {
 		scheme = req.URL.Scheme
 	}
-	
+
 	return fmt.Sprintf(
-		"%s://%s%s?AWSAccessKeyId=%s&Signature=%s%s&Expires=%s", 
-		scheme, 
-		req.URL.Host, 
+		"%s://%s%s?AWSAccessKeyId=%s&Signature=%s%s&Expires=%s",
+		scheme,
+		req.URL.Host,
 		req.URL.Path,
 		url.QueryEscape(creds.AccessKeyID),
 		url.QueryEscape(signature),
@@ -165,8 +165,8 @@ func assureSecTokenHeader(req *http.Request, creds aws.Credentials) {
 	req.Header.Add("x-amz-security-token", creds.SessionToken)
 }
 
-//expirySeconds are used to give a lifetime in seconds compared to now
-//This function calculates the target time and puts it in the expected epoch format.
+// expirySeconds are used to give a lifetime in seconds compared to now
+// This function calculates the target time and puts it in the expected epoch format.
 func getExpiresFromExpirySeconds(expirySeconds int) string {
 	endOfLifeTime := time.Now().Add(time.Second * time.Duration(expirySeconds))
 	return strconv.FormatInt(endOfLifeTime.UTC().Unix(), 10)
@@ -180,7 +180,7 @@ func getCanonicalRequestString(req *http.Request, expires string) (string, error
 	cs := method + "\n"
 	canonicalStandardHeaders := getCanonicalStandardHeaders(req, expires)
 	cs += canonicalStandardHeaders + "\n"
-	
+
 	canonicalCustomHeaders := getCanonicalCustomHeaders(req)
 
 	cs += canonicalCustomHeaders
@@ -197,10 +197,10 @@ func getCanonicalRequestString(req *http.Request, expires string) (string, error
 	return cs, nil
 }
 
-
-//https://github.com/boto/botocore/blob/develop/botocore/auth.py#L229
+// https://github.com/boto/botocore/blob/develop/botocore/auth.py#L229
 var interestingHeaders = [...]string{"content-md5", "content-type", "date"}
-func getCanonicalStandardHeaders(req *http.Request, expires string) (string) {
+
+func getCanonicalStandardHeaders(req *http.Request, expires string) string {
 	var headersOfInterest = []string{}
 
 	req.Header.Set("Date", expires)
@@ -230,7 +230,7 @@ func getCommaSeparatedTrimmedHeaderValues(req *http.Request, headerKey string) s
 	return strings.Join(trimmedValues, ",")
 }
 
-func getCanonicalCustomHeaders(req *http.Request) (string) {
+func getCanonicalCustomHeaders(req *http.Request) string {
 	var headersOfInterest = []string{}
 	headerKeys := []string{}
 	headers := map[string]string{}
@@ -251,41 +251,41 @@ func getCanonicalCustomHeaders(req *http.Request) (string) {
 // https://github.com/boto/botocore/blob/develop/botocore/auth.py#L965
 // Let's use a map to be able to do lookups
 var queryStringArgumentsOfInterest = map[string]bool{
-	"accelerate": true,
-	"acl": true,
-	"cors": true,
-	"defaultObjectAcl": true,
-	"location": true,
-	"logging": true,
-	"partNumber": true,
-	"policy": true,
-	"torrent": true,
-	"versioning": true,
-	"versionId": true,
-	"versions": true,
-	"website": true,
-	"uploads": true,
-	"uploadId": true,
-	"response-content-type": true,
-	"response-content-language": true,
-	"response-expires": true,
-	"response-cache-control": true,
+	"accelerate":                   true,
+	"acl":                          true,
+	"cors":                         true,
+	"defaultObjectAcl":             true,
+	"location":                     true,
+	"logging":                      true,
+	"partNumber":                   true,
+	"policy":                       true,
+	"torrent":                      true,
+	"versioning":                   true,
+	"versionId":                    true,
+	"versions":                     true,
+	"website":                      true,
+	"uploads":                      true,
+	"uploadId":                     true,
+	"response-content-type":        true,
+	"response-content-language":    true,
+	"response-expires":             true,
+	"response-cache-control":       true,
 	"response-content-disposition": true,
-	"response-content-encoding": true,
-	"delete": true,
-	"lifecycle": true,
-	"tagging": true,
-	"restore": true,
-	"storageClass": true,
-	"notification": true,
-	"replication": true,
-	"requestPayment": true,
-	"analytics": true,
-	"metrics": true,
-	"inventory": true,
-	"select": true,
-	"select-type": true,
-	"object-lock": true,
+	"response-content-encoding":    true,
+	"delete":                       true,
+	"lifecycle":                    true,
+	"tagging":                      true,
+	"restore":                      true,
+	"storageClass":                 true,
+	"notification":                 true,
+	"replication":                  true,
+	"requestPayment":               true,
+	"analytics":                    true,
+	"metrics":                      true,
+	"inventory":                    true,
+	"select":                       true,
+	"select-type":                  true,
+	"object-lock":                  true,
 }
 
 func getCanonicalResource(req *http.Request) (string, error) {

@@ -26,7 +26,7 @@ type BackendManager interface {
 type Endpoint interface {
 	//The part of the endpoint without protocol
 	GetHost() string
-	
+
 	//The endpoint base URI is of form protocol://hostname and can be used to identify the backend
 	//service
 	GetBaseURI() string

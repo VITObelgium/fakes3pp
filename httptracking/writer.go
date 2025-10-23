@@ -6,7 +6,7 @@ import (
 	"github.com/VITObelgium/fakes3pp/requestctx"
 )
 
-//A writer that updates a requestCtx with the details of the response
+// A writer that updates a requestCtx with the details of the response
 type trackingResponseWriter struct {
 	rWriter    http.ResponseWriter
 	requestCtx *requestctx.RequestCtx
@@ -16,8 +16,8 @@ type trackingResponseWriter struct {
 // but that keeps track of the written bytes.
 func NewTrackingResponseWriter(w http.ResponseWriter, rCtx *requestctx.RequestCtx) *trackingResponseWriter {
 	return &trackingResponseWriter{
-		rWriter:      w,
-		requestCtx:   rCtx,
+		rWriter:    w,
+		requestCtx: rCtx,
 	}
 }
 

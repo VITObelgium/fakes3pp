@@ -9,7 +9,6 @@ import (
 	"github.com/VITObelgium/fakes3pp/utils"
 )
 
-
 func TestCredential(t *testing.T) {
 	pathToTestKey := "../../etc/jwt_testing_rsa"
 	keyStorage, err := utils.NewKeyStorage(pathToTestKey)
@@ -25,7 +24,7 @@ func TestCredential(t *testing.T) {
 		t.Errorf("Oops got error %s when creating %s", err, ac)
 	}
 	err = ac.IsValid(keyStorage)
-	if err != nil{
+	if err != nil {
 		t.Error(err)
 	}
 	time.Sleep(time.Second)

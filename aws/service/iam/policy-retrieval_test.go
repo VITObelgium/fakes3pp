@@ -47,10 +47,10 @@ var testPolicyAllowAll string = `{
 
 const testRegion1 = "tst-1"
 
-//This policy is to test whether a policy can be scoped to a specific region
-//since our proxy uses region to determine a backend this makes sure to be able
-//to have different permissions for different backends. This is used in test cases
-//that start with TestPolicyAllowAllInRegion1
+// This policy is to test whether a policy can be scoped to a specific region
+// since our proxy uses region to determine a backend this makes sure to be able
+// to have different permissions for different backends. This is used in test cases
+// that start with TestPolicyAllowAllInRegion1
 var testPolicyAllowAllInRegion1 string = fmt.Sprintf(`{
 	"Version": "2012-10-17",
 	"Statement": [
@@ -71,25 +71,25 @@ func newTestPolicyManager() *PolicyManager {
 	return NewTestPolicyManager(
 		map[string]string{
 			"policyRealistic": testPolicyRealistic,
-			"now": "{{Now | YYYYmmdd }}",
-			"nowSlashed": "{{Now | YYYYmmddSlashed}}",
-			"tomorrow": "{{Now | Add1Day | YYYYmmdd}}",
-			"sha1": "{{ printf \"%s:%s\" .Claims.Issuer .Claims.Subject | SHA1}}",
+			"now":             "{{Now | YYYYmmdd }}",
+			"nowSlashed":      "{{Now | YYYYmmddSlashed}}",
+			"tomorrow":        "{{Now | Add1Day | YYYYmmdd}}",
+			"sha1":            "{{ printf \"%s:%s\" .Claims.Issuer .Claims.Subject | SHA1}}",
 		},
 	)
 }
 
 type policyGenerationTestCase struct {
-	PolicyName     string 
+	PolicyName     string
 	Claims         *credentials.SessionClaims
 	Expectedpolicy string
 }
 
-func buildTestSessionClaimsNoTags(issuer, subject string) (*credentials.SessionClaims) {
-	idpClaims := credentials.NewIDPClaims(issuer, subject, time.Hour * 1, session.AWSSessionTags{})
+func buildTestSessionClaimsNoTags(issuer, subject string) *credentials.SessionClaims {
+	idpClaims := credentials.NewIDPClaims(issuer, subject, time.Hour*1, session.AWSSessionTags{})
 	return &credentials.SessionClaims{
-		RoleARN: "",
-		IIssuer: "",
+		RoleARN:   "",
+		IIssuer:   "",
 		IDPClaims: *idpClaims,
 	}
 }
@@ -97,28 +97,28 @@ func buildTestSessionClaimsNoTags(issuer, subject string) (*credentials.SessionC
 func TestPolicyGeneration(t *testing.T) {
 	testCases := []policyGenerationTestCase{
 		{
-			PolicyName: "policyRealistic",
-			Claims:     buildTestSessionClaimsNoTags("", "userA"),
+			PolicyName:     "policyRealistic",
+			Claims:         buildTestSessionClaimsNoTags("", "userA"),
 			Expectedpolicy: strings.ReplaceAll(testPolicyRealistic, "{{.Claims.Subject}}", "userA"),
 		},
 		{
-			PolicyName: "now",
-			Claims:     buildTestSessionClaimsNoTags("", ""),
+			PolicyName:     "now",
+			Claims:         buildTestSessionClaimsNoTags("", ""),
 			Expectedpolicy: YYYYmmdd(Now()),
 		},
 		{
-			PolicyName: "nowSlashed",
-			Claims:     buildTestSessionClaimsNoTags("", ""),
+			PolicyName:     "nowSlashed",
+			Claims:         buildTestSessionClaimsNoTags("", ""),
 			Expectedpolicy: YYYYmmddSlashed(Now()),
 		},
 		{
-			PolicyName: "tomorrow",
-			Claims:     buildTestSessionClaimsNoTags("", ""),
+			PolicyName:     "tomorrow",
+			Claims:         buildTestSessionClaimsNoTags("", ""),
 			Expectedpolicy: YYYYmmdd(Now().Add(time.Hour * 24)),
 		},
 		{
-			PolicyName: "sha1",
-			Claims:     buildTestSessionClaimsNoTags("a", "b"),
+			PolicyName:     "sha1",
+			Claims:         buildTestSessionClaimsNoTags("a", "b"),
 			Expectedpolicy: utils.Sha1sum("a:b"),
 		},
 	}
@@ -139,9 +139,8 @@ func TestPolicyGeneration(t *testing.T) {
 
 const testVersion = "2012-10-17"
 
-//This ARN corresponds to a test policy file that is shipped in the repo
+// This ARN corresponds to a test policy file that is shipped in the repo
 const testARN = "arn:aws:iam::000000000000:role/S3Access"
-
 
 func getPMForTesting(t testing.TB) *PolicyManager {
 	pm, err := NewPolicyManagerForLocalPolicies("../../../etc/policies")
@@ -166,7 +165,7 @@ func TestLocatePolicy(t *testing.T) {
 	}
 	content, err := parsePolicy(p)
 	//We should not error out
-	if err != nil{
+	if err != nil {
 		t.Errorf("Did not get policy content %v, got errror %s", content, err)
 	}
 	//And the policy object should be a valid object
@@ -196,11 +195,10 @@ func TestPolicyManagerPrewarm(t *testing.T) {
 	}
 }
 
-
 func createTestPolicyFileForLocalPolicyRetriever(policyArn, policyContent string, pr *LocalPolicyRetriever, t *testing.T) {
 	policyFileName := pr.getPolicyPath(policyArn)
 	f, err := os.Create(policyFileName)
-    checkErrorTestDependency(err, t, fmt.Sprintf("Could Not create policy file %s", policyFileName))
+	checkErrorTestDependency(err, t, fmt.Sprintf("Could Not create policy file %s", policyFileName))
 
 	_, err = f.Write([]byte(policyContent))
 	checkErrorTestDependency(err, t, fmt.Sprintf("Could not write policy content while creating test policy %s: %s", policyArn, policyContent))
@@ -214,15 +212,14 @@ func deleteTestPolicyFileForLocalPolicyRetriever(policyArn string, pr *LocalPoli
 	checkErrorTestDependency(err, t, fmt.Sprintf("Could not delete policy file %s", policyFileName))
 }
 
-
 func TestCacheInvalidationLocalPolicyRetrieverIfPolicyIsRemoved(t *testing.T) {
 	//Given a policy manager that is backed by a local PolicyRetriever
 	pr := NewLocalPolicyRetriever(t.TempDir())
 	pm := NewPolicyManager(pr)
 	//Given a test Arn
 	testArn := "arn:aws:iam::000000000000:role/cache-invalidation"
-	
-    //WHEN the policy file exists in the expected place
+
+	//WHEN the policy file exists in the expected place
 	createTestPolicyFileForLocalPolicyRetriever(testArn, testPolicyAllowAll, pr, t)
 	//THEN it must exist as per the Policy Manager
 	if !pm.DoesPolicyExist(testArn) {
@@ -234,7 +231,7 @@ func TestCacheInvalidationLocalPolicyRetrieverIfPolicyIsRemoved(t *testing.T) {
 	deleteTestPolicyFileForLocalPolicyRetriever(testArn, pr, t)
 	deletionTime := time.Now()
 
-	var policyManagerKnowsPolicyDoesNotExist predicateFunction = func () bool{
+	var policyManagerKnowsPolicyDoesNotExist predicateFunction = func() bool {
 		return !pm.DoesPolicyExist(testArn)
 	}
 
@@ -245,7 +242,6 @@ func TestCacheInvalidationLocalPolicyRetrieverIfPolicyIsRemoved(t *testing.T) {
 	}
 }
 
-
 func TestCacheInvalidationLocalPolicyRetrieverIfPolicyIsChanged(t *testing.T) {
 	//Given a policy manager that is backed by a local PolicyRetriever
 	pr := NewLocalPolicyRetriever(t.TempDir())
@@ -253,8 +249,8 @@ func TestCacheInvalidationLocalPolicyRetrieverIfPolicyIsChanged(t *testing.T) {
 	//Given 2 test Arn
 	testArn1 := "arn:aws:iam::000000000000:role/cache-invalidation1"
 	testArn2 := "arn:aws:iam::000000000000:role/cache-invalidation2"
-	
-    //WHEN the policy files exists in the expected place and are policies without time conditions
+
+	//WHEN the policy files exists in the expected place and are policies without time conditions
 	createTestPolicyFileForLocalPolicyRetriever(testArn1, testPolicyAllowAll, pr, t)
 	createTestPolicyFileForLocalPolicyRetriever(testArn2, testPolicyAllowAllInRegion1, pr, t)
 
@@ -275,7 +271,7 @@ func TestCacheInvalidationLocalPolicyRetrieverIfPolicyIsChanged(t *testing.T) {
 
 	updateTime := time.Now()
 
-	var policyManagerSeesUpdate predicateFunction = func () bool{
+	var policyManagerSeesUpdate predicateFunction = func() bool {
 		pol1, err1 := pm.GetPolicy(testArn1, &PolicySessionData{})
 		checkErrorTestDependency(err1, t, "Policy1 should have been retrievable")
 		pol2, err2 := pm.GetPolicy(testArn2, &PolicySessionData{})

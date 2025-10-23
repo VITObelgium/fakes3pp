@@ -5,7 +5,7 @@ import (
 	"net/http"
 )
 
-//A dummy server mostly to convey access info
+// A dummy server mostly to convey access info
 type BasicServer struct {
 	// The port on which to listen for incoming requests
 	port int
@@ -51,11 +51,11 @@ func (s *BasicServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func NewBasicServer(port int, hostname string, tlsCertFilePath string,
 	tlsKeyFilePath string, handlerFunc http.HandlerFunc) *BasicServer {
 	return &BasicServer{
-		port: port,
-		hostname: hostname,
+		port:            port,
+		hostname:        hostname,
 		tlsCertFilePath: tlsCertFilePath,
-		tlsKeyFilePath: tlsKeyFilePath,
-		handlerFunc: handlerFunc,
+		tlsKeyFilePath:  tlsKeyFilePath,
+		handlerFunc:     handlerFunc,
 	}
 }
 

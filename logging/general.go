@@ -15,15 +15,14 @@ func getLogLevel() (lvl slog.Level) {
 	if err != nil {
 		slog.Warn("Invalid log level", "environ_value", logLevelOS)
 	}
-	return 
+	return
 }
 
 var EnvironmentLvl slog.Level = -2147483648
 
-
-//Configure logging
-//forceEnabler and sink can be nil and they will get sane defaults based on the environment.
-func InitializeLogging(lvl slog.Level, forceEnabler ForceEnabler,  sink io.Writer) {
+// Configure logging
+// forceEnabler and sink can be nil and they will get sane defaults based on the environment.
+func InitializeLogging(lvl slog.Level, forceEnabler ForceEnabler, sink io.Writer) {
 	if lvl == EnvironmentLvl {
 		lvl = getLogLevel()
 	}

@@ -9,8 +9,8 @@ import (
 	"slices"
 )
 
-//Given a request try to reconstruct the full URL for that request
-//including protocol, hostname, path and query parameter names and values
+// Given a request try to reconstruct the full URL for that request
+// including protocol, hostname, path and query parameter names and values
 func FullUrlFromRequest(req *http.Request) string {
 	scheme := req.URL.Scheme
 	if scheme == "" {
@@ -27,9 +27,9 @@ func FullUrlFromRequest(req *http.Request) string {
 
 func CompareRequestWithUrl(req *http.Request, inputUrl string) (isSameScheme, isSameHost, isSamePath, isSameQuery bool, err error) {
 	u, err := url.Parse(inputUrl)
-    if err != nil {
-        return
-    }
+	if err != nil {
+		return
+	}
 	isSameScheme = u.Scheme == req.URL.Scheme
 	isSameHost = u.Host == req.URL.Host
 	isSamePath = u.Path == req.URL.Path

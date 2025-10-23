@@ -10,7 +10,6 @@ import (
 	"github.com/VITObelgium/fakes3pp/usererror"
 )
 
-
 type CredentialPart int64
 
 const (
@@ -20,7 +19,6 @@ const (
 	CredentialPartServiceName
 	CredentialPartType
 )
-
 
 // credential string is the value of a X-Amz_credential and it is meant to follow
 // the structure <your-access-key-id>/20130721/us-east-1/s3/aws4_request (when decoded)
@@ -42,9 +40,7 @@ func GetCredentialPart(credentialString string, credentialPart CredentialPart) (
 const signAlgorithm = "AWS4-HMAC-SHA256"
 const expectedAuthorizationStartWithCredential = "AWS4-HMAC-SHA256 Credential="
 
-
 // Gets a part of the Credential value that is passed via the authorization header
-//
 func GetSignatureCredentialPartFromRequest(r *http.Request, credentialPart CredentialPart) (string, error) {
 	authorizationHeader := r.Header.Get("Authorization")
 	var credentialString string
@@ -64,7 +60,7 @@ func GetSignatureCredentialPartFromRequest(r *http.Request, credentialPart Crede
 	return GetCredentialPart(credentialString, credentialPart)
 }
 
-//Get region name from a request and return fallback if the information is not in the request
+// Get region name from a request and return fallback if the information is not in the request
 func GetRegionFromRequest(req *http.Request, fallback string) (region string) {
 	region = fallback
 	regionName, err := GetSignatureCredentialPartFromRequest(req, CredentialPartRegionName)

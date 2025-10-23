@@ -15,25 +15,24 @@ import (
 )
 
 type backendConfigFileEntry struct {
-  RegionName string             `yaml:"region" json:"region"`
-  Credentials map[string]any `yaml:"credentials" json:"credentials"`
-  Endpoint string               `yaml:"endpoint" json:"endpoint"`
-  Capabilities []string         `yaml:"capabilities,omitempty" json:"capabilities,omitempty"`
+	RegionName   string         `yaml:"region" json:"region"`
+	Credentials  map[string]any `yaml:"credentials" json:"credentials"`
+	Endpoint     string         `yaml:"endpoint" json:"endpoint"`
+	Capabilities []string       `yaml:"capabilities,omitempty" json:"capabilities,omitempty"`
 }
-
 
 type awsBackendCredentialFile struct {
-	AccessKey    string                 `yaml:"aws_access_key_id" json:"aws_access_key_id"`
-	SecretKey    string                 `yaml:"aws_secret_access_key" json:"aws_secret_access_key"`
-	SessionToken string                 `yaml:"aws_session_token,omitempty" json:"aws_session_token,omitempty"`
+	AccessKey    string `yaml:"aws_access_key_id" json:"aws_access_key_id"`
+	SecretKey    string `yaml:"aws_secret_access_key" json:"aws_secret_access_key"`
+	SessionToken string `yaml:"aws_session_token,omitempty" json:"aws_session_token,omitempty"`
 }
 
-func buildCredentialErrorf(msg string, a... any) (ccreds aws.Credentials, err error) {
+func buildCredentialErrorf(msg string, a ...any) (ccreds aws.Credentials, err error) {
 	return aws.Credentials{}, fmt.Errorf(msg, a...)
 }
 
-//Try to get a string out of a map that has any values and return empty string if not a valid string
-func lookupString(m map[string]any, key string) (string) {
+// Try to get a string out of a map that has any values and return empty string if not a valid string
+func lookupString(m map[string]any, key string) string {
 	v, ok := m[key]
 	if !ok {
 		return ""
@@ -45,8 +44,8 @@ func lookupString(m map[string]any, key string) (string) {
 	return s
 }
 
-//The config file could host different types of credentials. Check cases 1 by one
-//and fail if there was no valid type of credentials found
+// The config file could host different types of credentials. Check cases 1 by one
+// and fail if there was no valid type of credentials found
 func (entry backendConfigFileEntry) getCredentials(relativepath string) (creds aws.Credentials, err error) {
 	fileEntry, ok := entry.Credentials["file"]
 	if ok {
@@ -54,7 +53,7 @@ func (entry backendConfigFileEntry) getCredentials(relativepath string) (creds a
 		if !ok {
 			return buildCredentialErrorf("When providing a credential file it must be a string, got %v", fileEntry)
 		}
-		// We are indeed a file 
+		// We are indeed a file
 		if !path.IsAbs(filePath) {
 			filePath = path.Join(relativepath, filePath)
 		}
@@ -91,17 +90,17 @@ func (entry backendConfigFileEntry) getCredentials(relativepath string) (creds a
 		}
 		accessKey := lookupString(inlineMap, "aws_access_key_id")
 		if accessKey == "" {
-			return buildCredentialErrorf("Must have a non empty access key")	
+			return buildCredentialErrorf("Must have a non empty access key")
 		}
 		secretKey := lookupString(inlineMap, "aws_secret_access_key")
 		if secretKey == "" {
-			return buildCredentialErrorf("Must have a non empty secret key")	
+			return buildCredentialErrorf("Must have a non empty secret key")
 		}
 		sessionToken := lookupString(inlineMap, "aws_session_token")
 		return aws.Credentials{
-			AccessKeyID: accessKey,
+			AccessKeyID:     accessKey,
 			SecretAccessKey: secretKey,
-			SessionToken: sessionToken,
+			SessionToken:    sessionToken,
 		}, nil
 
 	}
@@ -110,10 +109,10 @@ func (entry backendConfigFileEntry) getCredentials(relativepath string) (creds a
 
 type backendsConfigFile struct {
 	Backends []backendConfigFileEntry `yaml:"s3backends" json:"s3backends"`
-	Default string                    `yaml:"default" json:"default"`
+	Default  string                   `yaml:"default" json:"default"`
 }
 
-//TODO: legacyBehavior
+// TODO: legacyBehavior
 func getBackendsConfig(filename string, legacyBehavior bool) (*backendsConfig, error) {
 	buf, err := os.ReadFile(filename)
 	if err != nil {
@@ -123,7 +122,7 @@ func getBackendsConfig(filename string, legacyBehavior bool) (*backendsConfig, e
 	return getBackendsConfigFromBytes(buf, legacyBehavior, relativepath)
 }
 
-//Process a backends configuration in bytes. Use the relativepath as a prefix for filepaths
+// Process a backends configuration in bytes. Use the relativepath as a prefix for filepaths
 func getBackendsConfigFromBytes(inputBytes []byte, legacyBehavior bool, relativepath string) (*backendsConfig, error) {
 	c := &backendsConfigFile{}
 	err := yaml.Unmarshal(inputBytes, c)
@@ -151,22 +150,22 @@ func getBackendsConfigFromBytes(inputBytes []byte, legacyBehavior bool, relative
 	}
 	result.defaultBackend = defaultBackend
 	result.invalidRegionToDefaultRegion = legacyBehavior
-	
+
 	return &result, err
 }
 
 type backendConfigEntry struct {
 	credentials aws.Credentials
-	endpoint endpoint
+	endpoint    endpoint
 
 	//A list of capabilities supported by the backend.
 	//Check interfaces/backend-s3-capabilities for a definition of capabilities
 	capabilities []interfaces.S3Capability
 }
 
-//A dedicated type for endpoint allows to have the semantics of endpoints of the config.
-//When creating these endpoints we do certain checks so by typing them we can assume these
-//checks had passed whenever we encounter an endpoint later on
+// A dedicated type for endpoint allows to have the semantics of endpoints of the config.
+// When creating these endpoints we do certain checks so by typing them we can assume these
+// checks had passed whenever we encounter an endpoint later on
 type endpoint string
 
 func buildEndpoint(uri string) (endpoint, error) {
@@ -176,14 +175,14 @@ func buildEndpoint(uri string) (endpoint, error) {
 	return endpoint(uri), nil
 }
 
-//This method is to get rid of the protocol from the endpoint specification
+// This method is to get rid of the protocol from the endpoint specification
 func (e endpoint) GetHost() string {
 	uriString := string(e)
 	return strings.Split(uriString, "://")[1]
 }
 
-//The endpoint base URI is of form protocol://hostname and can be used to identify the backend
-//service
+// The endpoint base URI is of form protocol://hostname and can be used to identify the backend
+// service
 func (e endpoint) GetBaseURI() string {
 	return string(e)
 }
@@ -209,7 +208,7 @@ func (bce *backendConfigEntry) fromBackendConfigFileEntry(input backendConfigFil
 }
 
 type backendsConfig struct {
-	backends map[string]backendConfigEntry
+	backends       map[string]backendConfigEntry
 	defaultBackend string
 
 	invalidRegionToDefaultRegion bool
@@ -217,17 +216,17 @@ type backendsConfig struct {
 
 var errInvalidBackendErr = errors.New("invalid BackendId")
 
-func (cfg* backendsConfig) HasCapability(backendId string, capability interfaces.S3Capability) bool {
+func (cfg *backendsConfig) HasCapability(backendId string, capability interfaces.S3Capability) bool {
 	backendCfg, err := cfg.getBackendConfig(backendId)
 	if err == nil {
 		return slices.Contains(backendCfg.capabilities, capability)
 	} else {
 		return false
 	}
-	
+
 }
 
-func (cfg* backendsConfig) getBackendConfig(backendId string) (cfgEntry backendConfigEntry, err error) {
+func (cfg *backendsConfig) getBackendConfig(backendId string) (cfgEntry backendConfigEntry, err error) {
 	if cfg == nil {
 		return cfgEntry, errors.New("backendsConfig not initialised")
 	}
@@ -238,7 +237,7 @@ func (cfg* backendsConfig) getBackendConfig(backendId string) (cfgEntry backendC
 	if ok {
 		return backendCfg, nil
 	} else {
-		if cfg.invalidRegionToDefaultRegion && backendId != cfg.defaultBackend{
+		if cfg.invalidRegionToDefaultRegion && backendId != cfg.defaultBackend {
 			return cfg.getBackendConfig(cfg.defaultBackend)
 		} else {
 			return cfgEntry, errInvalidBackendErr
@@ -246,9 +245,9 @@ func (cfg* backendsConfig) getBackendConfig(backendId string) (cfgEntry backendC
 	}
 }
 
-//Get the server credentials for a specific backend identified by its identifier
-//At this time we use the region name and we do support the empty string in case the region
-//cannot be determined and the default backend should be used.
+// Get the server credentials for a specific backend identified by its identifier
+// At this time we use the region name and we do support the empty string in case the region
+// cannot be determined and the default backend should be used.
 func (cfg *backendsConfig) GetBackendCredentials(backendId string) (creds aws.Credentials, err error) {
 	backendCfg, err := cfg.getBackendConfig(backendId)
 	if err != nil {
@@ -266,10 +265,8 @@ func GetBackendCredentials(cfgFilePath, backendId string) (creds aws.Credentials
 	return cfg.GetBackendCredentials(backendId)
 }
 
-
-
-//Get endpoint for a backend. The endpoint contains the protocol and the hostname
-//to arrive at the backend.
+// Get endpoint for a backend. The endpoint contains the protocol and the hostname
+// to arrive at the backend.
 func (cfg *backendsConfig) GetBackendEndpoint(backendId string) (interfaces.Endpoint, error) {
 	backendCfg, err := cfg.getBackendConfig(backendId)
 	if err != nil {
@@ -278,6 +275,6 @@ func (cfg *backendsConfig) GetBackendEndpoint(backendId string) (interfaces.Endp
 	return backendCfg.endpoint, nil
 }
 
-func (cfg *backendsConfig) GetDefaultBackend() (string) {
+func (cfg *backendsConfig) GetDefaultBackend() string {
 	return cfg.defaultBackend
 }

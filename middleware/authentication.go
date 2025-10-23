@@ -51,7 +51,7 @@ func AWSAuthN(keyStorage utils.KeyPairKeeper, e service.ErrorReporter, backendMa
 func cleanRemovableQueryParameters(r *http.Request, presignAuthOptions *AuthenticationOptions) {
 	urlVals := r.URL.Query()
 	
-	for urlValKey, _ := range urlVals {
+	for urlValKey := range urlVals {
 		for _, keyToRemove := range presignAuthOptions.RemovableQueryParams {
 			matchedString := keyToRemove.FindString(urlValKey)
 			if matchedString != "" {
@@ -74,7 +74,7 @@ func handleAuthNPresigned(w http.ResponseWriter, r *http.Request, keyStorage uti
 	var secretDeriver = func(accessKeyId string) (secretAccessKey string, err error) {
 		return credentials.CalculateSecretKey(accessKeyId, keyStorage)
 	}
-	var toCheck *http.Request = r
+	var toCheck = r
 
 	if r.URL.Query().Get(constants.HeadAsGet) != "" {
 		defer func(){

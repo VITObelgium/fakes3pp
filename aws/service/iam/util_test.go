@@ -12,8 +12,8 @@ type predicateFunction func() bool
 //and will await for maximum the first waitTime (which defaults to 5 seconds) and will
 //check every second waitTime (defaults to 10 milliseconds)
 func isTrueWithinDueTime(callable predicateFunction, waitTimes ...time.Duration) bool {
-	var maxWaitTime time.Duration = 5 * time.Second
-	var waitTimeBetweenChecks time.Duration = 10 * time.Millisecond
+	var maxWaitTime = 5 * time.Second
+	var waitTimeBetweenChecks = 10 * time.Millisecond
 
 	if len(waitTimes) > 0 {
 		maxWaitTime = waitTimes[0]

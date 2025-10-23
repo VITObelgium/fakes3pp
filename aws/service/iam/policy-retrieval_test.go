@@ -99,7 +99,7 @@ func TestPolicyGeneration(t *testing.T) {
 		{
 			PolicyName: "policyRealistic",
 			Claims:     buildTestSessionClaimsNoTags("", "userA"),
-			Expectedpolicy: strings.Replace(testPolicyRealistic, "{{.Claims.Subject}}", "userA", -1),
+			Expectedpolicy: strings.ReplaceAll(testPolicyRealistic, "{{.Claims.Subject}}", "userA"),
 		},
 		{
 			PolicyName: "now",

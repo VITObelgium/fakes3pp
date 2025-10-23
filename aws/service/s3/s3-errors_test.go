@@ -13,7 +13,7 @@ import (
 const accessDeniedResponseTpl = `<?xml version="1.0" encoding="UTF-8"?><Error><Code>AccessDenied</Code><Message>Access Denied</Message><RequestId>REQUESTID</RequestId><HostId></HostId></Error>`
 
 func removeNewlines(s string) string {
-	return strings.Replace(s, "\n", "", -1)
+	return strings.ReplaceAll(s, "\n", "")
 }
 
 func TestS3Error(t *testing.T) {

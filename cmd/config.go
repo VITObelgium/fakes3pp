@@ -305,7 +305,7 @@ func getS3ProxyFQDNs() ([]string, error) {
 //should be removed. Makes sure they compile and fail fast if there is an invalid regex.
 func getS3RemovableQueryParamRegexes() ([]*regexp.Regexp, error) {
 	var queryParamNames []string
-	var queryParamNameRegexes []*regexp.Regexp = make([]*regexp.Regexp, 0)
+	var queryParamNameRegexes = make([]*regexp.Regexp, 0)
 	err := viper.UnmarshalKey(s3ProxyRemovableQueryParams, &queryParamNames)
 	if err != nil {
 		return nil, err

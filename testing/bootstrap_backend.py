@@ -71,4 +71,3 @@ if __name__ == '__main__':
     s3_client = get_s3client()
     for bucket_dir in glob(str(local_backend_path.joinpath("*"))):
         process_bucket(s3_client, bucket_dir)
-

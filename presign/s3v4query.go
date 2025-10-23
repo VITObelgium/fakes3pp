@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 	"time"
 
 	"github.com/VITObelgium/fakes3pp/constants"
@@ -49,14 +48,6 @@ func (u presignedUrlS3V4Query) getSignTime() (time.Time, error) {
 	return XAmzDateToTime(XAmzDate)
 }
 
-func (u presignedUrlS3V4Query) getSignedHeaders() map[string]string {
-	var signedHeaders map[string]string = make(map[string]string)
-	for _, signedHeader := range strings.Split(u.URL.Query().Get(constants.AmzSignedHeadersKey), ";") {
-		signedHeaders[signedHeader] = ""
-	}
-	return signedHeaders
-}
-
 func (u presignedUrlS3V4Query) GetPresignedUrlDetails(ctx context.Context, deriver SecretDeriver) (isValid bool, creds aws.Credentials, expires time.Time, err error) {
 	accessKeyId, err := u.getAccessKeyId()
 	if err != nil {
@@ -86,7 +77,7 @@ func (u presignedUrlS3V4Query) GetPresignedUrlDetails(ctx context.Context, deriv
 
 	expires = signDate.Add(time.Duration(expirySeconds) * time.Second)
 	originalSignature := u.Request.URL.Query().Get(constants.AmzSignatureKey)
-	c := u.Request.Clone(ctx)
+	c := u.Clone(ctx)
 	if c.Header.Get("Host") == "" {
 		c.Header.Add("Host", c.Host)
 	}

@@ -98,7 +98,7 @@ func (u presignedUrlHmacv1Query) getExpiresTime() (time.Time, error) {
 //With a value an epoch timestamp
 //This function will not make changes to the passed in request
 func CalculateS3PresignedHmacV1QueryUrl(req *http.Request, creds aws.Credentials, expirySeconds int) (string, error) {
-	var expires string = getExpiresFromHmacv1QueryUrl(req)
+	var expires = getExpiresFromHmacv1QueryUrl(req)
 	if expires == "" && expirySeconds == 0 {
 		return "", errors.New("got expirySeconds 0 but no expires in URL, impossible to get expires")
 	}

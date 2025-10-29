@@ -192,6 +192,12 @@ func handleAuthNNormal(w http.ResponseWriter, r *http.Request, keyStorage utils.
 		e.WriteErrorResponse(r.Context(), w, service.ErrAuthorizationHeaderMalformed, ue)
 		return false
 	}
+	contentLengthHeader := r.Header.Get("Content-Length")
+	if contentLengthHeader == "" {
+		//Content-length was not signed so lets make sure we do not use it for signing either
+		//and set the request object to have value -1 which means unknown
+		r.ContentLength = -1
+	}
 	clonedReq := r.Clone(r.Context())
 	creds := aws.Credentials{
 		AccessKeyID:     accessKeyId,

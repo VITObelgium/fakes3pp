@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -9,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"testing"
@@ -1071,6 +1074,117 @@ func TestForHtmlEscaping(t *testing.T) {
 	if resp.StatusCode != 200 {
 		t.Errorf("Presigned url not usable. Got status code %d: %v", resp.StatusCode, resp)
 	}
+}
+
+func runCommandSync(outW, errW io.Writer, cmdName string, cmdArgs ...string) error {
+	cmd := exec.Command(cmdName, cmdArgs...)
+	outReader, err := cmd.StdoutPipe()
+	if err != nil {
+		return err
+	}
+	outScanner := bufio.NewScanner(outReader)
+	outDone := make(chan bool)
+	go func() {
+		for outScanner.Scan() {
+			_, err := outW.Write(outScanner.Bytes())
+			if err != nil {
+				fmt.Printf("WARNING: error when writing sync ommand output to buffer: %s", err)
+			}
+		}
+		outDone <- true
+	}()
+	errReader, err := cmd.StderrPipe()
+	if err != nil {
+		return err
+	}
+	errScanner := bufio.NewScanner(errReader)
+	errDone := make(chan bool)
+	go func() {
+		for errScanner.Scan() {
+			_, err := errW.Write(errScanner.Bytes())
+			if err != nil {
+				fmt.Printf("WARNING: error when writing sync ommand output to buffer: %s", err)
+			}
+		}
+		errDone <- true
+	}()
+	err = cmd.Start()
+	if err != nil {
+		path, errWd := os.Getwd()
+		if errWd != nil {
+			fmt.Printf("Failed to get working dir: %s", errWd)
+		}
+		fmt.Printf("Failed to spawn command from %s", path)
+		return err
+	}
+	<-outDone
+	<-errDone
+	err = cmd.Wait()
+	return err
+}
+
+func putObjectUsingPython(bucket, key, file_path, endpointUrl, Region string) (outB, errB bytes.Buffer, err error) {
+	outW := bufio.NewWriter(&outB)
+	errW := bufio.NewWriter(&errB)
+
+	scriptWithArgs := []string{"../testing/upload_file_no_checksum_trailers.py", bucket, key, file_path, endpointUrl, Region}
+	err = runCommandSync(outW, errW, "../testing/venv/moto/bin/python3", scriptWithArgs...)
+
+	errF := outW.Flush()
+	if errF != nil {
+		fmt.Printf("Error flushing stdout buffer: %s", errF)
+	}
+	errF = errW.Flush()
+	if errF != nil {
+		fmt.Printf("Error flushing stdout buffer: %s", errF)
+	}
+	return
+}
+
+// When serverside returns an error prior to consuming the full request body (e.g. POST and authentication fails)
+// Then we must still get the error promptly for SDKs that await body consumption (like Python)
+// The body of the error is not important for this test, what is important is the timeliness
+func TestForInvalidCredsPutUsingPythonShouldFailFast(t *testing.T) {
+	//Given a Python SDK invocation with invalid session token
+	tearDown, getSignedToken, stsServer, s3Server := testingFixture(t)
+	defer tearDown()
+	token := getSignedToken("mySubject", time.Minute*20, session.AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
+	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowAllInRegion1ARN, stsServer, nil)
+
+	credVars := map[string]string{
+		"AWS_ACCESS_KEY_ID":     creds.AccessKeyID,
+		"AWS_SECRET_ACCESS_KEY": creds.SecretAccessKey,
+		"AWS_SESSION_TOKEN":     "FakeSessionToken",
+	}
+	undoEnv := fixture_with_environment_values(t, credVars)
+	defer undoEnv()
+
+	var key = "simpleFilte"
+	var endpoint = testutils.GetTestServerUrl(s3Server)
+	fp := testutils.CreateTempTestCopy(t, "../testing/simple_test_content.txt")
+
+	//WHEN we start the clock before our request
+	start := time.Now()
+
+	//WHEN we put an object in region 1
+	outB, errB, err := putObjectUsingPython(testingBucketNameBackenddetails, key, fp, endpoint, testRegion1)
+	if err == nil {
+		t.Errorf("python should have failed but did not: \nSTDOUT:\n%s\nSTDERR:\n%s", outB.String(), errB.String())
+	}
+
+	//THIS is ok to be changed in subsequent refactors because the error is not too clear anyway
+	stdErrStr := errB.String()
+	if !strings.Contains(stdErrStr, "The authorization header that you provided is not valid") {
+		t.Errorf("Expected to fail with 'The authorization header that you provided is not valid' but got =====================\n%s\n=====================", stdErrStr)
+	}
+
+	//WHEN we stop the clock after our request
+	end := time.Now()
+	elapsedSeconds := end.Sub(start).Seconds()
+	if elapsedSeconds > 1.0 {
+		t.Errorf("we should fail fast much faster than 1 second took %.2f seconds", elapsedSeconds)
+	}
+
 }
 
 func TestAuditLogEntry(t *testing.T) {

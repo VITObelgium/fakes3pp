@@ -28,6 +28,7 @@ import (
 	"net/http"
 
 	"github.com/VITObelgium/fakes3pp/aws/service"
+	"github.com/VITObelgium/fakes3pp/httptracking"
 	"github.com/VITObelgium/fakes3pp/requestctx"
 	"github.com/VITObelgium/fakes3pp/usererror"
 	"github.com/VITObelgium/fakes3pp/utils"
@@ -63,6 +64,14 @@ func toS3ErrorCode(ctx context.Context, awsE service.AWSErrorCode) (s3E S3ErrorC
 // writeS3ErrorResponse writes error headers
 // If err is a UserError then we return the user error as a description
 func writeS3ErrorResponse(ctx context.Context, w http.ResponseWriter, errCode S3ErrorCode, err error) {
+	//When authentication fails we must make sure the request body is consumed because some clients do not read responses
+	//prior to their reqest body being consumed (e.g. Python boto3 SDK). This causes hangs and clients failing with unexpeced EOF
+	//So bad user experience and prolonged resource occupation server-side. MakeSafeToWrite comes to the rescue
+	errS := httptracking.MakeSafeToWrite(w, "writeS3ErrorResponse")
+	if errS != nil {
+		slog.WarnContext(ctx, "Could not make safe to write", "error", errS)
+	}
+
 	requestctx.SetErrorCode(ctx, errCode)
 	s3Err := s3ErrCodes.ToS3Err(errCode)
 

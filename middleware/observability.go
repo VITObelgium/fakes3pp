@@ -86,7 +86,7 @@ func LogMiddleware(requestLogLvl slog.Level, hc HealthChecker, promReg prometheu
 				panic("Programmer going crazy this cannot happen requestctx must be extractable.")
 			}
 			r = r.WithContext(ctx)
-			trackingW := httptracking.NewTrackingResponseWriter(w, rCtx)
+			trackingW := httptracking.NewTrackingResponseWriter(w, rCtx, r)
 			r.Body = httptracking.NewTrackingBody(r.Body, rCtx)
 
 			logLvl := requestLogLvl

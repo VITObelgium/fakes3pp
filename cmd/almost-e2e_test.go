@@ -1187,6 +1187,38 @@ func TestForInvalidCredsPutUsingPythonShouldFailFast(t *testing.T) {
 
 }
 
+// For this we use the Python SDK as it does signing differently than GolangSDK
+// where it signs request parts less aggressively compared to Golang and there
+// we must make sure to handle it correctly (especially Content-Length so for
+// that reason we will not use trailers for checksumming)
+func TestForPutWhenNoStreamingPayload(t *testing.T) {
+	tearDown, getSignedToken, stsServer, s3Server := testingFixture(t)
+	defer tearDown()
+	token := getSignedToken("mySubject", time.Minute*20, session.AWSSessionTags{PrincipalTags: map[string][]string{"org": {"a"}}})
+	//Given the policy Manager that has our test policies
+	//Given credentials that use the policy that allow everything in Region1
+	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowAllInRegion1ARN, stsServer, nil)
+
+	credVars := map[string]string{
+		"AWS_ACCESS_KEY_ID":     creds.AccessKeyID,
+		"AWS_SECRET_ACCESS_KEY": creds.SecretAccessKey,
+		"AWS_SESSION_TOKEN":     creds.SessionToken,
+	}
+	undoEnv := fixture_with_environment_values(t, credVars)
+	defer undoEnv()
+
+	var key = "simpleFilte"
+	var endpoint = testutils.GetTestServerUrl(s3Server)
+	fp := testutils.CreateTempTestCopy(t, "../testing/simple_test_content.txt")
+
+	//WHEN we put an object in region 1
+	outB, errB, err := putObjectUsingPython(testingBucketNameBackenddetails, key, fp, endpoint, testRegion1)
+	if err != nil {
+		t.Errorf("expected Python to succeed but got error: %s\nSTDOUT\n%s\nSTDERR:\n%s", err, outB.String(), errB.String())
+	}
+
+}
+
 func TestAuditLogEntry(t *testing.T) {
 	tearDownProxy, getSignedToken, stsServer, s3Server := testingFixture(t)
 	defer tearDownProxy()

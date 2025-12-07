@@ -151,6 +151,7 @@ func logFinalRequestDetails(ctx context.Context, lvl slog.Level, startTime time.
 	requestLogAttrs = append(requestLogAttrs, slog.String("Operation", operation))
 	requestLogAttrs = append(requestLogAttrs, slog.String("Error", rCtx.Error.String()))
 	requestLogAttrs = append(requestLogAttrs, slog.Int("HTTP status", rCtx.HTTPStatus))
+	requestLogAttrs = append(requestLogAttrs, slog.Int("Upstream HTTP status", rCtx.UpstreamHTTPStatus))
 	requestLogAttrs = append(requestLogAttrs, slog.String(authtypes.L_AUTH_TYPE, rCtx.AuthType.String()))
 	requestLogAttrs = append(requestLogAttrs, rCtx.GetAccessLogInfo()...)
 	slog.LogAttrs(

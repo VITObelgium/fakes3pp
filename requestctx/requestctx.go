@@ -44,6 +44,12 @@ type RequestCtx struct {
 	//  - HTTP Status: The numeric HTTP status code of the response
 	HTTPStatus int
 
+	// Status as reported by the upstream service
+	//   0 means nothing received from upstream (e.g. error before sending upstream)
+	//  <0 means error encountered when performing request to upstream (while not receiving status from upstream)
+	//  >0 means the status code as how it was send from the upstream
+	UpstreamHTTPStatus int
+
 	//  - Bytes Sent: The number of response bytes sent, excluding HTTP protocol overhead, or - if zero.
 	BytesSent uint64
 
@@ -397,4 +403,22 @@ func GetRequestID(ctx context.Context) string {
 		return rCtx.RequestID
 	}
 	return ""
+}
+
+func SetUpstreamHTTPStatus(r *http.Request, code int) {
+	if rCtx := get(r); rCtx != nil {
+		if rCtx.UpstreamHTTPStatus != 0 {
+			if rCtx.UpstreamHTTPStatus == code {
+				return
+			}
+			slog.WarnContext(r.Context(), "Overriding Upstream HTTP Status this should not happen", "Old code", rCtx.HTTPStatus, "New code", code)
+		}
+		rCtx.UpstreamHTTPStatus = code
+		return
+	}
+	slog.Error(
+		"Attempting to set Upstream HTTP Status code without existing request context",
+		"request", r,
+		"Upstream HTTP Status", code,
+	)
 }

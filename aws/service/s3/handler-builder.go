@@ -119,6 +119,7 @@ func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request, targ
 	slog.DebugContext(ctx, "Going to perform request", "method", r.Method, "host", r.Host, "url", r.URL, "headers", r.Header)
 	resp, err := requester(r)
 	if err != nil {
+		requestctx.SetUpstreamHTTPStatus(r, -1)
 		var upstreamResponse string
 		if resp != nil && resp.Body != nil {
 			b, err := io.ReadAll(resp.Body)
@@ -133,6 +134,8 @@ func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request, targ
 		return
 	}
 	defer utils.Close(resp.Body, "justProxy upstream response body", ctx)
+	requestctx.SetUpstreamHTTPStatus(r, resp.StatusCode)
+
 	if resp.StatusCode != http.StatusForbidden {
 		corsHandler.SetHeaders(w, requestctx.GetAccessLogStringInfo(r, "s3", L_BUCKET), targetBackendId, backendManager)
 	}

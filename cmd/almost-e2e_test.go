@@ -1258,7 +1258,11 @@ func TestAuditLogEntry(t *testing.T) {
 		t.Errorf("Wrong operation present in s3 access log. Expected GetObject got %s", operation)
 	}
 	if s3Entry.GetFloat64(t, "HTTP status") != 200 {
-		t.Error("HTTPS status should have been a 200")
+		t.Error("HTTP status should have been a 200")
+	}
+
+	if s3Entry.GetFloat64(t, "Upstream HTTP status") != 200 {
+		t.Error("Upstream HTTP status should have been a 200")
 	}
 	//Then the error should be empty
 	errorCode := s3Entry.GetStringField(t, "Error")
@@ -1272,9 +1276,51 @@ func TestAuditLogEntry(t *testing.T) {
 	operation = stsEntry.GetStringField(t, "Operation")
 	if operation != "AssumeRoleWithWebIdentity" {
 		t.Errorf("Wrong operation present in sts access log. Expected AssumeRoleWithWebIdentity got %s", operation)
+	}
+}
 
+func TestAuditLogEntryShowLocalAuthProblem(t *testing.T) {
+	tearDownProxy, getSignedToken, stsServer, s3Server := testingFixture(t)
+	defer tearDownProxy()
+	teardownLog, getCapturedStructuredLogEntries := testutils.CaptureStructuredLogsFixture(t, slog.LevelInfo, nil)
+	defer teardownLog()
+
+	//GIVEN we run another test scenario
+	//_GIVEN token for team that does NOT have access
+	token := getSignedToken("mySubject", time.Minute*20, session.AWSSessionTags{PrincipalTags: map[string][]string{testTeamTag: {"invalidTeam"}}})
+	creds := getCredentialsFromTestStsProxy(t, token, "my-session", testPolicyAllowTeamFolderARN, stsServer, nil)
+
+	//_WHEN access is attempted that required the team information
+	content, err := getTestBucketObjectContent(t, testRegion1, testTeamFile, credentials.FromAwsFormat(creds), s3Server)
+
+	//_THEN the file content should be returned
+	if err == nil {
+		t.Errorf("Should have failed but was able to get content %s", content)
 	}
 
+	//WHEN we get the logs
+	logEntries := getCapturedStructuredLogEntries()
+	//THEN we have 1 access log entry per service (sts & s3)
+	accesslogEntries := logEntries.GetEntriesWithMsg(t, "Request end")
+	if len(accesslogEntries) != 2 {
+		t.Errorf("Invalid number of access log entries. Expected 2 got: %d", len(accesslogEntries))
+	}
+
+	//WHEN we check the s3 auditlog entry
+	s3Entry := accesslogEntries.GetEntriesContainingField(t, "s3")[0]
+	//Then upstream status should be 0 but regular status must be 403 (access denied)
+	if s3Entry.GetFloat64(t, "HTTP status") != 403 {
+		t.Error("HTTP status should have been a 403")
+	}
+
+	if s3Entry.GetFloat64(t, "Upstream HTTP status") != 0 {
+		t.Error("Upstream HTTP status should have been a 0")
+	}
+	//Then the error should be empty
+	errorCode := s3Entry.GetStringField(t, "Error")
+	if errorCode != "S3AccessDenied" {
+		t.Errorf("Wrong errorCode present in s3 access log. Expected S3AccessDenied got %s", errorCode)
+	}
 }
 
 func TestMakeSureRequestFailsWithOldSigningStrategy(t *testing.T) {

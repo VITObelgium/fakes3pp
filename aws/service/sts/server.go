@@ -59,6 +59,7 @@ func NewSTSServer(
 	pm *iam.PolicyManager,
 	maxDurationSeconds int,
 	minDurationSeconds int,
+	extraHTTPPort int,
 ) (s server.Serverable, err error) {
 	return newSTSServer(
 		jwtPrivateRSAKeyFilePath,
@@ -70,6 +71,7 @@ func NewSTSServer(
 		pm,
 		maxDurationSeconds,
 		minDurationSeconds,
+		extraHTTPPort,
 	)
 }
 
@@ -83,6 +85,7 @@ func newSTSServer(
 	pm *iam.PolicyManager,
 	maxDurationSeconds int,
 	minDurationSeconds int,
+	extraHTTPPort int,
 ) (s *STSServer, err error) {
 	key, err := utils.NewKeyStorage(jwtPrivateRSAKeyFilePath)
 	if err != nil {
@@ -96,7 +99,7 @@ func newSTSServer(
 		return nil, errors.New("must pass at least 1 FQDN")
 	}
 	s = &STSServer{
-		BasicServer:        *server.NewBasicServer(serverPort, fqdns[0], tlsCertFilePath, tlsKeyFilePath, nil),
+		BasicServer:        *server.NewBasicServer(serverPort, fqdns[0], tlsCertFilePath, tlsKeyFilePath, nil, extraHTTPPort),
 		jwtKeyMaterial:     key,
 		fqdns:              fqdns,
 		oidcVerifier:       oidcVerifier,

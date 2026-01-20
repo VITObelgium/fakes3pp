@@ -38,10 +38,10 @@ func buildS3Server() server.Serverable {
 
 	s, err := s3.NewS3Server(
 		viper.GetString(s3ProxyJwtPrivateRSAKey),
-		viper.GetInt(s3ProxyPort),
+		viper.GetInt(s3ProxyTlsPort),
 		fqdns,
-		viper.GetString(s3ProxyCertFile),
-		viper.GetString(s3ProxyKeyFile),
+		viper.GetString(s3ProxyTlsCertFile),
+		viper.GetString(s3ProxyTlsKeyFile),
 		pm,
 		viper.GetInt(signedUrlGraceTimeSeconds),
 		nil,
@@ -49,6 +49,7 @@ func buildS3Server() server.Serverable {
 		viper.GetBool(enableLegacyBehaviorInvalidRegionToDefaultRegion),
 		removableQueryParams,
 		getS3CORSHandler(),
+		getS3ProxyHTTPPort(),
 	)
 	if err != nil {
 		slog.Error("Could not create S3 server", "error", err)

@@ -40,16 +40,20 @@ var testSTSPort = 8444
 func NewTestSTSServer(t testing.TB, pm *iam.PolicyManager, maxDurationSeconds int, oidcConfig string, isTlsEnabled bool) *STSServer {
 	tlsCert := ""
 	tlsKey := ""
-
+	var tlsPort = 0
+	var httpPort = 0
 	if isTlsEnabled {
 		tlsCert = fmt.Sprintf("%s/cert.pem", testEtcPath)
 		tlsKey = fmt.Sprintf("%s/key.pem", testEtcPath)
+		tlsPort = testSTSPort
+	} else {
+		httpPort = testSTSPort
 	}
 
 	var jwtTestToken = fmt.Sprintf("%s/jwt_testing_rsa", testEtcPath)
 	s, err := newSTSServer(
 		jwtTestToken,
-		testSTSPort,
+		tlsPort,
 		[]string{testSTSFQDN},
 		tlsCert,
 		tlsKey,
@@ -57,6 +61,7 @@ func NewTestSTSServer(t testing.TB, pm *iam.PolicyManager, maxDurationSeconds in
 		pm,
 		maxDurationSeconds,
 		0, //For testing we don't want minimum durations
+		httpPort,
 	)
 	if err != nil {
 		t.Error("Problem creating test STS server", "error", err)

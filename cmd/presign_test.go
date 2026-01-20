@@ -20,7 +20,7 @@ var testDefaultBackendRegion = "waw3-1"
 func setConfigForPresign(t testing.TB) {
 	backendConfigFile = stageTestingBackendsConfig(t)
 	viper.Set(s3ProxyFQDN, []string{"localhost", "localhost2"})
-	viper.Set(s3ProxyPort, 8443)
+	viper.Set(s3ProxyTlsPort, 8443)
 }
 
 func TestValidPreSignWithServerCreds(t *testing.T) {
@@ -75,7 +75,7 @@ func TestValidPreSignWithTempCreds(t *testing.T) {
 
 	//Given we have a valid signed URI valid for 1 second
 	mainS3ProxyFQDN := viper.GetStringSlice(s3ProxyFQDN)[0]
-	url := fmt.Sprintf("https://%s:%d/%s/%s", mainS3ProxyFQDN, viper.GetInt(s3ProxyPort), "bucket", "key")
+	url := fmt.Sprintf("https://%s:%d/%s/%s", mainS3ProxyFQDN, viper.GetInt(s3ProxyTlsPort), "bucket", "key")
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		t.Errorf("error when creating a request context for url: %s", err)

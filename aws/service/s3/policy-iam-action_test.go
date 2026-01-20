@@ -100,7 +100,7 @@ func runListObjectsV2AndReturnError(t *testing.T, s server.Serverable) error {
 func runListObjectsV2AndReturnErrorAlternateEndpoint(t *testing.T, s server.Serverable) error {
 	_, certFile, certKey := s.GetTls()
 	sWithAlternateEndpoint := &S3Server{
-		BasicServer: *server.NewBasicServer(s.GetPort(), "localhost2", certFile, certKey, nil),
+		BasicServer: *server.NewBasicServer(s.GetTLSPort(), "localhost2", certFile, certKey, nil, 0),
 		fqdns:       []string{"localhost2"},
 	}
 	return runListObjectsV2AndReturnErrorForEndpoint(t, sWithAlternateEndpoint)

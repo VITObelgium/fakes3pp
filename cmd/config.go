@@ -36,19 +36,20 @@ func (e envVarDef) shouldBeSetFor(cmd string) bool {
 
 const (
 	s3ProxyFQDN                                      = "s3ProxyFQDN"
-	s3ProxyPort                                      = "s3ProxyPort"
-	s3ProxyCertFile                                  = "s3ProxyCertFile"
-	s3ProxyKeyFile                                   = "s3ProxyKeyFile"
+	s3ProxyTlsPort                                   = "s3ProxyPort"
+	s3ProxyHTTPPort                                  = "s3ProxyHTTPPort"
+	s3ProxyTlsCertFile                               = "s3ProxyCertFile"
+	s3ProxyTlsKeyFile                                = "s3ProxyKeyFile"
 	s3ProxyJwtPublicRSAKey                           = "s3ProxyJwtPublicRSAKey"
 	s3ProxyJwtPrivateRSAKey                          = "s3ProxyJwtPrivateRSAKey"
 	s3ProxyRemovableQueryParams                      = "s3ProxyRemovableQueryParams"
 	stsProxyFQDN                                     = "stsProxyFQDN"
-	stsProxyPort                                     = "stsProxyPort"
-	stsProxyCertFile                                 = "stsProxyCertFile"
-	stsProxyKeyFile                                  = "stsProxyKeyFile"
+	stsProxyTlsPort                                  = "stsProxyPort"
+	stsProxyHTTPPort                                 = "stsProxyHTTPPort"
+	stsProxyTlsCertFile                              = "stsProxyCertFile"
+	stsProxyTlsKeyFile                               = "stsProxyKeyFile"
 	stsMinimalDurationSeconds                        = "stsMinimalDurationSeconds"
 	rolePolicyPath                                   = "rolePolicyPath"
-	secure                                           = "secure"
 	stsOIDCConfigFile                                = "stsOIDCConfigFile"
 	s3BackendConfigFile                              = "s3BackendConfigFile"
 	stsMaxDurationSeconds                            = "stsMaxDurationSeconds"
@@ -61,19 +62,22 @@ const (
 	//Environment variables are upper cased
 	//Unless they are wellknown environment variables they should be prefixed
 	FAKES3PP_S3_PROXY_FQDN                   = "FAKES3PP_S3_PROXY_FQDN"
-	FAKES3PP_S3_PROXY_PORT                   = "FAKES3PP_S3_PROXY_PORT"
-	FAKES3PP_S3_PROXY_CERT_FILE              = "FAKES3PP_S3_PROXY_CERT_FILE"
-	FAKES3PP_S3_PROXY_KEY_FILE               = "FAKES3PP_S3_PROXY_KEY_FILE"
+	FAKES3PP_S3_PROXY_TLS_PORT               = "FAKES3PP_S3_PROXY_TLS_PORT"
+	FAKES3PP_S3_PROXY_TLS_KEY_FILE           = "FAKES3PP_S3_PROXY_TLS_KEY_FILE"
+	FAKES3PP_S3_PROXY_TLS_CERT_FILE          = "FAKES3PP_S3_PROXY_TLS_CERT_FILE"
+	FAKES3PP_S3_PROXY_HTTP_PORT              = "FAKES3PP_S3_PROXY_HTTP_PORT"
 	FAKES3PP_S3_PROXY_JWT_PUBLIC_RSA_KEY     = "FAKES3PP_S3_PROXY_JWT_PUBLIC_RSA_KEY"
 	FAKES3PP_S3_PROXY_JWT_PRIVATE_RSA_KEY    = "FAKES3PP_S3_PROXY_JWT_PRIVATE_RSA_KEY"
 	FAKES3PP_S3_PROXY_REMOVABLE_QUERY_PARAMS = "FAKES3PP_S3_PROXY_REMOVABLE_QUERY_PARAMS"
 	FAKES3PP_S3_CORS_STRATEGY                = "FAKES3PP_S3_CORS_STRATEGY"
 	FAKES3PP_S3_CORS_STATIC_ALLOWED_ORIGIN   = "FAKES3PP_S3_CORS_STATIC_ALLOWED_ORIGIN"
 
-	FAKES3PP_STS_PROXY_FQDN                                 = "FAKES3PP_STS_PROXY_FQDN"
-	FAKES3PP_STS_PROXY_PORT                                 = "FAKES3PP_STS_PROXY_PORT"
-	FAKES3PP_STS_PROXY_CERT_FILE                            = "FAKES3PP_STS_PROXY_CERT_FILE"
-	FAKES3PP_STS_PROXY_KEY_FILE                             = "FAKES3PP_STS_PROXY_KEY_FILE"
+	FAKES3PP_STS_PROXY_FQDN          = "FAKES3PP_STS_PROXY_FQDN"
+	FAKES3PP_STS_PROXY_TLS_PORT      = "FAKES3PP_STS_PROXY_TLS_PORT"
+	FAKES3PP_STS_PROXY_TLS_CERT_FILE = "FAKES3PP_STS_PROXY_TLS_CERT_FILE"
+	FAKES3PP_STS_PROXY_TLS_KEY_FILE  = "FAKES3PP_STS_PROXY_TLS_KEY_FILE"
+	FAKES3PP_STS_PROXY_HTTP_PORT     = "FAKES3PP_STS_PROXY_HTTP_PORT"
+
 	FAKES3PP_STS_MINIMAL_DURATION_SECONDS                   = "FAKES3PP_STS_MINIMAL_DURATION_SECONDS"
 	FAKES3PP_SECURE                                         = "FAKES3PP_SECURE"
 	FAKES3PP_STS_OIDC_CONFIG                                = "FAKES3PP_STS_OIDC_CONFIG"
@@ -100,24 +104,31 @@ var envVarDefs = []envVarDef{
 		[]string{proxys3},
 	},
 	{
-		s3ProxyPort,
-		FAKES3PP_S3_PROXY_PORT,
+		s3ProxyTlsPort,
+		FAKES3PP_S3_PROXY_TLS_PORT,
 		true,
 		"The port on which this S3 proxy server is reachable (e.g. 8443)",
 		[]string{proxys3},
 	},
 	{
-		s3ProxyCertFile,
-		FAKES3PP_S3_PROXY_CERT_FILE,
+		s3ProxyTlsCertFile,
+		FAKES3PP_S3_PROXY_TLS_CERT_FILE,
 		false,
 		"The certificate file used for tls server-side",
 		[]string{proxys3},
 	},
 	{
-		s3ProxyKeyFile,
-		FAKES3PP_S3_PROXY_KEY_FILE,
+		s3ProxyTlsKeyFile,
+		FAKES3PP_S3_PROXY_TLS_KEY_FILE,
 		false,
 		"The key file used for tls server-side",
+		[]string{proxys3},
+	},
+	{
+		s3ProxyHTTPPort,
+		FAKES3PP_S3_PROXY_HTTP_PORT,
+		false,
+		"A port only usable for HTTP.",
 		[]string{proxys3},
 	},
 	{
@@ -160,32 +171,32 @@ var envVarDefs = []envVarDef{
 		[]string{proxysts, proxys3},
 	},
 	{
-		stsProxyPort,
-		FAKES3PP_STS_PROXY_PORT,
+		stsProxyTlsPort,
+		FAKES3PP_STS_PROXY_TLS_PORT,
 		true,
 		"The port on which this STS proxy server is reachable (e.g. 8444)",
 		[]string{proxysts},
 	},
 	{
-		stsProxyCertFile,
-		FAKES3PP_STS_PROXY_CERT_FILE,
+		stsProxyHTTPPort,
+		FAKES3PP_STS_PROXY_HTTP_PORT,
+		false,
+		"An extra port only usable for HTTP such that main port can handle TLS traffic but there is also a HTTP path.",
+		[]string{proxysts},
+	},
+	{
+		stsProxyTlsCertFile,
+		FAKES3PP_STS_PROXY_TLS_CERT_FILE,
 		false,
 		"The certificate file used for tls server-side",
 		[]string{proxysts},
 	},
 	{
-		stsProxyKeyFile,
-		FAKES3PP_STS_PROXY_KEY_FILE,
+		stsProxyTlsKeyFile,
+		FAKES3PP_STS_PROXY_TLS_KEY_FILE,
 		false,
 		"The key file used for tls server-side",
 		[]string{proxysts},
-	},
-	{
-		secure,
-		FAKES3PP_SECURE,
-		true,
-		"Whether TLS is used",
-		[]string{proxysts, proxys3},
 	},
 	{
 		stsOIDCConfigFile,
@@ -289,6 +300,14 @@ func getStsProxyFQDNs() ([]string, error) {
 		return nil, err
 	}
 	return fqdns, nil
+}
+
+func getStsProxyHTTPPort() int {
+	return viper.GetInt(stsProxyHTTPPort)
+}
+
+func getS3ProxyHTTPPort() int {
+	return viper.GetInt(s3ProxyHTTPPort)
 }
 
 func getS3ProxyFQDNs() ([]string, error) {

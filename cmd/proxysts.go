@@ -54,14 +54,15 @@ func buildSTSServer() server.Serverable {
 
 	s, err := sts.NewSTSServer(
 		viper.GetString(s3ProxyJwtPrivateRSAKey),
-		viper.GetInt(stsProxyPort),
+		viper.GetInt(stsProxyTlsPort),
 		fqdns,
-		viper.GetString(stsProxyCertFile),
-		viper.GetString(stsProxyKeyFile),
+		viper.GetString(stsProxyTlsCertFile),
+		viper.GetString(stsProxyTlsKeyFile),
 		viper.GetString(stsOIDCConfigFile),
 		pm,
 		getMaxStsDurationSeconds(),
 		getMinStsDurationSeconds(),
+		getStsProxyHTTPPort(),
 	)
 	if err != nil {
 		slog.Error("Could not create STS server", "error", err)

@@ -92,7 +92,7 @@ func preSignRequestForGet(bucket, key, region, backendCfgFile string, signingTim
 	if err != nil {
 		return "", fmt.Errorf("could not get main S3ProxyFQDN: %s", err)
 	}
-	url := fmt.Sprintf("https://%s:%d/%s/%s", mainS3ProxyFQDN, viper.GetInt(s3ProxyPort), bucket, key)
+	url := fmt.Sprintf("https://%s:%d/%s/%s", mainS3ProxyFQDN, viper.GetInt(s3ProxyTlsPort), bucket, key)
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return "", fmt.Errorf("error when creating a request context for url: %s", err)

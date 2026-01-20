@@ -115,6 +115,7 @@ func NewTestS3Server(t testing.TB, proxyHB interfaces.HandlerBuilderI, pm *iam.P
 		mws,
 		removableQueryParamRegexes,
 		corsHandler,
+		0,
 	)
 	if err != nil {
 		t.Error("Problem creating test STS server", "error", err)
@@ -154,7 +155,7 @@ func getS3ProxyUrlWithoutPort(_ testing.TB, s server.Serverable) string {
 
 // Get the fully qualified URL to the S3 Proxy
 func getS3ProxyUrl(t testing.TB, s server.Serverable) string {
-	return fmt.Sprintf("%s:%d/", getS3ProxyUrlWithoutPort(t, s), s.GetPort())
+	return fmt.Sprintf("%s:%d/", getS3ProxyUrlWithoutPort(t, s), s.GetTLSPort())
 }
 
 var testPolicyNoPermissions string = `{

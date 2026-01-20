@@ -89,11 +89,11 @@ func TestCheckMetricsServer(t *testing.T) {
 	testPort := 8443
 	metricsPort := 5555
 	//Given a test server which sends a response of a given size and reads everythign
-	s := server.NewBasicServer(testPort, "localhost", "", "", CreateTestHandler(t, int64(responseSize)))
+	s := server.NewBasicServer(0, "localhost", "", "", CreateTestHandler(t, int64(responseSize)), testPort)
 	//Given it is started with metrics exposed
 	wg, ts, err := server.CreateAndAwaitHealthy(s, server.ServerOpts{MetricsPort: metricsPort})
 	if err != nil {
-		t.Error("Could not start server")
+		t.Errorf("Could not start server: %s", err)
 		t.FailNow()
 	}
 	//WHEN we do a request with a given size

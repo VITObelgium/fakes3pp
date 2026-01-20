@@ -55,6 +55,7 @@ func NewS3Server(
 	backendLegacyBehaviorDefaultRegion bool,
 	removableQueryParamRegexes []*regexp.Regexp,
 	corsHandler interfaces.CORSHandler,
+	extraHTTPPort int,
 ) (s server.Serverable, err error) {
 	s3BackendCfg, err := getBackendsConfig(s3BackendConfigFilePath, backendLegacyBehaviorDefaultRegion)
 	if err != nil {
@@ -76,6 +77,7 @@ func NewS3Server(
 		nil,
 		removableQueryParamRegexes,
 		corsHandler,
+		extraHTTPPort,
 	)
 }
 func newS3Server(
@@ -91,6 +93,7 @@ func newS3Server(
 	mws []middleware.Middleware,
 	removableQueryParamRegexes []*regexp.Regexp,
 	corsHandler interfaces.CORSHandler,
+	extraHTTPPort int,
 ) (s *S3Server, err error) {
 	key, err := utils.NewKeyStorage(jwtPrivateRSAKeyFilePath)
 	if err != nil {
@@ -99,7 +102,7 @@ func newS3Server(
 	if len(fqdns) == 0 {
 		return nil, errors.New("must at least pass in 1 fqdn to create a server")
 	}
-	basicServer := server.NewBasicServer(serverPort, fqdns[0], tlsCertFilePath, tlsKeyFilePath, nil)
+	basicServer := server.NewBasicServer(serverPort, fqdns[0], tlsCertFilePath, tlsKeyFilePath, nil, extraHTTPPort)
 	signedUrlGraceTimeDuration := time.Duration(signedUrlGraceTimeSeconds) * time.Second
 
 	if corsHandler == nil {

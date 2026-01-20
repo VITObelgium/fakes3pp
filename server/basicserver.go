@@ -20,9 +20,12 @@ type BasicServer struct {
 	tlsKeyFilePath string
 
 	handlerFunc http.HandlerFunc
+
+	//If this is not 0 then an HTTP listener will be started on this port
+	extraHttpPort int
 }
 
-func (s *BasicServer) GetPort() int {
+func (s *BasicServer) GetTLSPort() int {
 	return s.port
 }
 
@@ -49,16 +52,22 @@ func (s *BasicServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func NewBasicServer(port int, hostname string, tlsCertFilePath string,
-	tlsKeyFilePath string, handlerFunc http.HandlerFunc) *BasicServer {
+	tlsKeyFilePath string, handlerFunc http.HandlerFunc, extraHttpPort int) *BasicServer {
 	return &BasicServer{
 		port:            port,
 		hostname:        hostname,
 		tlsCertFilePath: tlsCertFilePath,
 		tlsKeyFilePath:  tlsKeyFilePath,
 		handlerFunc:     handlerFunc,
+		extraHttpPort:   extraHttpPort,
 	}
 }
 
 func (s *BasicServer) SetHandlerFunc(f http.HandlerFunc) {
 	s.handlerFunc = f
+}
+
+func (s *BasicServer) GetHTTPPort() int {
+	//For testing we do not need to
+	return s.extraHttpPort
 }

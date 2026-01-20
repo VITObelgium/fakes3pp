@@ -68,8 +68,10 @@ func AssumeRoleWithWebIdentityAgainstTestStsProxy(t testing.TB, token, roleSessi
 func GetTestServerUrl(s server.Serverable) string {
 	protocol := "http"
 	tlsEnabled, _, _ := s.GetTls()
+	var port = s.GetHTTPPort()
 	if tlsEnabled {
 		protocol = "https"
+		port = s.GetTLSPort()
 	}
-	return fmt.Sprintf("%s://%s:%d/", protocol, s.GetListenHost(), s.GetPort())
+	return fmt.Sprintf("%s://%s:%d/", protocol, s.GetListenHost(), port)
 }

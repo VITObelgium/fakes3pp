@@ -78,64 +78,121 @@ func CreateAndStart(s Serverable, opts ServerOpts) (*sync.WaitGroup, *http.Serve
 	shutdownMetricsServerSync, reg := StartPrometheusMetricsServer(opts.MetricsPort)
 
 	serverDone := &sync.WaitGroup{}
-	serverDone.Add(1)
-	portNr := s.GetPort()
+
+	createAndStart := func(port int, tlsEnabled bool, certFile, keyFile string, opts ServerOpts) *http.Server {
+		serverDone.Add(1)
+		portNr := port
+		listenAddress := fmt.Sprintf(":%d", portNr)
+		slog.Info("Started listening", "port", portNr)
+
+		srv := &http.Server{
+			Addr:              listenAddress,
+			ReadHeaderTimeout: 3 * time.Second, //Protect against potential slowloeris attack
+		}
+		if shutdownMetricsServerSync != nil {
+			srv.RegisterOnShutdown(shutdownMetricsServerSync)
+		}
+		healthchecker := opts.healthchecker
+		if healthchecker == nil {
+			healthchecker = middleware.NewPingPongHealthCheck(slog.LevelDebug)
+		}
+		srv.Handler = middleware.NewMiddlewarePrefixedHandler(
+			s,
+			middleware.LogMiddleware(opts.RequestLogLvl, healthchecker, reg),
+		)
+
+		// Start proxy in the background but manage waitgroup
+		go func() {
+			defer serverDone.Done()
+			var err error
+			iType := reflect.TypeOf(s)
+			if tlsEnabled {
+				slog.Info("Starting ListenAndServeTLS", "secure", tlsEnabled, "type", iType)
+				err = srv.ListenAndServeTLS(certFile, keyFile)
+			} else {
+				slog.Info("Starting ListenAndServe", "secure", tlsEnabled, "type", iType)
+				err = srv.ListenAndServe()
+			}
+
+			if err != http.ErrServerClosed {
+				slog.Error(err.Error())
+			}
+		}()
+
+		return srv
+	}
+
 	tlsEnabled, tlsCertFile, tlsKeyFile := s.GetTls()
-
-	listenAddress := fmt.Sprintf(":%d", portNr)
-	slog.Info("Started listening", "port", portNr)
-
-	srv := &http.Server{
-		Addr:              listenAddress,
-		ReadHeaderTimeout: 3 * time.Second, //Protect against potential slowloeris attack
-	}
-	if shutdownMetricsServerSync != nil {
-		srv.RegisterOnShutdown(shutdownMetricsServerSync)
-	}
-	healthchecker := opts.healthchecker
-	if healthchecker == nil {
-		healthchecker = middleware.NewPingPongHealthCheck(slog.LevelDebug)
-	}
-	srv.Handler = middleware.NewMiddlewarePrefixedHandler(
-		s,
-		middleware.LogMiddleware(opts.RequestLogLvl, healthchecker, reg),
-	)
-
-	// Start proxy in the background but manage waitgroup
-	go func() {
-		defer serverDone.Done()
-		var err error
-		iType := reflect.TypeOf(s)
-		if tlsEnabled {
-			slog.Info("Starting ListenAndServeTLS", "secure", tlsEnabled, "type", iType)
-			err = srv.ListenAndServeTLS(tlsCertFile, tlsKeyFile)
-		} else {
-			slog.Info("Starting ListenAndServe", "secure", tlsEnabled, "type", iType)
-			err = srv.ListenAndServe()
+	var firstServer *http.Server = nil
+	var tlsServer *http.Server = nil
+	var shutdownTlsServerSync func() = nil
+	var shutdownHTTPServerSync func() = nil
+	if tlsEnabled {
+		tlsServer = createAndStart(s.GetTLSPort(), tlsEnabled, tlsCertFile, tlsKeyFile, opts)
+		firstServer = tlsServer
+		shutdownTlsServerSync = func() {
+			err := tlsServer.Shutdown(context.Background())
+			if err != nil {
+				panic(err)
+			}
 		}
+	}
 
-		if err != http.ErrServerClosed {
-			slog.Error(err.Error())
+	var httpServer *http.Server = nil
+	if s.GetHTTPPort() != 0 {
+		httpServer = createAndStart(s.GetHTTPPort(), false, "", "", opts)
+		if firstServer == nil {
+			firstServer = httpServer
 		}
-	}()
-	return serverDone, srv, nil
+		shutdownHTTPServerSync = func() {
+			err := httpServer.Shutdown(context.Background())
+			if err != nil {
+				panic(err)
+			}
+		}
+	}
+
+	if tlsServer != nil && shutdownTlsServerSync != nil && httpServer != nil && shutdownHTTPServerSync != nil {
+		tlsServer.RegisterOnShutdown(shutdownHTTPServerSync)
+		httpServer.RegisterOnShutdown(shutdownTlsServerSync)
+	}
+
+	if firstServer == nil {
+		return nil, nil, fmt.Errorf("invalid config no actual server started")
+	}
+
+	return serverDone, firstServer, nil
 }
 
-// Create a server and await until its health check is passing
+// Create server listeners and await until health check is ok
 func CreateAndAwaitHealthy(s Serverable, opts ServerOpts) (*sync.WaitGroup, *http.Server, error) {
 	serverDone, srv, err := CreateAndStart(s, opts)
 	if err != nil {
 		return serverDone, srv, err
 	}
 	tlsEnabled, _, _ := s.GetTls()
-	err = awaitServerOnPort(s.GetPort(), tlsEnabled)
-	if err != nil {
-		err2 := srv.Shutdown(context.Background())
-		if err2 != nil {
-			err = fmt.Errorf("error shutting down unhealthy server: %w", err2)
+	if tlsEnabled {
+		err = awaitServerOnPort(s.GetTLSPort(), tlsEnabled)
+		if err != nil {
+			err2 := srv.Shutdown(context.Background())
+			if err2 != nil {
+				err = fmt.Errorf("error shutting down unhealthy TLS server: %w", err2)
+			}
+			serverDone.Wait()
+			return nil, nil, err
 		}
-		serverDone.Wait()
-		return nil, nil, err
+	}
+
+	if s.GetHTTPPort() != 0 {
+		err = awaitServerOnPort(s.GetHTTPPort(), false)
+		if err != nil {
+			err2 := srv.Shutdown(context.Background())
+			if err2 != nil {
+				err = fmt.Errorf("error shutting down unhealthy HTTP server: %w", err2)
+			}
+			serverDone.Wait()
+			return nil, nil, err
+		}
 	}
 
 	return serverDone, srv, nil

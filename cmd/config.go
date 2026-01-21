@@ -40,8 +40,8 @@ const (
 	s3ProxyHTTPPort                                  = "s3ProxyHTTPPort"
 	s3ProxyTlsCertFile                               = "s3ProxyCertFile"
 	s3ProxyTlsKeyFile                                = "s3ProxyKeyFile"
-	s3ProxyJwtPublicRSAKey                           = "s3ProxyJwtPublicRSAKey"
-	s3ProxyJwtPrivateRSAKey                          = "s3ProxyJwtPrivateRSAKey"
+	proxyJwtPublicRSAKey                             = "proxyJwtPublicRSAKey"
+	proxyJwtPrivateRSAKey                            = "proxyJwtPrivateRSAKey"
 	s3ProxyRemovableQueryParams                      = "s3ProxyRemovableQueryParams"
 	stsProxyFQDN                                     = "stsProxyFQDN"
 	stsProxyTlsPort                                  = "stsProxyPort"
@@ -66,8 +66,8 @@ const (
 	FAKES3PP_S3_PROXY_TLS_KEY_FILE           = "FAKES3PP_S3_PROXY_TLS_KEY_FILE"
 	FAKES3PP_S3_PROXY_TLS_CERT_FILE          = "FAKES3PP_S3_PROXY_TLS_CERT_FILE"
 	FAKES3PP_S3_PROXY_HTTP_PORT              = "FAKES3PP_S3_PROXY_HTTP_PORT"
-	FAKES3PP_S3_PROXY_JWT_PUBLIC_RSA_KEY     = "FAKES3PP_S3_PROXY_JWT_PUBLIC_RSA_KEY"
-	FAKES3PP_S3_PROXY_JWT_PRIVATE_RSA_KEY    = "FAKES3PP_S3_PROXY_JWT_PRIVATE_RSA_KEY"
+	FAKES3PP_PROXY_JWT_PUBLIC_RSA_KEY        = "FAKES3PP_PROXY_JWT_PUBLIC_RSA_KEY"
+	FAKES3PP_PROXY_JWT_PRIVATE_RSA_KEY       = "FAKES3PP_PROXY_JWT_PRIVATE_RSA_KEY"
 	FAKES3PP_S3_PROXY_REMOVABLE_QUERY_PARAMS = "FAKES3PP_S3_PROXY_REMOVABLE_QUERY_PARAMS"
 	FAKES3PP_S3_CORS_STRATEGY                = "FAKES3PP_S3_CORS_STRATEGY"
 	FAKES3PP_S3_CORS_STATIC_ALLOWED_ORIGIN   = "FAKES3PP_S3_CORS_STATIC_ALLOWED_ORIGIN"
@@ -132,15 +132,15 @@ var envVarDefs = []envVarDef{
 		[]string{proxys3},
 	},
 	{
-		s3ProxyJwtPrivateRSAKey,
-		FAKES3PP_S3_PROXY_JWT_PRIVATE_RSA_KEY,
+		proxyJwtPrivateRSAKey,
+		FAKES3PP_PROXY_JWT_PRIVATE_RSA_KEY,
 		true,
 		"The key file used for signing JWT tokens",
 		[]string{proxys3, proxysts},
 	},
 	{
-		s3ProxyJwtPublicRSAKey,
-		FAKES3PP_S3_PROXY_JWT_PUBLIC_RSA_KEY,
+		proxyJwtPublicRSAKey,
+		FAKES3PP_PROXY_JWT_PUBLIC_RSA_KEY,
 		true,
 		"The key file used for signing JWT tokens",
 		[]string{proxys3, proxysts},

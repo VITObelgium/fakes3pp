@@ -51,7 +51,7 @@ func TestValidPreSignWithServerCreds(t *testing.T) {
 }
 
 func getTestingKeyStorageFromEtc(t testing.TB) utils.KeyPairKeeper {
-	viper.Set(s3ProxyJwtPrivateRSAKey, "../etc/jwt_testing_rsa")
+	viper.Set(proxyJwtPrivateRSAKey, "../etc/jwt_testing_rsa")
 	return getTestingKeyStorage(t)
 }
 

@@ -53,7 +53,7 @@ func buildSTSServer() server.Serverable {
 	}
 
 	s, err := sts.NewSTSServer(
-		viper.GetString(s3ProxyJwtPrivateRSAKey),
+		viper.GetString(proxyJwtPrivateRSAKey),
 		viper.GetInt(stsProxyTlsPort),
 		fqdns,
 		viper.GetString(stsProxyTlsCertFile),

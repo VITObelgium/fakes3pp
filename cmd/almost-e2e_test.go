@@ -166,7 +166,7 @@ func stageTestingOIDCConfig(t testing.TB) (filename string) {
 }
 
 func getTestingKeyStorage(t testing.TB) utils.KeyPairKeeper {
-	rsaKeyFilePath := viper.GetString(s3ProxyJwtPrivateRSAKey)
+	rsaKeyFilePath := viper.GetString(proxyJwtPrivateRSAKey)
 	keyStorage, err := utils.NewKeyStorage(rsaKeyFilePath)
 	if err != nil {
 		t.Error("Could not get signing key for testing", "error", err)
@@ -1434,7 +1434,7 @@ func TestSigv4PresignedUrlsSucceedWithOldSigningStrategyWhenBackwardsCompatibili
 }
 
 func getLegacyCredentials(t testing.TB, roleArn string, tags session.AWSSessionTags) aws.Credentials {
-	pkKeeper, err := utils.NewKeyStorage(viper.GetString(s3ProxyJwtPrivateRSAKey))
+	pkKeeper, err := utils.NewKeyStorage(viper.GetString(proxyJwtPrivateRSAKey))
 	if err != nil {
 		t.Error("Could not get signing key material")
 		t.FailNow()

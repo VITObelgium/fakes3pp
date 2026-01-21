@@ -37,7 +37,7 @@ func buildS3Server() server.Serverable {
 	}
 
 	s, err := s3.NewS3Server(
-		viper.GetString(s3ProxyJwtPrivateRSAKey),
+		viper.GetString(proxyJwtPrivateRSAKey),
 		viper.GetInt(s3ProxyTlsPort),
 		fqdns,
 		viper.GetString(s3ProxyTlsCertFile),

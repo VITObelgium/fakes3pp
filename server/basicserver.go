@@ -41,6 +41,9 @@ func (s *BasicServer) GetTls() (enabled bool, certFile string, keyFile string) {
 	} else if s.tlsKeyFilePath == "" {
 		slog.Debug("Disabling TLS", "reason", "no keyFile provided")
 		enabled = false
+	} else if s.port == 0 {
+		slog.Debug("Disabling TLS", "reason", "port was set to 0")
+		enabled = false
 	}
 	return enabled, s.tlsCertFilePath, s.tlsKeyFilePath
 }

@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"time"
@@ -14,6 +15,102 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promauto"
 )
 
+type promVecs struct {
+	requestsTotal    *prometheus.CounterVec
+	requestDuration  *prometheus.HistogramVec
+	requestSize      *prometheus.CounterVec
+	responseSize     *prometheus.CounterVec
+	requestsFinished *prometheus.CounterVec
+	requestsFailed   *prometheus.CounterVec
+}
+
+func (v *promVecs) UpdateMetricsStartRequest(method string) {
+	lbls := prometheus.Labels{"method": method}
+	v.requestsTotal.With(lbls).Inc()
+}
+
+func (v *promVecs) UpdateMetricsEndRequest(method, operation string, bytesReceived, bytesSent, duration float64, err fmt.Stringer) {
+	opLabel := prometheus.Labels{"operation": operation}
+	opmetLabels := prometheus.Labels{"operation": operation, "method": method}
+
+	v.requestDuration.With(opLabel).Observe(duration)
+	v.requestSize.With(opLabel).Add(bytesReceived)
+	v.responseSize.With(opLabel).Add(bytesSent)
+	v.requestsFinished.With(opmetLabels).Inc()
+
+	if err != nil {
+		errLabel := prometheus.Labels{"code": err.String()}
+		v.requestsFailed.With(errLabel).Inc()
+	}
+}
+
+var promVecsInstance *promVecs
+
+func GetPromVecs(promReg prometheus.Registerer) *promVecs {
+	if promVecsInstance == nil {
+		var requestsTotal *prometheus.CounterVec
+		var requestDuration *prometheus.HistogramVec
+		var requestSize *prometheus.CounterVec
+		var responseSize *prometheus.CounterVec
+		var requestsFinished *prometheus.CounterVec
+		var requestsFailed *prometheus.CounterVec
+		var buckets []float64
+
+		if promReg != nil {
+			requestsTotal = promauto.With(promReg).NewCounterVec(
+				prometheus.CounterOpts{
+					Name: "http_requests_started_total",
+					Help: "Tracks the number of HTTP requests.",
+				}, []string{"method"},
+			)
+			requestDuration = promauto.With(promReg).NewHistogramVec(
+				prometheus.HistogramOpts{
+					Name:    "http_request_duration_seconds",
+					Help:    "Tracks the latencies for HTTP requests.",
+					Buckets: buckets,
+				},
+				[]string{"operation"},
+			)
+			requestSize = promauto.With(promReg).NewCounterVec(
+				prometheus.CounterOpts{
+					Name: "http_request_size_bytes",
+					Help: "Tracks the size of HTTP requests.",
+				},
+				[]string{"operation"},
+			)
+			responseSize = promauto.With(promReg).NewCounterVec(
+				prometheus.CounterOpts{
+					Name: "http_response_size_bytes",
+					Help: "Tracks the size of HTTP responses.",
+				},
+				[]string{"operation"},
+			)
+			requestsFinished = promauto.With(promReg).NewCounterVec(
+				prometheus.CounterOpts{
+					Name: "http_requests_finished_total",
+					Help: "Tracks the number of HTTP requests.",
+				}, []string{"method", "operation"},
+			)
+			requestsFailed = promauto.With(promReg).NewCounterVec(
+				prometheus.CounterOpts{
+					Name: "http_requests_failed_total",
+					Help: "Tracks the number of HTTP requests that failed.",
+				}, []string{"code"},
+			)
+		}
+		newInstance := promVecs{
+			requestsTotal:    requestsTotal,
+			requestDuration:  requestDuration,
+			requestSize:      requestSize,
+			responseSize:     responseSize,
+			requestsFinished: requestsFinished,
+			requestsFailed:   requestsFailed,
+		}
+		promVecsInstance = &newInstance
+	}
+	return promVecsInstance
+}
+
 // The log Middleware has as responsibility to make sure to allow for:
 // 1. tracking requests via an X-Request-ID header
 // 2. creating an access log
@@ -22,55 +119,8 @@ import (
 // It takes a healthcheck function because health checks should not follow other log
 // semantics.
 func LogMiddleware(requestLogLvl slog.Level, hc HealthChecker, promReg prometheus.Registerer) Middleware {
-	var buckets []float64
-	var requestsTotal *prometheus.CounterVec
-	var requestDuration *prometheus.HistogramVec
-	var requestSize *prometheus.CounterVec
-	var responseSize *prometheus.CounterVec
-	var requestsFinished *prometheus.CounterVec
-	var requestsFailed *prometheus.CounterVec
-	if promReg != nil {
-		requestsTotal = promauto.With(promReg).NewCounterVec(
-			prometheus.CounterOpts{
-				Name: "http_requests_started_total",
-				Help: "Tracks the number of HTTP requests.",
-			}, []string{"method"},
-		)
-		requestDuration = promauto.With(promReg).NewHistogramVec(
-			prometheus.HistogramOpts{
-				Name:    "http_request_duration_seconds",
-				Help:    "Tracks the latencies for HTTP requests.",
-				Buckets: buckets,
-			},
-			[]string{"operation"},
-		)
-		requestSize = promauto.With(promReg).NewCounterVec(
-			prometheus.CounterOpts{
-				Name: "http_request_size_bytes",
-				Help: "Tracks the size of HTTP requests.",
-			},
-			[]string{"operation"},
-		)
-		responseSize = promauto.With(promReg).NewCounterVec(
-			prometheus.CounterOpts{
-				Name: "http_response_size_bytes",
-				Help: "Tracks the size of HTTP responses.",
-			},
-			[]string{"operation"},
-		)
-		requestsFinished = promauto.With(promReg).NewCounterVec(
-			prometheus.CounterOpts{
-				Name: "http_requests_finished_total",
-				Help: "Tracks the number of HTTP requests.",
-			}, []string{"method", "operation"},
-		)
-		requestsFailed = promauto.With(promReg).NewCounterVec(
-			prometheus.CounterOpts{
-				Name: "http_requests_failed_total",
-				Help: "Tracks the number of HTTP requests that failed.",
-			}, []string{"code"},
-		)
-	}
+	promVecs := *GetPromVecs(promReg)
+
 	return func(next http.HandlerFunc) http.HandlerFunc {
 		return func(w http.ResponseWriter, r *http.Request) {
 			startTime := time.Now()
@@ -112,25 +162,22 @@ func LogMiddleware(requestLogLvl slog.Level, hc HealthChecker, promReg prometheu
 			if !wasHealthCheck {
 				if promReg != nil {
 					//We can increase the request counter already
-					lbls := prometheus.Labels{"method": r.Method}
-					requestsTotal.With(lbls).Inc()
+					promVecs.UpdateMetricsStartRequest(r.Method)
+
 					//But end of action metrics we must defer to the final stage
 					defer func() {
 						operation := ""
 						if rCtx.Operation != nil {
 							operation = rCtx.Operation.String()
 						}
-						opLabel := prometheus.Labels{"operation": operation}
-						requestDuration.With(opLabel).Observe(time.Since(startTime).Seconds())
-						requestSize.With(opLabel).Add(float64(rCtx.BytesReceived))
-						responseSize.With(opLabel).Add(float64(rCtx.BytesSent))
-						opmetLabels := prometheus.Labels{"operation": operation, "method": r.Method}
-						requestsFinished.With(opmetLabels).Inc()
 
-						if rCtx.Error != nil {
-							errLabel := prometheus.Labels{"code": rCtx.Error.String()}
-							requestsFailed.With(errLabel).Inc()
-						}
+						promVecs.UpdateMetricsEndRequest(
+							r.Method,
+							operation,
+							float64(rCtx.BytesReceived),
+							float64(rCtx.BytesSent),
+							time.Since(startTime).Seconds(), rCtx.Error,
+						)
 					}()
 				}
 				next.ServeHTTP(trackingW, r.WithContext(ctx))

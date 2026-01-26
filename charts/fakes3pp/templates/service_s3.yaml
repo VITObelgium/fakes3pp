@@ -1,0 +1,37 @@
+{{- if not (eq (int .Values.s3.service.port) (int 0)) }}
+apiVersion: v1
+kind: Service
+metadata:
+{{- if .Values.s3.service.headless }}
+  name: {{ include "fakes3pp.fullnameS3" . }}-headless
+{{- else }}
+  name: {{ include "fakes3pp.fullnameS3" . }}
+{{- end }}
+  labels:
+    {{- include "fakes3pp.labelsS3" . | nindent 4 }}
+  {{- with .Values.s3.service.fqdn }}
+  annotations:
+    external-dns.alpha.kubernetes.io/internal-hostname: "yes-please"
+    external-dns.alpha.kubernetes.io/hostname: "{{ . }}"
+  {{- end}}
+spec:
+  type: {{ .Values.s3.service.type }}
+  ports:
+    - port: {{ .Values.s3.service.frontendPort }}
+      targetPort: http
+      protocol: TCP
+      name: http
+    - port: {{ .Values.s3.service.frontendPortTLS }}
+      targetPort: tls
+      protocol: TCP
+      name: tls
+  {{- if eq .Values.s3.mode "daemonset" }}
+  # Make sure traffic does not leave the node.
+  internalTrafficPolicy: Local
+  {{- end }}
+  selector:
+    {{- include "fakes3pp.selectorLabelsS3" . | nindent 4 }}
+{{- if .Values.s3.service.headless }}
+  clusterIP: None
+{{- end }}
+{{- end }}

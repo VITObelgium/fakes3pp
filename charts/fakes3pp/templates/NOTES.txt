@@ -1,0 +1,27 @@
+The fakes3pp proxy and sts service are deployed.
+
+Make sure to setup DNS records for the ingress FQDNs to allow access to your ingress paths:
+{{- if .Values.sts.ingress.enabled }}
+{{- range $host := .Values.sts.ingress.hosts }}
+  {{- range .paths }}
+  http{{ if $.Values.sts.ingress.tls }}s{{ end }}://{{ $host.host }}{{ .path | replace "\"" "" }}
+  {{- end }}
+{{- end }}
+{{- end }}
+{{- if .Values.s3.ingress.enabled }}
+{{- range $host := .Values.s3.ingress.hosts }}
+  {{- range .paths }}
+  http{{ if $.Values.s3.ingress.tls }}s{{ end }}://{{ $host.host }}{{ .path | replace "\"" "" }}
+  {{- end }}
+{{- end }}
+{{- end }}
+
+
+{{ if .Values.sts.service.fqdn }}
+Make sure to setup a DNS A-record for local resolving of the service: {{ .Values.sts.service.fqdn }}
+Or if you have `external-dns` setup see if your security posture allows for `--publish-internal-services` then the record gets created for you.
+{{- end }}
+{{- if .Values.s3.service.fqdn }}
+Make sure to setup a DNS A-record for local resolving of the service: {{ .Values.s3.service.fqdn }}
+Or if you have `external-dns` setup see if your security posture allows for `--publish-internal-services` then the record gets created for you.
+{{- end }}

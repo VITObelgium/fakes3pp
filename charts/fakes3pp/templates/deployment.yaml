@@ -1,0 +1,129 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "fakes3pp.fullnameSTS" . }}
+  labels:
+    {{- include "fakes3pp.labelsSTS" . | nindent 4 }}
+spec:
+  {{- if not .Values.sts.autoscaling.enabled }}
+  replicas: {{ .Values.sts.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "fakes3pp.selectorLabelsSTS" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.sts.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "fakes3pp.labelsSTS" . | nindent 8 }}
+        {{- with .Values.sts.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.sts.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "fakes3pp.serviceAccountNameSTS" . }}
+      securityContext:
+        {{- toYaml .Values.sts.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.sts.securityContext | nindent 12 }}
+          image: "{{ .Values.shared.image.repository }}:{{ .Values.shared.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.shared.image.pullPolicy }}
+          command: ["/fakes3pp", "proxysts", "--dot-env", "skip"]
+          ports:
+          {{- if and (eq (int .Values.sts.service.port) (int 0)) (eq (int .Values.sts.service.portTLS) (int 0)) }}
+             {{ fail "One must at least have 1 sts service port <> 0" }}
+          {{- end}}
+          {{- if not (eq (int .Values.sts.service.port) (int 0)) }}
+            - name: http
+              containerPort: {{ .Values.sts.service.port }}
+              protocol: TCP
+          {{- end }}
+          {{- if not (eq ( int .Values.sts.service.portTLS) (int 0)) }}
+            - name: tls
+              containerPort: {{ .Values.sts.service.portTLS }}
+              protocol: TCP
+          {{- end }}
+          livenessProbe:
+            {{- toYaml .Values.sts.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.sts.readinessProbe | nindent 12 }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "fakes3pp.name" . }}
+            {{- with .Values.sts.envFrom }}
+            {{- toYaml .Values.sts.envFrom | nindent 12 }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.sts.resources | nindent 12 }}
+          volumeMounts:
+          {{- if .Values.sts.defaultVolumeMounts }}
+            {{- if not (eq ( int .Values.sts.service.portTLS) (int 0)) }}
+          - name: tls
+            mountPath: "{{ .Values.sts.config.tlsDir }}"
+            readOnly: true
+            {{- end }}
+          - name: jwt
+            mountPath: "{{ .Values.shared.config.jwt.dir }}"
+            readOnly: true
+          - name: policies
+            mountPath: "{{ .Values.shared.config.policies.dir }}"
+            readOnly: true
+          - name: oidc
+            mountPath: "{{ .Values.sts.config.oidc.dir }}"
+            readOnly: true
+          {{- else }}
+            {{- if not .Values.s3.extraVolumeMounts }}
+              {{ fail "If you disable s3.defaultVolumeMounts you must provide s3.extraVolumeMounts" }}
+            {{- end}}
+          {{- end}}
+          {{- with .Values.s3.extraVolumeMounts }}
+          {{- toYaml . | nindent 10 }}
+          {{- end }}
+      volumes:
+        {{- if .Values.sts.defaultVolumes }}
+          {{- if not (eq ( int .Values.sts.service.portTLS) (int 0)) }}
+        - name: tls
+          secret:
+            secretName: {{ .Values.sts.service.fqdn }}-cert
+            optional: false
+          {{- end }}
+        - name: jwt
+          secret:
+            secretName: {{ .Values.shared.config.jwt.secretName }}
+            optional: false
+        - name: policies
+          secret:
+            secretName: {{ .Values.shared.config.policies.secretName }}
+            optional: false
+        - name: oidc
+          configMap:
+            name: {{ .Values.sts.config.oidc.configmapName }}
+            optional: false
+        {{- else }}
+          {{- if not .Values.sts.extraVolumes }}
+            {{ fail "If you disable sts.defaultVolumes you must provide sts.extraVolumes" }}
+          {{- end}}
+        {{- end}}
+        {{- with .Values.sts.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.sts.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.sts.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.sts.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

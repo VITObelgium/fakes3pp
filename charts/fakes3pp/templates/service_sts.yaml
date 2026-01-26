@@ -1,0 +1,33 @@
+{{- if not (eq (int .Values.sts.service.port) (int 0)) }}
+apiVersion: v1
+kind: Service
+metadata:
+{{- if .Values.sts.service.headless }}
+  name: {{ include "fakes3pp.fullnameSTS" . }}-headless
+{{- else }}
+  name: {{ include "fakes3pp.fullnameSTS" . }}
+{{- end }}
+  labels:
+    {{- include "fakes3pp.labelsSTS" . | nindent 4 }}
+  {{- with .Values.sts.service.fqdn}}
+  annotations:
+    external-dns.alpha.kubernetes.io/internal-hostname: "yes-please"
+    external-dns.alpha.kubernetes.io/hostname: "{{ . }}"
+  {{- end}}
+spec:
+  type: {{ .Values.sts.service.type }}
+  ports:
+    - port: 80
+      targetPort: {{ .Values.sts.service.port }}
+      protocol: TCP
+      name: http
+    - port: 443
+      targetPort: {{ .Values.sts.service.portTLS }}
+      protocol: TCP
+      name: tls
+  selector:
+    {{- include "fakes3pp.selectorLabelsSTS" . | nindent 4 }}
+{{- if .Values.sts.service.headless }}
+  clusterIP: None
+{{- end }}
+{{- end }}

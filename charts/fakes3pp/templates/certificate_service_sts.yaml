@@ -1,0 +1,19 @@
+{{- if .Values.sts.service.fqdn }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  labels:
+    {{- include "fakes3pp.labelsS3" . | nindent 4 }}
+  name: {{ .Values.sts.service.fqdn }}-cert
+spec:
+  dnsNames:
+  - {{ .Values.sts.service.fqdn }}
+  issuerRef:
+    group: cert-manager.io
+    kind: ClusterIssuer
+    name: letsencrypt
+  secretName: {{ .Values.sts.service.fqdn }}-cert
+  usages:
+  - digital signature
+  - key encipherment
+{{- end }}

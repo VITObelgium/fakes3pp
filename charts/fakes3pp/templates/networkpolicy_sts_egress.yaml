@@ -1,0 +1,32 @@
+{{- range .Values.sts.service.whitelistEgressInNamespaces }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-fakes3pp-sts-access-egress
+  namespace: {{ . }}
+spec:
+  podSelector: {}
+  policyTypes:
+    - Egress
+  egress:
+    - to:
+      - namespaceSelector:
+          matchExpressions:
+          - key: kubernetes.io/metadata.name
+            operator: In
+            values:
+            - {{ $.Release.Namespace }}
+        podSelector:
+          matchLabels:
+            {{- include "fakes3pp.selectorLabelsSTS" $ | nindent 12 }}
+      ports:
+          {{- if not (eq (int $.Values.sts.service.port) (int 0)) }}
+        - protocol: TCP
+          port: {{ $.Values.sts.service.port }}
+          {{- end }}
+          {{- if not (eq ( int $.Values.sts.service.portTLS) (int 0)) }}
+        - protocol: TCP
+          port: {{ $.Values.sts.service.portTLS }}
+          {{- end }}
+{{- end }}

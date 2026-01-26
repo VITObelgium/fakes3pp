@@ -1,0 +1,15 @@
+{{- with .Values.sts.config.oidc }}
+  {{- if .providers }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .configmapName }}
+  labels:
+    {{- include "fakes3pp.labelsSTS" $ | nindent 4 }}
+data:
+  "{{ .filename }}": |
+    "providers":
+      {{ .providers | toYaml | nindent 6 }}
+
+  {{- end }}
+{{- end }}

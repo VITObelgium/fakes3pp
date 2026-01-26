@@ -1,0 +1,396 @@
+# Default values for fakes3pp.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# The proxy requires some sensitive data like Certificates and the corresponding private keys
+# these should be passed via mounting secrets. For this you can use volumes and volumemounts
+# In order for the application to find them you can use the Environment Variables that are
+# Supported by fakes3pp to make sure the secret info is resolved correctly. see <service>.envFrom
+
+shared:
+  image:
+    repository: ghcr.io/vitobelgium/fakes3pp
+    pullPolicy: IfNotPresent
+    # Overrides the image tag whose default is the chart appVersion.
+    #tag: "1.0.0"
+
+  config:
+    # The s3 proxy expects region info to be provided which is the case for sigv4
+    # if a default region can be used this can be toggled to true but it could cause confusion
+    # when proxying multiple regions
+    legacyBehaviorInvalidRegionToDefaultRegion: false
+
+    # On which port should prometheus metrics be exposed
+    metricsPort: 8000
+
+    # The maximum duration in seconds a signed url can be valid past the lifetime of the credentials used to generate it
+    # WARNING: if you set this to 20 days and temporary credentials leak after 1 day that means those credentials are abusable
+    # for 19 days because presigning happens client-side.
+    signedURLGraceTimeSeconds: 0
+
+    # If a request Id header starts with this prefix we force logging at all levels
+    # This allows to increase log verbosity for particular request for troubleshooting purposes.
+    forceLoggingRequestIdPrefix: "00000000"
+
+    # The policies available to the system
+    policies:
+      dir: /etc/policies
+      secretName: fakes3pp-policies    # pragma: allowlist secret
+
+      documents:
+       - arn: arn:fakes3pp:iam:::role/allow-all
+         content:
+           Version: "2012-10-17"
+           Statement:
+             - Sid: "AllowAll"
+               Effect: "Allow"
+               Action: "s3:*"
+               Resource: "*"
+
+    # The details of the JWT keypair used to setup trust between s3 and the sts proxy
+    jwt:
+      dir: /etc/jwt
+      privateKeyFilename: jwt_rsa    # pragma: allowlist secret
+      publicKeyFilename: jwt_rsa.pub
+
+      secretName: fakes3pp-jwt  # pragma: allowlist secret
+
+      # The below is just for illustrationg purposes to show how values could be used
+      # these keys should never be used for production see `etc/README.md`
+      # Most often you want to --set shared.config.jwt.data=null and provision the
+      # secret with your preferred secure way of managing secrets
+      # !BEWARE! when provisiong yourself the key is `jwt_rsa.pub` with a dot rather than underscore
+      data:
+        # pragma: allowlist secret
+        jwt_rsa_pub: |
+          -----BEGIN RSA PUBLIC KEY-----
+          MIIBCgKCAQEAoncey4tgLAI2zZj6CGZTCnhOW9hxtv+QJ/1qDTqYKyZecSahk4a9
+          duUVRUT0wZUZRZgba/mYZg/9ypuz4C/elf2iMgnHRmBCJmQy1eQGa+RirzmnDpFe
+          o/1bCeWLXd4gg+HT5NFoJKl79O1ZX9TXa9mExZsK7/+1WoZeWH0u9YP50+ULMmeF
+          ReAH9SzytJVx8fD2Ir1dEsrQFM5dYPP1liYFidUwD5Q5STHqAEoOkOPMhduUjyGR
+          LEy66sPM1o9Iw3GcN1IdPVKVEkuX9QcM/AJCVtSbES5MDYqysJXAeF3a0ucHMwE9
+          ND+mqPZD9tUQ9zbw0dULdCyI0zac/c6HEwIDAQAB
+          -----END RSA PUBLIC KEY-----
+
+        jwt_rsa: | # pragma: allowlist secret
+          -----BEGIN RSA PRIVATE KEY-----
+          MIIEowIBAAKCAQEAoncey4tgLAI2zZj6CGZTCnhOW9hxtv+QJ/1qDTqYKyZecSah
+          k4a9duUVRUT0wZUZRZgba/mYZg/9ypuz4C/elf2iMgnHRmBCJmQy1eQGa+Rirzmn
+          DpFeo/1bCeWLXd4gg+HT5NFoJKl79O1ZX9TXa9mExZsK7/+1WoZeWH0u9YP50+UL
+          MmeFReAH9SzytJVx8fD2Ir1dEsrQFM5dYPP1liYFidUwD5Q5STHqAEoOkOPMhduU
+          jyGRLEy66sPM1o9Iw3GcN1IdPVKVEkuX9QcM/AJCVtSbES5MDYqysJXAeF3a0ucH
+          MwE9ND+mqPZD9tUQ9zbw0dULdCyI0zac/c6HEwIDAQABAoIBACm64iCTHLFBIlV9
+          6R82NTc3vpzNxCumih8TcuWR+tr+gHyc2Ry9G7ZJ0kRYGWwNwY+EKer6keAJVH1x
+          r+qyMQCixMIIi/RyLhuRWhNhfhrBb22lp9jQkxgZMASjPsBuGTj2zQf1l8Pu+qVn
+          P7EjSO/tT7K4B7+slSb644nkIaczBX2upGOSqpnaxcjf7754Zj/FhIMl09KhRH68
+          olkj+VzQ/IK/RBRhzAPChuAXXiIShvkjDlkAFUrm+lCmexFfIqwsOPFopJ8a8LXI
+          pSPdd9KEgVdYROgI/FPwwNR/DuWvO990J5AqjEV+lML2aDaEH8xr5U3BZ908RwgH
+          kalcoj0CgYEA2e4RqgctjLlLcvWEzoDtmL8QXbB/vQArglordKTCrER2zSTGFReB
+          U7dKt9WK8EwPDRg3AKFNunCdBdwuLU4HKal6TJwlYSGwKHTDghckgmzIKt3xERX1
+          g3WYgGeN5uavDZAxXt5kqkVSq7RGZuOUcktOk5nxmcTcqUkqitQUxP8CgYEAvtil
+          abpBMxViQeTAOo0PWWPZkqJmCGQejYC1P5cStBqHNhZU7zi9N76HmQ2ocpjMXhqK
+          Ibumh8hAYB6fyUfpK1DxmUNTZHocnxv+dr9oK0hz3E0S1NJeJrFXgaiPWkyVliEr
+          H0IMgQxexL8+ikr55h3uvYjQPB7zOTEmCvxo2e0CgYB3aHdrR1WQ5rJNgfNLxt7o
+          s7++5geHwoEUgl2PIvu7siO6Ea0rP17QRPz+r1XahoI0tZDlmnxhbHTNEjCHCFrq
+          W/8z3NaqWvAPqrK5I/8QK5Sd0E/XAcYtSpDNwm/BFaLS9q/mgEp99U/v3u44T/g1
+          i8e5Hj9/9prFct6JhN0AdwKBgQCgM/C3DfjJTvwKYGHVRLBL03vCkbyg8pqLIi4D
+          0WeL9HDoQFrP7Ys5DiF5o3Nxrz5vCExIAOPMO5d+mHZ9WnYrPGlyxIduYus/zRoQ
+          yKBDJTDND43tRSJvzJKubrbXkE5JllJCjQk+EwpCkl+Ha2TXfOz6Aaz7qud1bQKI
+          WlYSCQKBgH4v+LyK3z/NwmEpJJ/G3SHKvRboQmrFmXPZbjLYJTJ8eL5CrjJ+rWAj
+          dZwJEpeQ7jP7gGMKYWkLqXQOpsZ1iN4R1PoPueK/J/gtiiAa6I+ry//XeKQo0Atf
+          GS5euSXTZzMjQ4ge3bo4eHdtNkRhTZG8GzlZE73zNFedM9VyU4cf
+          -----END RSA PRIVATE KEY-----
+
+sts:
+  config:
+    tlsDir: /etc/tls/sts
+    tlsCertFile: tls.crt
+    tlsKeyFile: tls.key  # pragma: allowlist secret
+
+    oidc:
+      configmapName: fakes3pp-oidc
+      dir: /etc/oidc
+      filename: "oidc-config.yaml"
+      providers:
+        egi:
+          iss: "https://aai.egi.eu/auth/realms/egi"
+          # public_key is not mandatory, if not provided fakes3pp will resolve the public key via the issuer link above
+          public_key: "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArqwhdua+/zTG5SDw/dFkW+OzYMh5e7e3+neeiZy/ajKVRCHGky4jSx5WjoVxfWvqt/JpGbCQ/Vk9x19UiRQlSBNmufJtVtrBHcXSrppTjABg20TVY+mRK2WJfdwK2YUc8xtNw1rCMOQQk0CC5j2AeUgwAY02WLaU0FYKmypJgfSQEeW1Cywl8OrkkYhcnEET7EwgemuEbqDY+pcqd3kIH++kwgjymUQ8CJgIgI3/zHLVrJsCxdADDP/zFFsTOnE205nMoBMTk10EcdTGAUBj3IosTn7HirVyQgiFL2stsjmxK3TeBli0YzVqlP0iuSA9FCPC4nqzRIDynjy70z2hZwIDAQAB"  # pragma: allowlist secret
+
+  replicaCount: 1
+
+  imagePullSecrets: []
+  nameOverride: ""
+  fullnameOverride: ""
+
+  serviceAccount:
+    # Specifies whether a service account should be created
+    create: true
+    # Automatically mount a ServiceAccount's API credentials?
+    automount: no
+    # Annotations to add to the service account
+    annotations: {}
+    # The name of the service account to use.
+    # If not set and create is true, a name is generated using the fullname template
+    name: ""
+
+  podAnnotations: {}
+  podLabels: {}
+
+  podSecurityContext: {}
+    # fsGroup: 2000
+
+  securityContext: {}
+    # capabilities:
+    #   drop:
+    #   - ALL
+    # readOnlyRootFilesystem: true
+    # runAsNonRoot: true
+    # runAsUser: 1000
+
+  # This is used for HTTP traffick
+  service:
+    type: ClusterIP
+    port: 8080
+    portTLS: 8443
+    headless: false
+    # Setup Networkpolicies in the following namespaces to allow egress from them to the proxies
+    whitelistEgressInNamespaces: []
+    # A FQDN that will reference the service IP this allows efficient routing
+    # inside the cluster and it allows for a shared certificate
+    fqdn: sts-local.example.local
+
+
+  ingress:
+    enabled: false
+    className: ""
+    annotations: {}
+      # kubernetes.io/ingress.class: nginx
+      # kubernetes.io/tls-acme: "true"
+    hosts:
+      - host: chart-example.local
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+    tls: []
+    #  - secretName: chart-example-tls
+    #    hosts:
+    #      - chart-example.local
+
+  resources:
+    limits:
+       memory: 64Mi
+    requests:
+      cpu: 15m
+      memory: 64Mi
+
+  livenessProbe:
+    httpGet:
+      path: /ping
+      port: http
+      scheme: HTTP
+    initialDelaySeconds: 3
+    periodSeconds: 3
+  readinessProbe:
+    httpGet:
+      path: /ping
+      port: http
+      scheme: HTTP
+    initialDelaySeconds: 3
+    periodSeconds: 3
+
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+    # targetMemoryUtilizationPercentage: 80
+
+  # Additional volumes on the output Deployment definition.
+  defaultVolumes: true
+  extraVolumes: []
+
+  # - name: foo
+  #   secret:
+  #     secretName: mysecret
+  #     optional: false
+
+  # Additional volumeMounts on the output Deployment definition.
+  defaultVolumeMounts: true
+  extraVolumeMounts: []
+  # - name: foo
+  #   mountPath: "/etc/foo"
+  #   readOnly: true
+
+  nodeSelector: {}
+
+  tolerations: []
+
+  affinity: {}
+
+  envFrom: []
+    # - configMapRef:
+    #     name: your-config-map
+
+s3:
+  config:
+    tlsDir: /etc/tls/s3
+    tlsCertFile: tls.crt
+    tlsKeyFile: tls.key
+
+    # Where to put the file with backend configuration
+    backends:
+      dir: /etc/regions    # pragma: allowlist secret
+      filename: backend-config.yaml
+      secretName: fakes3pp-backend-config # pragma: allowlist secret
+
+      default: "test-region"
+      config:
+        - region: "test-region"
+          endpoint: "http://test-region.localhost"  # Make sure to adapt protocol
+          capabilities:
+            - StreamingUnsignedPayloadTrailer
+          credentials:  # pragma: allowlist secret
+            aws_access_key_id: "mykid"
+            aws_secret_access_key: "mysecretkey"  # pragma: allowlist secret
+
+
+
+    # CORS config
+
+    cors:
+      # strategy can be valueDenyAll|static
+      strategy: valueDenyAll
+      # In case of static one should specify an origin wildcard * can be used
+      staticAllowedOrigin: 'my.domain.local'
+
+  # The S3 proxy can be deployed in multiple ways:
+  # - deployment: This is the default way where the most common use case is to expose an S3 endpoint
+  #               where you augment an S3 backend with functionality from the proxy
+  # - daemonset: In this mode you have a pod per node that opens a host port allowing to proxy all the S3 access
+  #              where the proxying is done locally.
+  mode: deployment
+
+  # Rollout strategy
+  rollout:
+    rollingUpdate: {}
+    # When 'mode: daemonset', maxSurge cannot be used when hostPort is set for any of the ports
+    # maxSurge: 25%
+    # maxUnavailable: 0
+    strategy: RollingUpdate
+
+  replicaCount: 1
+
+  imagePullSecrets: []
+  nameOverride: ""
+  fullnameOverride: ""
+
+  serviceAccount:
+    # Specifies whether a service account should be created
+    create: true
+    # Automatically mount a ServiceAccount's API credentials?
+    automount: no
+    # Annotations to add to the service account
+    annotations: {}
+    # The name of the service account to use.
+    # If not set and create is true, a name is generated using the fullname template
+    name: ""
+
+  podAnnotations: {}
+  podLabels:
+    awsComponent: s3
+
+  podSecurityContext: {}
+    # fsGroup: 2000
+
+  securityContext: {}
+    # capabilities:
+    #   drop:
+    #   - ALL
+    # readOnlyRootFilesystem: true
+    # runAsNonRoot: true
+    # runAsUser: 1000
+
+  service:
+    type: ClusterIP
+    frontendPort: 80
+    port: 8080
+    frontendPortTLS: 443
+    portTLS: 8443
+    headless: false
+    # Setup Networkpolicies in the following namespaces to allow egress from them to the proxies
+    whitelistEgressInNamespaces: []
+    # A FQDN that will reference the service IP this allows efficient routing
+    # inside the cluster and it allows for a shared certificate
+    # If external-dns is setup for the domain it can also manage the DNS records for you
+    fqdn: s3-local.example.local
+
+  ingress:
+    enabled: false
+    className: "traefik"
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt
+    hosts:
+      - host: chart-example.local
+        paths:
+          - path: /
+            pathType: ImplementationSpecific
+    tls: []
+    #  - secretName: chart-example.local-cert
+    #    hosts:
+    #      - chart-example.local
+
+  resources:
+    limits:
+       memory: 192Mi
+    requests:
+      cpu: 200m
+      memory: 192Mi
+
+  livenessProbe:
+    httpGet:
+      path: /ping
+      port: http
+      scheme: HTTP
+    initialDelaySeconds: 3
+    periodSeconds: 3
+  readinessProbe:
+    httpGet:
+      path: /ping
+      port: http
+      scheme: HTTP
+    initialDelaySeconds: 3
+    periodSeconds: 3
+
+  autoscaling:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 80
+    # targetMemoryUtilizationPercentage: 80
+
+  # Additional volumes on the output Deployment definition.
+  defaultVolumes: true
+  extraVolumes: []
+  # - name: foo
+  #   secret:
+  #     secretName: mysecret
+  #     optional: false
+
+  # Additional volumeMounts on the output Deployment definition.
+  defaultVolumeMounts: true
+  extraVolumeMounts: []
+  # - name: foo
+  #   mountPath: "/etc/foo"
+  #   readOnly: true
+
+
+  nodeSelector: {}
+
+  tolerations: []
+
+  affinity: {}
+
+  envFrom: []
+    # - configMapRef:
+    #     name: your-config-map

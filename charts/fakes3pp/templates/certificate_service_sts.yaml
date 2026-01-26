@@ -1,3 +1,7 @@
+{{- if and
+      (.Values.shared.certManager.enabled)
+      (.Capabilities.APIVersions.Has "cert-manager.io/v1")
+}}
 {{- if .Values.sts.service.fqdn }}
 apiVersion: cert-manager.io/v1
 kind: Certificate
@@ -16,4 +20,5 @@ spec:
   usages:
   - digital signature
   - key encipherment
+{{- end }}
 {{- end }}

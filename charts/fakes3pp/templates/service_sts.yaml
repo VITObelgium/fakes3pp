@@ -17,11 +17,11 @@ metadata:
 spec:
   type: {{ .Values.sts.service.type }}
   ports:
-    - port: 80
+    - port: {{ .Values.sts.service.frontendPort }}
       targetPort: {{ .Values.sts.service.port }}
       protocol: TCP
       name: http
-    - port: 443
+    - port: {{ .Values.sts.service.frontendPortTLS }}
       targetPort: {{ .Values.sts.service.portTLS }}
       protocol: TCP
       name: tls

@@ -7,12 +7,16 @@
 # In order for the application to find them you can use the Environment Variables that are
 # Supported by fakes3pp to make sure the secret info is resolved correctly. see <service>.envFrom
 
+# Shared config can be used for both the S3 and the STS pods
 shared:
+  certManager:
+    enabled: true
+
   image:
     repository: ghcr.io/vitobelgium/fakes3pp
     pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
-    #tag: "1.0.0"
+    # tag: "1.0.0"
 
   config:
     # The s3 proxy expects region info to be provided which is the case for sigv4
@@ -38,14 +42,14 @@ shared:
       secretName: fakes3pp-policies    # pragma: allowlist secret
 
       documents:
-       - arn: arn:fakes3pp:iam:::role/allow-all
-         content:
-           Version: "2012-10-17"
-           Statement:
-             - Sid: "AllowAll"
-               Effect: "Allow"
-               Action: "s3:*"
-               Resource: "*"
+        - arn: arn:fakes3pp:iam:::role/allow-all
+          content:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: "AllowAll"
+                Effect: "Allow"
+                Action: "s3:*"
+                Resource: "*"
 
     # The details of the JWT keypair used to setup trust between s3 and the sts proxy
     jwt:
@@ -101,6 +105,7 @@ shared:
           GS5euSXTZzMjQ4ge3bo4eHdtNkRhTZG8GzlZE73zNFedM9VyU4cf
           -----END RSA PRIVATE KEY-----
 
+# Configuration for the STS pods
 sts:
   config:
     tlsDir: /etc/tls/sts
@@ -127,7 +132,7 @@ sts:
     # Specifies whether a service account should be created
     create: true
     # Automatically mount a ServiceAccount's API credentials?
-    automount: no
+    automount: false
     # Annotations to add to the service account
     annotations: {}
     # The name of the service account to use.
@@ -151,8 +156,12 @@ sts:
   # This is used for HTTP traffick
   service:
     type: ClusterIP
+    frontendPort: 80
     port: 8080
-    portTLS: 8443
+    frontendPortTLS: 443
+    # TLS is disabled by default set to another value e.g. 8443 to enable TLS listener.
+    # This requires that certmanager is installed and can issue certs for sts.service.fqdn
+    portTLS: 0
     headless: false
     # Setup Networkpolicies in the following namespaces to allow egress from them to the proxies
     whitelistEgressInNamespaces: []
@@ -179,7 +188,7 @@ sts:
 
   resources:
     limits:
-       memory: 64Mi
+      memory: 64Mi
     requests:
       cpu: 15m
       memory: 64Mi
@@ -232,6 +241,7 @@ sts:
     # - configMapRef:
     #     name: your-config-map
 
+# Configuration for the S3 pods
 s3:
   config:
     tlsDir: /etc/tls/s3
@@ -242,7 +252,7 @@ s3:
     backends:
       dir: /etc/regions    # pragma: allowlist secret
       filename: backend-config.yaml
-      secretName: fakes3pp-backend-config # pragma: allowlist secret
+      secretName: fakes3pp-backend-config  # pragma: allowlist secret
 
       default: "test-region"
       config:
@@ -253,7 +263,6 @@ s3:
           credentials:  # pragma: allowlist secret
             aws_access_key_id: "mykid"
             aws_secret_access_key: "mysecretkey"  # pragma: allowlist secret
-
 
 
     # CORS config
@@ -289,7 +298,7 @@ s3:
     # Specifies whether a service account should be created
     create: true
     # Automatically mount a ServiceAccount's API credentials?
-    automount: no
+    automount: false
     # Annotations to add to the service account
     annotations: {}
     # The name of the service account to use.
@@ -316,7 +325,9 @@ s3:
     frontendPort: 80
     port: 8080
     frontendPortTLS: 443
-    portTLS: 8443
+    # TLS is disabled by default set to another value e.g. 8443 to enable TLS listener.
+    # This requires that certmanager is installed and can issue certs for sts.service.fqdn
+    portTLS: 0
     headless: false
     # Setup Networkpolicies in the following namespaces to allow egress from them to the proxies
     whitelistEgressInNamespaces: []
@@ -342,7 +353,7 @@ s3:
 
   resources:
     limits:
-       memory: 192Mi
+      memory: 192Mi
     requests:
       cpu: 200m
       memory: 192Mi

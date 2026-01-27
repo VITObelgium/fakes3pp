@@ -55,6 +55,18 @@ jobs:
       - name: Package chart
         run: |
           helm package charts/fakes3pp
+          yq --version
+
+      - name: Verify tag matches chart version
+        if: github.ref_type == 'tag'
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#chart-v}"
+          CHART_VERSION=$(yq '.version' charts/fakes3pp/Chart.yaml)
+
+          if [ "$TAG_VERSION" != "$CHART_VERSION" ]; then
+            echo "Tag version ($TAG_VERSION) does not match Chart.yaml ($CHART_VERSION)"
+            exit 1
+          fi
 
       - name: Login to GHCR
         if: github.ref_type == 'tag'
@@ -67,4 +79,4 @@ jobs:
       - name: Push chart
         if: github.ref_type == 'tag' && startsWith(github.ref_name, 'chart-v')
         run: |
-          helm push fakes3pp-*.tgz oci://ghcr.io/${{ github.repository_owner }}
+          helm push fakes3pp-*.tgz oci://ghcr.io/${{ github.repository_owner }}/fakes3pp

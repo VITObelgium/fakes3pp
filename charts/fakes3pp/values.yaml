@@ -270,8 +270,8 @@ s3:
     # CORS config
 
     cors:
-      # strategy can be valueDenyAll|static
-      strategy: valueDenyAll
+      # strategy can be deny-all|static
+      strategy: deny-all
       # In case of static one should specify an origin wildcard * can be used
       staticAllowedOrigin: 'my.domain.local'
 

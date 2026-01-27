@@ -172,7 +172,9 @@ sts:
 
   ingress:
     enabled: false
-    className: ""
+    # Ask external-dns to create a CNAME record where the host of the ingress points to the target
+    cnameTarget: ""
+    className: "traefik"
     annotations: {}
       # kubernetes.io/ingress.class: nginx
       # kubernetes.io/tls-acme: "true"
@@ -338,6 +340,8 @@ s3:
 
   ingress:
     enabled: false
+    # Ask external-dns to create a CNAME record where the host of the ingress points to the target
+    cnameTarget: ""
     className: "traefik"
     annotations:
       cert-manager.io/cluster-issuer: letsencrypt

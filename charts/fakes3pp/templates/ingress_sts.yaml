@@ -19,10 +19,15 @@ metadata:
   name: {{ $fullName }}
   labels:
     {{- include "fakes3pp.labelsSTS" . | nindent 4 }}
-  {{- with .Values.sts.ingress.annotations }}
   annotations:
+    {{- if .Values.sts.ingress.cnameTarget }}
+    external-dns.alpha.kubernetes.io/target: {{ .Values.sts.ingress.cnameTarget }}
+    {{- else }}
+    github.com/VITObelgium/fakes3pp: just-a-hack-to-always-have-at-least-1-annotation
+    {{- end}}
+    {{- with .Values.sts.ingress.annotations }}
     {{- toYaml . | nindent 4 }}
-  {{- end }}
+    {{- end}}
 spec:
   {{- if and .Values.sts.ingress.className (semverCompare ">=1.18-0" .Capabilities.KubeVersion.GitVersion) }}
   ingressClassName: {{ .Values.sts.ingress.className }}

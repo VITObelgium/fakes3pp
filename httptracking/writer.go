@@ -30,7 +30,7 @@ func NewTrackingResponseWriter(w http.ResponseWriter, rCtx *requestctx.RequestCt
 
 func (w *trackingResponseWriter) Write(b []byte) (int, error) {
 	n, err := w.rWriter.Write(b)
-	if n > 0 && n < 1000000000000000 && w.requestCtx.BytesSent < 1000000000000000 {
+	if n >= 0 && n < 1000000000000000 && w.requestCtx.BytesSent < 1000000000000000 {
 		w.requestCtx.BytesSent += uint64(n)
 	} else {
 		slog.Warn("trackingResponseWriter wrote more than 1 peta-bytes request size will be wrong")

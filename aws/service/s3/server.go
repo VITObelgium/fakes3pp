@@ -52,6 +52,7 @@ func NewS3Server(
 	signedUrlGraceTimeSeconds int,
 	proxyHB interfaces.HandlerBuilderI,
 	s3BackendConfigFilePath string,
+	forceRequesterPaysFor string,
 	backendLegacyBehaviorDefaultRegion bool,
 	removableQueryParamRegexes []*regexp.Regexp,
 	corsHandler interfaces.CORSHandler,
@@ -60,6 +61,13 @@ func NewS3Server(
 	s3BackendCfg, err := getBackendsConfig(s3BackendConfigFilePath, backendLegacyBehaviorDefaultRegion)
 	if err != nil {
 		return nil, err
+	}
+	var requesterPaysCfg requesterPaysBuckets
+	if forceRequesterPaysFor != "" {
+		requesterPaysCfg, err = getRequesterPaysBuckets(forceRequesterPaysFor)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if proxyHB == nil {
 		proxyHB = handlerBuilderToJustProxy
@@ -74,6 +82,7 @@ func NewS3Server(
 		signedUrlGraceTimeSeconds,
 		proxyHB,
 		s3BackendCfg,
+		requesterPaysCfg,
 		nil,
 		removableQueryParamRegexes,
 		corsHandler,
@@ -90,6 +99,7 @@ func newS3Server(
 	signedUrlGraceTimeSeconds int,
 	proxyHB interfaces.HandlerBuilderI,
 	s3BackendManager interfaces.BackendManager,
+	requesterPaysCfg requesterPaysBuckets,
 	mws []middleware.Middleware,
 	removableQueryParamRegexes []*regexp.Regexp,
 	corsHandler interfaces.CORSHandler,
@@ -129,6 +139,9 @@ func newS3Server(
 			RegisterOperation(),
 			middleware.AWSAuthN(key, s3ErrorReporterInstance, s3BackendManager, &presignAuthOptions),
 			AWSAuthZS3(key, s3BackendManager, pm, s, s),
+		}
+		if len(requesterPaysCfg) > 0 {
+			mws = append(mws, ForceRequesterPays(requesterPaysCfg, s))
 		}
 	}
 	s.mws = mws

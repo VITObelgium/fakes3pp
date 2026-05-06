@@ -79,7 +79,7 @@ func CreateAndStart(s Serverable, opts ServerOpts) (*sync.WaitGroup, *http.Serve
 
 	serverDone := &sync.WaitGroup{}
 
-	createAndStart := func(port int, tlsEnabled bool, certFile, keyFile string, opts ServerOpts) *http.Server {
+	createAndStart := func(port int, tlsEnabled bool, certFile, keyFile string, opts ServerOpts) (*http.Server, error) {
 		serverDone.Add(1)
 		portNr := port
 		listenAddress := fmt.Sprintf(":%d", portNr)
@@ -101,6 +101,23 @@ func CreateAndStart(s Serverable, opts ServerOpts) (*sync.WaitGroup, *http.Serve
 			middleware.LogMiddleware(opts.RequestLogLvl, healthchecker, reg),
 		)
 
+		// For TLS listeners we use a tlsCertificateReloader so that the cert/key
+		// pair can be updated on disk (e.g. Kubernetes secret rotation) without
+		// restarting the process.
+		var reloader *tlsCertificateReloader
+		if tlsEnabled {
+			var err error
+			reloader, err = newTLSCertificateReloader(certFile, keyFile)
+			if err != nil {
+				serverDone.Done() // undo the Add(1) above
+				return nil, fmt.Errorf("failed to load TLS certificate: %w", err)
+			}
+			srv.TLSConfig = &tls.Config{
+				GetCertificate: reloader.GetCertificate,
+			}
+			srv.RegisterOnShutdown(reloader.Close)
+		}
+
 		// Start proxy in the background but manage waitgroup
 		go func() {
 			defer serverDone.Done()
@@ -108,7 +125,9 @@ func CreateAndStart(s Serverable, opts ServerOpts) (*sync.WaitGroup, *http.Serve
 			iType := reflect.TypeOf(s)
 			if tlsEnabled {
 				slog.Info("Starting ListenAndServeTLS", "secure", tlsEnabled, "type", iType)
-				err = srv.ListenAndServeTLS(certFile, keyFile)
+				// cert/key are supplied via TLSConfig.GetCertificate; pass empty
+				// strings so net/http does not attempt a second LoadX509KeyPair.
+				err = srv.ListenAndServeTLS("", "")
 			} else {
 				slog.Info("Starting ListenAndServe", "secure", tlsEnabled, "type", iType)
 				err = srv.ListenAndServe()
@@ -119,7 +138,7 @@ func CreateAndStart(s Serverable, opts ServerOpts) (*sync.WaitGroup, *http.Serve
 			}
 		}()
 
-		return srv
+		return srv, nil
 	}
 
 	tlsEnabled, tlsCertFile, tlsKeyFile := s.GetTls()
@@ -128,7 +147,11 @@ func CreateAndStart(s Serverable, opts ServerOpts) (*sync.WaitGroup, *http.Serve
 	var shutdownTlsServerSync func() = nil
 	var shutdownHTTPServerSync func() = nil
 	if tlsEnabled {
-		tlsServer = createAndStart(s.GetTLSPort(), tlsEnabled, tlsCertFile, tlsKeyFile, opts)
+		var err error
+		tlsServer, err = createAndStart(s.GetTLSPort(), tlsEnabled, tlsCertFile, tlsKeyFile, opts)
+		if err != nil {
+			return nil, nil, err
+		}
 		firstServer = tlsServer
 		shutdownTlsServerSync = func() {
 			err := tlsServer.Shutdown(context.Background())
@@ -140,7 +163,11 @@ func CreateAndStart(s Serverable, opts ServerOpts) (*sync.WaitGroup, *http.Serve
 
 	var httpServer *http.Server = nil
 	if s.GetHTTPPort() != 0 {
-		httpServer = createAndStart(s.GetHTTPPort(), false, "", "", opts)
+		var err error
+		httpServer, err = createAndStart(s.GetHTTPPort(), false, "", "", opts)
+		if err != nil {
+			return nil, nil, err
+		}
 		if firstServer == nil {
 			firstServer = httpServer
 		}

@@ -290,7 +290,7 @@ func (s *STSServer) calculateFinalDurationSeconds(apiProvidedDuration int, jwtEx
 	var finalDuration = time.Duration(apiProvidedDuration) * time.Second
 	if finalDuration > s.maxAllowedDuration {
 		//TODO: make sure this resulst in a Bad request rather than an internal server error
-		slog.Debug("Provided duration exceeds maximum of seconds", "providedDuration", finalDuration, "allowedDuration", s.maxAllowedDuration)
+		slog.Debug("Provided duration exceeds maximum of seconds", "providedDuration", finalDuration, "allowedDuration", s.maxAllowedDuration) // #nosec G706 -- structured logging of validated duration values
 		return nil, fmt.Errorf("provided duration seconds exceed the maximum of %d seconds", s.maxAllowedDuration)
 	}
 	return &finalDuration, nil

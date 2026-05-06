@@ -225,7 +225,7 @@ func awaitServerOnPort(port int, tlsEnabled bool) error {
 	i := 0
 	for i < attempts {
 		i += 1
-		resp, err := client.Do(req)
+		resp, err := client.Do(req) // #nosec G704 -- localhost-only readiness probe built from internal port value
 		if err == nil && resp.StatusCode == 200 {
 			return nil
 		}

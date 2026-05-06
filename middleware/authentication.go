@@ -245,7 +245,7 @@ func makeSureSessionTokenIsForAccessKey(sessionToken, accessKeyId string, keyFun
 		return nil
 	}
 	if strings.ToUpper(os.Getenv("DEPRECATED_ALLOW_LEGACY_CREDENTIALS")) == "YES" {
-		slog.Warn("RELYING ON DEPRECATED BEHAVIOR", "claims", claims.AccessKeyID, "creds", accessKeyId)
+		slog.Warn("RELYING ON DEPRECATED BEHAVIOR", "claims", claims.AccessKeyID, "creds", accessKeyId) // #nosec G706 -- structured diagnostic logging only
 		return nil
 	}
 	return fmt.Errorf("mismatch between session token and access key i:d %s <> %s", claims.AccessKeyID, accessKeyId)

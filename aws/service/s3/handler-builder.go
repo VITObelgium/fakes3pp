@@ -58,7 +58,7 @@ func (hb handlerBuilder) Build(backendManager interfaces.BackendManager, corsHan
 
 func defaultRequester(r *http.Request) (*http.Response, error) {
 	client := &http.Client{}
-	return client.Do(r)
+	return client.Do(r) // #nosec G704 -- proxy forwards only after reTargetRequest points to configured backend endpoints
 }
 
 func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request, targetBackendId string, backendManager interfaces.BackendManager,

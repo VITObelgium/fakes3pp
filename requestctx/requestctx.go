@@ -75,7 +75,7 @@ type RequestCtx struct {
 	Operation fmt.Stringer
 
 	//Session token
-	SessionToken string
+	SessionToken string // #nosec G117 -- request context intentionally stores the validated session token for downstream authz
 
 	//Target region
 	TargetRegion string
@@ -122,7 +122,7 @@ func GetAccessLogStringInfo(r *http.Request, groupName, entryName string) string
 	if rCtx := get(r); rCtx != nil {
 		return rCtx.GetAccessLogStringInfo(groupName, entryName)
 	}
-	slog.Warn(
+	slog.Warn( // #nosec G706 -- structured logging of diagnostic request metadata
 		"Attempting to GetAccessLogStringInfo without existing request context",
 		"request", r,
 		"groupName", groupName,
@@ -142,7 +142,7 @@ func SetAuthType(r *http.Request, authType authtypes.AuthType) {
 		rCtx.AuthType = authType
 		return
 	}
-	slog.Error(
+	slog.Error( // #nosec G706 -- structured logging of diagnostic request metadata
 		"Attempting to set AuthType without existing request context",
 		"request", r,
 		"AuthType", authType,
@@ -166,7 +166,7 @@ func SetSignedHeaders(r *http.Request, signedHeaders []string) {
 		rCtx.SignedHeaders = signedHeaders
 		return
 	}
-	slog.Error(
+	slog.Error( // #nosec G706 -- structured logging of diagnostic request metadata
 		"Attempting to set Signed Headers without existing request context",
 		"request", r,
 		"SignedHeaders", signedHeaders,
@@ -191,7 +191,7 @@ func SetTargetRegion(r *http.Request, region string) {
 		rCtx.TargetRegion = region
 		return
 	}
-	slog.Error(
+	slog.Error( // #nosec G706 -- structured logging of diagnostic request metadata
 		"Attempting to set Region without existing request context",
 		"request", r,
 		"TargetRegion", region,
@@ -216,7 +216,7 @@ func SetSessionToken(r *http.Request, token string) {
 		rCtx.SessionToken = token
 		return
 	}
-	slog.Error(
+	slog.Error( // #nosec G706 -- structured logging of diagnostic request metadata
 		"Attempting to set SessionToken without existing request context",
 		"request", r,
 		"session token", token,
@@ -251,7 +251,7 @@ func SetOperation(r *http.Request, operation fmt.Stringer) {
 		rCtx.Operation = operation
 		return
 	}
-	slog.Error(
+	slog.Error( // #nosec G706 -- structured logging of diagnostic request metadata
 		"Attempting to set operation without existing request context",
 		"request", r,
 		"operation", operation.String(),
@@ -281,7 +281,7 @@ func AddAccessLogInfo(r *http.Request, groupName string, attrs ...slog.Attr) {
 		rCtx.AddAccessLogInfo(groupName, attrs...)
 		return
 	}
-	slog.Error(
+	slog.Error( // #nosec G706 -- structured logging of diagnostic request metadata
 		"Attempting to add access log info without request context",
 		"group_name", groupName,
 		"attributes", attrs,
@@ -416,7 +416,7 @@ func SetUpstreamHTTPStatus(r *http.Request, code int) {
 		rCtx.UpstreamHTTPStatus = code
 		return
 	}
-	slog.Error(
+	slog.Error( // #nosec G706 -- structured logging of diagnostic request metadata
 		"Attempting to set Upstream HTTP Status code without existing request context",
 		"request", r,
 		"Upstream HTTP Status", code,

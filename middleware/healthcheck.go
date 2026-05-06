@@ -35,7 +35,7 @@ type pathBasedHC struct {
 
 // write a reply and if there are issues emit warning
 func writeReply(w http.ResponseWriter, body []byte, replyPurpose string) {
-	_, err := w.Write(body)
+	_, err := w.Write(body) // #nosec G705 -- writes plain healthcheck bytes, not templated HTML or script content
 	if err != nil {
 		slog.Warn("Could not write HTTP response body", "error", err, "replyPurpose", replyPurpose)
 	}

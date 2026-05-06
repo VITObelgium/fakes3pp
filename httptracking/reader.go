@@ -25,7 +25,7 @@ func (t *trackingReadCloser) Close() error {
 
 func (t *trackingReadCloser) Read(p []byte) (n int, err error) {
 	n, err = t.rc.Read(p)
-	if n < 1000000000000000 && t.requestCtx.BytesReceived < 1000000000000000 {
+	if n > 0 && n < 1000000000000000 && t.requestCtx.BytesReceived < 1000000000000000 {
 		t.requestCtx.BytesReceived += uint64(n)
 	} else {
 		slog.Warn("trackingResponseWriter wrote more than 1 peta-bytes request size will be wrong")

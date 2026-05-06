@@ -22,9 +22,9 @@ type backendConfigFileEntry struct {
 }
 
 type awsBackendCredentialFile struct {
-	AccessKey    string `yaml:"aws_access_key_id" json:"aws_access_key_id"`
+	AccessKey    string `yaml:"aws_access_key_id" json:"aws_access_key_id"` // #nosec G117 -- intentional deserialization field for AWS-compatible backend credentials
 	SecretKey    string `yaml:"aws_secret_access_key" json:"aws_secret_access_key"`
-	SessionToken string `yaml:"aws_session_token,omitempty" json:"aws_session_token,omitempty"`
+	SessionToken string `yaml:"aws_session_token,omitempty" json:"aws_session_token,omitempty"` // #nosec G117 -- intentional deserialization field for AWS-compatible backend credentials
 }
 
 func buildCredentialErrorf(msg string, a ...any) (ccreds aws.Credentials, err error) {

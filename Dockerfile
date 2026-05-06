@@ -1,5 +1,5 @@
 # Doing a multi-stage build to make sure to have passing of unittests enforced
-FROM docker.io/golang:1.22 AS base
+FROM docker.io/golang:1.26.2 AS base
 
 LABEL org.opencontainers.image.source=https://github.com/VITObelgium/fakes3pp
 LABEL org.opencontainers.image.description="FakeS3++ proxies S3 compatible APIs and augment them with extra functionality."

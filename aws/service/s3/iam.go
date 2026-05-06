@@ -38,6 +38,17 @@ func getS3ObjectFromRequest(req *http.Request, vhi interfaces.VirtualHosterIdent
 	}
 }
 
+func getS3BucketFromRequest(req *http.Request, vhi interfaces.VirtualHosterIdentifier) (bucketName string, err error) {
+	bucketName, _, err = getS3ObjectFromRequest(req, vhi)
+	if err != nil {
+		return "", err
+	}
+	if bucketName == "" {
+		return "", errors.New("bucket name was empty")
+	}
+	return bucketName, nil
+}
+
 // Buid a new IAM action based out of an HTTP Request. The IAM action should resemble the required
 // Permissions. The api_action is passed in as a string argument
 func newIamActionsFromS3Request(api_action api.S3Operation, req *http.Request, session *iam.PolicySessionData, vhi interfaces.VirtualHosterIdentifier) (actions []iam.IAMAction, err error) {

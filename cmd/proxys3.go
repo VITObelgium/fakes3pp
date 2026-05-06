@@ -46,6 +46,7 @@ func buildS3Server() server.Serverable {
 		viper.GetInt(signedUrlGraceTimeSeconds),
 		nil,
 		viper.GetString(s3BackendConfigFile),
+		viper.GetString(s3ForceRequesterPaysFor),
 		viper.GetBool(enableLegacyBehaviorInvalidRegionToDefaultRegion),
 		removableQueryParams,
 		getS3CORSHandler(),

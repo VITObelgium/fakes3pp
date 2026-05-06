@@ -37,6 +37,7 @@ func temporaryRemoveHeaders(r *http.Request, headersToKeep []string) (reAddHeade
 // Headers that are added by our middleware and which should never be filtered.
 var alwaysSignHeaders = []string{
 	"X-Amz-Content-Sha256",
+	constants.AmzRequestPayerKey,
 	"Host",
 	"Authorization", //Not really signed but during signing it gets replaced anyway
 }

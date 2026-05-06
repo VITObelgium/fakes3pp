@@ -52,6 +52,7 @@ const (
 	rolePolicyPath                                   = "rolePolicyPath"
 	stsOIDCConfigFile                                = "stsOIDCConfigFile"
 	s3BackendConfigFile                              = "s3BackendConfigFile"
+	s3ForceRequesterPaysFor                          = "forceRequesterPaysFor"
 	stsMaxDurationSeconds                            = "stsMaxDurationSeconds"
 	signedUrlGraceTimeSeconds                        = "signedUrlGraceTimeSeconds"
 	enableLegacyBehaviorInvalidRegionToDefaultRegion = "enableLegacyBehaviorInvalidRegionToDefaultRegion"
@@ -71,6 +72,7 @@ const (
 	FAKES3PP_S3_PROXY_REMOVABLE_QUERY_PARAMS = "FAKES3PP_S3_PROXY_REMOVABLE_QUERY_PARAMS"
 	FAKES3PP_S3_CORS_STRATEGY                = "FAKES3PP_S3_CORS_STRATEGY"
 	FAKES3PP_S3_CORS_STATIC_ALLOWED_ORIGIN   = "FAKES3PP_S3_CORS_STATIC_ALLOWED_ORIGIN"
+	FAKES3PP_S3_FORCE_REQUESTER_PAYS_FOR     = "FAKES3PP_S3_FORCE_REQUESTER_PAYS_FOR"
 
 	FAKES3PP_STS_PROXY_FQDN          = "FAKES3PP_STS_PROXY_FQDN"
 	FAKES3PP_STS_PROXY_TLS_PORT      = "FAKES3PP_STS_PROXY_TLS_PORT"
@@ -217,6 +219,13 @@ var envVarDefs = []envVarDef{
 		FAKES3PP_S3_CORS_STRATEGY,
 		false,
 		fmt.Sprintf("The strategy that is used to set CORS headers. Possible values are '%s' and defaults to '%s'", valueStatic, valueDenyAll),
+		[]string{proxys3},
+	},
+	{
+		s3ForceRequesterPaysFor,
+		FAKES3PP_S3_FORCE_REQUESTER_PAYS_FOR,
+		false,
+		"Optional YAML file with bucket names that must get x-amz-request-payer: requester on upstream requests",
 		[]string{proxys3},
 	},
 	{

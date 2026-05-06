@@ -15,6 +15,7 @@ import (
 	"github.com/VITObelgium/fakes3pp/aws/service/iam"
 	"github.com/VITObelgium/fakes3pp/aws/service/s3/interfaces"
 	"github.com/VITObelgium/fakes3pp/aws/service/sts/session"
+	"github.com/VITObelgium/fakes3pp/constants"
 	"github.com/VITObelgium/fakes3pp/logging"
 	"github.com/VITObelgium/fakes3pp/middleware"
 	"github.com/VITObelgium/fakes3pp/presign"
@@ -112,6 +113,7 @@ func NewTestS3Server(t testing.TB, proxyHB interfaces.HandlerBuilderI, pm *iam.P
 		signedUrlGraceTimeSeconds,
 		proxyHB,
 		bm,
+		nil,
 		mws,
 		removableQueryParamRegexes,
 		corsHandler,
@@ -122,6 +124,49 @@ func NewTestS3Server(t testing.TB, proxyHB interfaces.HandlerBuilderI, pm *iam.P
 		t.FailNow()
 	}
 	return s
+}
+
+func TestProxyAddsRequesterPaysHeaderForConfiguredBucket(t *testing.T) {
+	testRequests = nil
+	jwtTestToken := fmt.Sprintf("%s/jwt_testing_rsa", testEtcPath)
+	s, err := newS3Server(
+		jwtTestToken,
+		testS3Port,
+		[]string{testS3Host},
+		fmt.Sprintf("%s/cert.pem", testEtcPath),
+		fmt.Sprintf("%s/key.pem", testEtcPath),
+		newTestPolicyManager(t, nil),
+		3600,
+		testStubJustProxy,
+		getDefaultTestBackendConfig(),
+		requesterPaysBuckets{"my-test-bucket": {}},
+		nil,
+		nil,
+		nil,
+		0,
+	)
+	if err != nil {
+		t.Fatalf("Problem creating test S3 server: %s", err)
+	}
+	teardownSuite, srv, err := server.CreateAndStart(s, server.ServerOpts{})
+	if err != nil {
+		t.Fatalf("Could not spawn fake S3 server %s", err)
+	}
+	defer func() {
+		if err := srv.Shutdown(context.Background()); err != nil {
+			panic(err)
+		}
+		teardownSuite.Wait()
+	}()
+
+	performValidListObjectTestRequest(t, s, doNotAddAnyHeader, doNotAddAnyHeader)
+	lastRequest := popLastRequestByTestProxy()
+	if lastRequest == nil {
+		t.Fatal("Expected proxied request to be captured")
+	}
+	if got := lastRequest.Header.Get(constants.AmzRequestPayerKey); got != constants.AmzRequestPayerRequesterValue {
+		t.Fatalf("Expected requester pays header on proxied request, got %q", got)
+	}
 }
 
 func setupSuiteProxyS3(

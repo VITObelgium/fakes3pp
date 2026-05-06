@@ -5,6 +5,12 @@ const (
 	// AmzSecurityTokenKey indicates the security token to be used with temporary credentials
 	AmzSecurityTokenKey = "X-Amz-Security-Token"
 
+	// AmzRequestPayerKey indicates the requester pays header.
+	AmzRequestPayerKey = "x-amz-request-payer"
+
+	// AmzRequestPayerRequesterValue is the value used to charge the requester.
+	AmzRequestPayerRequesterValue = "requester"
+
 	// Source: https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/internal/v4a/internal/v4
 
 	// EmptyStringSHA256 is the hex encoded sha256 value of an empty string

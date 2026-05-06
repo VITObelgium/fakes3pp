@@ -39,6 +39,8 @@ func GetTestClientS3(t testing.TB, region string, creds aws.CredentialsProvider,
 		o.Credentials = creds
 		o.Region = region
 		o.UsePathStyle = true
+		o.RequestChecksumCalculation = aws.RequestChecksumCalculationWhenRequired
+		o.ResponseChecksumValidation = aws.ResponseChecksumValidationWhenRequired
 	})
 
 	return client

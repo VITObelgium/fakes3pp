@@ -14,6 +14,7 @@ import (
 	"github.com/VITObelgium/fakes3pp/utils"
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/prometheus/common/expfmt"
+	"github.com/prometheus/common/model"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -44,7 +45,7 @@ func isMetricOfInterest(metricName string) bool {
 }
 
 func getMetrics(t testing.TB, r io.Reader) (metrics map[string][]*io_prometheus_client.Metric) {
-	var tp expfmt.TextParser
+	var tp = expfmt.NewTextParser(model.LegacyValidation)
 	notNormalized, err := tp.TextToMetricFamilies(r)
 	if err != nil {
 		t.Errorf("converting reader to metric families failed: %s", err)

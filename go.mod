@@ -1,6 +1,6 @@
 module github.com/VITObelgium/fakes3pp
 
-go 1.22.3
+go 1.26.2
 
 require (
 	github.com/aws/aws-sdk-go-v2 v1.30.5

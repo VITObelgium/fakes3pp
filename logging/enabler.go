@@ -46,7 +46,7 @@ const ENV_FORCE_LOGGING_FOR_REQUEST_ID_PREFIX = "FORCE_LOGGING_FOR_REQUEST_ID_PR
 func getDefaultForceEnableLoggingStrategy() ForceEnabler {
 	prefix := os.Getenv(ENV_FORCE_LOGGING_FOR_REQUEST_ID_PREFIX)
 	if prefix != "" {
-		slog.Debug("Enable force logging for prefix", "prefix", prefix)
+		slog.Debug("Enable force logging for prefix", "prefix", prefix) // #nosec G706 -- structured logging of operator-provided debug configuration
 		return NewForceForRequestIdPrefix(prefix)
 	} else {
 		slog.Debug("Never force logging.")

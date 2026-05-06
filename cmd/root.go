@@ -98,6 +98,6 @@ func initConfig() {
 		fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
 	}
 	var startupCmd = strings.Join(os.Args, " ")
-	slog.Info("Loading env vars from dotenv", "startup_cmd", startupCmd)
+	slog.Info("Loading env vars from dotenv", "startup_cmd", startupCmd) // #nosec G706 -- structured startup logging for operator diagnostics
 	loadEnvVarsFromDotEnv()
 }

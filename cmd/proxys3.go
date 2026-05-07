@@ -51,6 +51,7 @@ func buildS3Server() server.Serverable {
 		removableQueryParams,
 		getS3CORSHandler(),
 		getS3ProxyHTTPPort(),
+		viper.GetStringSlice(s3LoggedResponseHeaders),
 	)
 	if err != nil {
 		slog.Error("Could not create S3 server", "error", err)

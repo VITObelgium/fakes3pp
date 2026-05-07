@@ -118,6 +118,7 @@ func NewTestS3Server(t testing.TB, proxyHB interfaces.HandlerBuilderI, pm *iam.P
 		removableQueryParamRegexes,
 		corsHandler,
 		0,
+		nil,
 	)
 	if err != nil {
 		t.Error("Problem creating test STS server", "error", err)
@@ -144,6 +145,7 @@ func TestProxyAddsRequesterPaysHeaderForConfiguredBucket(t *testing.T) {
 		nil,
 		nil,
 		0,
+		nil,
 	)
 	if err != nil {
 		t.Fatalf("Problem creating test S3 server: %s", err)

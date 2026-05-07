@@ -59,6 +59,7 @@ const (
 	logLevel                                         = "logLevel"
 	metricsPort                                      = "metricsPort"
 	s3CorsStrategy                                   = "corsStrategy"
+	s3LoggedResponseHeaders                          = "s3LoggedResponseHeaders"
 
 	//Environment variables are upper cased
 	//Unless they are wellknown environment variables they should be prefixed
@@ -73,6 +74,7 @@ const (
 	FAKES3PP_S3_CORS_STRATEGY                = "FAKES3PP_S3_CORS_STRATEGY"
 	FAKES3PP_S3_CORS_STATIC_ALLOWED_ORIGIN   = "FAKES3PP_S3_CORS_STATIC_ALLOWED_ORIGIN"
 	FAKES3PP_S3_FORCE_REQUESTER_PAYS_FOR     = "FAKES3PP_S3_FORCE_REQUESTER_PAYS_FOR"
+	FAKES3PP_S3_LOGGED_RESPONSE_HEADERS      = "FAKES3PP_S3_LOGGED_RESPONSE_HEADERS"
 
 	FAKES3PP_STS_PROXY_FQDN          = "FAKES3PP_STS_PROXY_FQDN"
 	FAKES3PP_STS_PROXY_TLS_PORT      = "FAKES3PP_STS_PROXY_TLS_PORT"
@@ -226,6 +228,13 @@ var envVarDefs = []envVarDef{
 		FAKES3PP_S3_FORCE_REQUESTER_PAYS_FOR,
 		false,
 		"Optional YAML file with bucket names that must get x-amz-request-payer: requester on upstream requests",
+		[]string{proxys3},
+	},
+	{
+		s3LoggedResponseHeaders,
+		FAKES3PP_S3_LOGGED_RESPONSE_HEADERS,
+		false,
+		"Comma-separated list of upstream response header names to include in the S3 access log under the s3 group (e.g. x-ratelimit-remaining,x-ratelimit-limit)",
 		[]string{proxys3},
 	},
 	{

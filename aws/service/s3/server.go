@@ -57,6 +57,7 @@ func NewS3Server(
 	removableQueryParamRegexes []*regexp.Regexp,
 	corsHandler interfaces.CORSHandler,
 	extraHTTPPort int,
+	loggedResponseHeaders []string,
 ) (s server.Serverable, err error) {
 	s3BackendCfg, err := getBackendsConfig(s3BackendConfigFilePath, backendLegacyBehaviorDefaultRegion)
 	if err != nil {
@@ -87,6 +88,7 @@ func NewS3Server(
 		removableQueryParamRegexes,
 		corsHandler,
 		extraHTTPPort,
+		loggedResponseHeaders,
 	)
 }
 func newS3Server(
@@ -104,6 +106,7 @@ func newS3Server(
 	removableQueryParamRegexes []*regexp.Regexp,
 	corsHandler interfaces.CORSHandler,
 	extraHTTPPort int,
+	loggedResponseHeaders []string,
 ) (s *S3Server, err error) {
 	key, err := utils.NewKeyStorage(jwtPrivateRSAKeyFilePath)
 	if err != nil {
@@ -142,6 +145,9 @@ func newS3Server(
 		}
 		if len(requesterPaysCfg) > 0 {
 			mws = append(mws, ForceRequesterPays(requesterPaysCfg, s))
+		}
+		if len(loggedResponseHeaders) > 0 {
+			mws = append(mws, LogResponseHeaders(loggedResponseHeaders))
 		}
 	}
 	s.mws = mws

@@ -6,7 +6,7 @@ const (
 	AmzSecurityTokenKey = "X-Amz-Security-Token"
 
 	// AmzRequestPayerKey indicates the requester pays header.
-	AmzRequestPayerKey = "x-amz-request-payer"
+	AmzRequestPayerKey = "X-Amz-Request-Payer"
 
 	// AmzRequestPayerRequesterValue is the value used to charge the requester.
 	AmzRequestPayerRequesterValue = "requester"

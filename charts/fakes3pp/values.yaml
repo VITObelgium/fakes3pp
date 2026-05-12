@@ -279,6 +279,15 @@ s3:
       # In case of static one should specify an origin wildcard * can be used
       staticAllowedOrigin: 'my.domain.local'
 
+  # Requester-pays enforcement: when buckets is non-empty a ConfigMap is created
+  # with the bucket list and the S3 pods are configured to add
+  # x-amz-request-payer: requester to upstream requests for those buckets.
+  forceRequesterPaysFor:
+    buckets: []
+    dir: /etc/requester-pays
+    filename: requesterPaysFor.yaml
+    configmapName: fakes3pp-requester-pays-for
+
   # The S3 proxy can be deployed in multiple ways:
   # - deployment: This is the default way where the most common use case is to expose an S3 endpoint
   #               where you augment an S3 backend with functionality from the proxy

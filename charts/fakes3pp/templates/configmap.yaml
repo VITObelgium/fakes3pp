@@ -24,6 +24,9 @@ data:
   FAKES3PP_S3_CORS_STATIC_ALLOWED_ORIGIN: "{{ .staticAllowedOrigin }}"
     {{- end}}
   {{- end }}
+  {{- if .Values.s3.forceRequesterPaysFor.buckets }}
+  FAKES3PP_S3_FORCE_REQUESTER_PAYS_FOR: "{{ .Values.s3.forceRequesterPaysFor.dir }}/{{ .Values.s3.forceRequesterPaysFor.filename }}"
+  {{- end }}
   FAKES3PP_S3_PROXY_FQDN: {{ $c := 0 | int }}{{ range .Values.s3.ingress.hosts }}{{ if ne $c 0 }},{{ end }}{{ $c = add1 $c }}{{with .host}}{{ . }}{{end}}{{end}}{{with .Values.s3.service.fqdn}},{{ . }}{{end }}{{with .Values.s3.config.extraFQDNs}},{{ . }}{{ end }}
   {{- if not (eq (int .Values.s3.service.portTLS) (int 0)) }}
   FAKES3PP_S3_PROXY_TLS_CERT_FILE: "{{ .Values.s3.config.tlsDir }}/{{ .Values.s3.config.tlsCertFile }}"

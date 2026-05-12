@@ -88,6 +88,11 @@ spec:
           - name: backend-cfg
             mountPath: "{{ .Values.s3.config.backends.dir }}"
             readOnly: true
+          {{- if .Values.s3.forceRequesterPaysFor.buckets }}
+          - name: requester-pays-for
+            mountPath: "{{ .Values.s3.forceRequesterPaysFor.dir }}"
+            readOnly: true
+          {{- end }}
           {{- else }}
             {{- if not .Values.s3.extraVolumeMounts }}
               {{ fail "If you disable s3.defaultVolumeMounts you must provide s3.extraVolumeMounts" }}
@@ -116,6 +121,12 @@ spec:
           secret:
             secretName: {{ .Values.s3.config.backends.secretName }}
             optional: false
+        {{- if .Values.s3.forceRequesterPaysFor.buckets }}
+        - name: requester-pays-for
+          configMap:
+            name: {{ .Values.s3.forceRequesterPaysFor.configmapName }}
+            optional: false
+        {{- end }}
         {{- else }}
           {{- if not .Values.s3.extraVolumes }}
             {{ fail "If you disable s3.defaultVolumes you must provide s3.extraVolumes" }}

@@ -1,0 +1,13 @@
+{{- with .Values.s3.forceRequesterPaysFor }}
+  {{- if .buckets }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .configmapName }}
+  labels:
+    {{- include "fakes3pp.labelsS3" $ | nindent 4 }}
+data:
+  "{{ .filename }}": |
+    {{- .buckets | toYaml | nindent 4 }}
+  {{- end }}
+{{- end }}

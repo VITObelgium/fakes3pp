@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -358,6 +359,97 @@ func getApiAndIAMActionTestCases() []apiAndIAMActionTestCase {
 		},
 	}
 	return iamActionTestCases
+}
+
+// bucketLoggingApiAndTestCase pairs an API name with a function that exercises
+// that operation through the proxy stub and returns the error (the stub always
+// returns an error so we can inspect the request context).
+type bucketLoggingTestCase struct {
+	ApiAction string
+	ApiCall   s3CallTestFunc
+	// WantBucket is the bucket name that must appear in the access log after
+	// the call.  Empty string means the operation has no bucket (e.g.
+	// ListBuckets) and the log entry is expected to be empty.
+	WantBucket string
+}
+
+func getBucketLoggingTestCases() []bucketLoggingTestCase {
+	return []bucketLoggingTestCase{
+		{ApiAction: "ListObjectsV2", ApiCall: runListObjectsV2AndReturnError, WantBucket: testBucketName},
+		{ApiAction: "PutObject", ApiCall: runPutObjectAndReturnError, WantBucket: testBucketName},
+		{ApiAction: "GetObject", ApiCall: runGetObjectAndReturnError, WantBucket: testBucketName},
+		{ApiAction: "HeadObject", ApiCall: runHeadObjectAndReturnError, WantBucket: testBucketName},
+		{ApiAction: "AbortMultipartUpload", ApiCall: runAbortMultipartUploadAndReturnError, WantBucket: testBucketName},
+		{ApiAction: "CreateMultipartUpload", ApiCall: runCreateMultipartUploadAndReturnError, WantBucket: testBucketName},
+		{ApiAction: "UploadPart", ApiCall: runUploadPartAndReturnError, WantBucket: testBucketName},
+		{ApiAction: "CompleteMultipartUpload", ApiCall: runCompleteMultipartUploadAndReturnError, WantBucket: testBucketName},
+		{ApiAction: "ListBuckets", ApiCall: runListBucketsAndReturnError, WantBucket: ""},
+	}
+}
+
+// StubCaptureBucketLog is a handler stub that captures the value logged under
+// L_BUCKET in the access-log group so that TestBucketIsLoggedInAccessLog can
+// inspect it.
+type StubCaptureBucketLog struct {
+	t              *testing.T
+	capturedLock   sync.Mutex
+	capturedBucket string
+}
+
+func newStubCaptureBucketLog(t *testing.T) *StubCaptureBucketLog {
+	return &StubCaptureBucketLog{t: t}
+}
+
+func (s *StubCaptureBucketLog) Build(_ interfaces.BackendManager, _ interfaces.CORSHandler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// The LogMiddleware (applied by server.go) already attached a RequestCtx
+		// to r, so newIamActionsFromS3Request can write L_BUCKET into it via its
+		// deferred closure.  Do NOT replace r's context here.
+		action := getS3Action(r)
+		_, err := newIamActionsFromS3Request(action, r, nil, noVirtualHostRequests)
+		if err != nil {
+			// unsupported action – ignore for this stub
+			writeS3ErrorResponse(
+				r.Context(),
+				w,
+				ErrS3AccessDenied,
+				err,
+			)
+			return
+		}
+		bucket := requestctx.GetAccessLogStringInfo(r, "s3", L_BUCKET)
+		s.capturedLock.Lock()
+		s.capturedBucket = bucket
+		s.capturedLock.Unlock()
+		writeS3ErrorResponse(
+			r.Context(),
+			w,
+			ErrS3AccessDenied,
+			errors.New("ok"),
+		)
+	}
+}
+
+// TestBucketIsLoggedInAccessLog verifies that after the defer in
+// newIamActionsFromS3Request runs the "Bucket" access-log attribute is set
+// to the correct bucket name for every supported S3 operation.
+func TestBucketIsLoggedInAccessLog(t *testing.T) {
+	stub := newStubCaptureBucketLog(t)
+	teardownSuite, s := setupSuiteProxyS3(t, stub, nil, nil, []middleware.Middleware{RegisterOperation()}, true, nil, nil)
+	defer teardownSuite(t)
+
+	for _, tc := range getBucketLoggingTestCases() {
+		tc := tc
+		t.Run(tc.ApiAction, func(t *testing.T) {
+			_ = tc.ApiCall(t, s)
+			stub.capturedLock.Lock()
+			got := stub.capturedBucket
+			stub.capturedLock.Unlock()
+			if got != tc.WantBucket {
+				t.Errorf("%s: access log Bucket = %q, want %q", tc.ApiAction, got, tc.WantBucket)
+			}
+		})
+	}
 }
 
 // The idea of this suite of tests is to make sure we generate the IAM action properly for

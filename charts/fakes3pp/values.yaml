@@ -288,6 +288,12 @@ s3:
     filename: requesterPaysFor.yaml
     configmapName: fakes3pp-requester-pays-for
 
+  # Response headers to capture in the S3 access log.
+  # When non-empty, each named header present in the upstream response is
+  # logged under the "s3" access-log group.  Header names are used as
+  # configured (casing is preserved).
+  loggedResponseHeaders: []
+
   # The S3 proxy can be deployed in multiple ways:
   # - deployment: This is the default way where the most common use case is to expose an S3 endpoint
   #               where you augment an S3 backend with functionality from the proxy

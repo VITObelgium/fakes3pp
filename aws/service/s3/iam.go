@@ -52,13 +52,15 @@ func getS3BucketFromRequest(req *http.Request, vhi interfaces.VirtualHosterIdent
 // Buid a new IAM action based out of an HTTP Request. The IAM action should resemble the required
 // Permissions. The api_action is passed in as a string argument
 func newIamActionsFromS3Request(api_action api.S3Operation, req *http.Request, session *iam.PolicySessionData, vhi interfaces.VirtualHosterIdentifier) (actions []iam.IAMAction, err error) {
-	var bucket string
-	defer requestctx.AddAccessLogInfo(req, "s3", slog.String(L_BUCKET, bucket))
+	var bucket, key string
+	defer func() {
+		requestctx.AddAccessLogInfo(req, "s3", slog.String(L_BUCKET, bucket))
+	}()
 	actions = []iam.IAMAction{}
 	switch api_action {
 	// https://docs.aws.amazon.com/AmazonS3/latest/userguide/mpuoverview.html
 	case api.PutObject, api.CreateMultipartUpload, api.CompleteMultipartUpload, api.UploadPart:
-		bucket, key, err := getS3ObjectFromRequest(req, vhi)
+		bucket, key, err = getS3ObjectFromRequest(req, vhi)
 		if err != nil {
 			return nil, err
 		}
@@ -69,7 +71,7 @@ func newIamActionsFromS3Request(api_action api.S3Operation, req *http.Request, s
 		)
 		actions = append(actions, a)
 	case api.GetObject, api.HeadObject:
-		bucket, key, err := getS3ObjectFromRequest(req, vhi)
+		bucket, key, err = getS3ObjectFromRequest(req, vhi)
 		if err != nil {
 			return nil, err
 		}
@@ -80,7 +82,7 @@ func newIamActionsFromS3Request(api_action api.S3Operation, req *http.Request, s
 		)
 		actions = append(actions, a)
 	case api.ListObjectsV2:
-		bucket, _, err := getS3ObjectFromRequest(req, vhi)
+		bucket, _, err = getS3ObjectFromRequest(req, vhi)
 		if err != nil {
 			return nil, err
 		}
@@ -95,7 +97,7 @@ func newIamActionsFromS3Request(api_action api.S3Operation, req *http.Request, s
 		)
 		actions = append(actions, a)
 	case api.AbortMultipartUpload:
-		bucket, key, err := getS3ObjectFromRequest(req, vhi)
+		bucket, key, err = getS3ObjectFromRequest(req, vhi)
 		if err != nil {
 			return nil, err
 		}

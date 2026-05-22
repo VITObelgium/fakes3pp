@@ -469,3 +469,170 @@ func TestPolicyEvaluations(t *testing.T) {
 	}
 
 }
+
+func TestStringEqualsInPolicyEvaluation(t *testing.T) {
+	const polAllowIfExactOrg = `
+{
+	"Version": "2012-10-17",
+	"Statement": [
+		{
+			"Effect": "Allow",
+			"Action": ["*"],
+			"Resource": "*",
+			"Condition": {
+				"StringEquals": {
+					"aws:PrincipalTag/org": ["team-*"]
+				}
+			}
+		}
+	]
+}`
+	tests := []struct {
+		description string
+		action      IAMAction
+		want        bool
+	}{
+		{
+			"exact match allows",
+			NewIamAction("s3:GetObject", "*", &PolicySessionData{
+				Tags: session.AWSSessionTags{PrincipalTags: map[string][]string{"org": {"team-*"}}},
+			}),
+			true,
+		},
+		{
+			"different value does not allow",
+			NewIamAction("s3:GetObject", "*", &PolicySessionData{
+				Tags: session.AWSSessionTags{PrincipalTags: map[string][]string{"org": {"team-b"}}},
+			}),
+			false,
+		},
+		{
+			"wildcard in value is treated literally by StringEquals",
+			NewIamAction("s3:GetObject", "*", &PolicySessionData{
+				Tags: session.AWSSessionTags{PrincipalTags: map[string][]string{"org": {"team-a"}}},
+			}),
+			false,
+		},
+		{
+			"missing key does not allow",
+			NewIamAction("s3:GetObject", "*", &PolicySessionData{}),
+			false,
+		},
+	}
+
+	pe, err := NewPolicyEvaluatorFromStr(polAllowIfExactOrg)
+	if err != nil {
+		t.Fatalf("could not build evaluator: %s", err)
+	}
+	for _, tc := range tests {
+		allowed, _, err := pe.Evaluate(tc.action)
+		if err != nil {
+			t.Errorf("%s: unexpected error: %s", tc.description, err)
+		}
+		if allowed != tc.want {
+			t.Errorf("%s: want %v got %v", tc.description, tc.want, allowed)
+		}
+	}
+}
+
+func TestEvalConditionBlock(t *testing.T) {
+	tests := []struct {
+		description    string
+		conditionBlock map[string]map[string]*policy.ConditionValue
+		context        map[string]*policy.ConditionValue
+		want           bool
+		wantErr        bool
+	}{
+		{
+			"StringEquals matches",
+			map[string]map[string]*policy.ConditionValue{
+				"StringEquals": {"claims:sub": policy.NewConditionValueString(true, "alice")},
+			},
+			map[string]*policy.ConditionValue{
+				"claims:sub": policy.NewConditionValueString(true, "alice"),
+			},
+			true, false,
+		},
+		{
+			"StringEquals no match",
+			map[string]map[string]*policy.ConditionValue{
+				"StringEquals": {"claims:sub": policy.NewConditionValueString(true, "alice")},
+			},
+			map[string]*policy.ConditionValue{
+				"claims:sub": policy.NewConditionValueString(true, "bob"),
+			},
+			false, false,
+		},
+		{
+			"StringLike wildcard matches",
+			map[string]map[string]*policy.ConditionValue{
+				"StringLike": {"claims:sub": policy.NewConditionValueString(true, "team-*")},
+			},
+			map[string]*policy.ConditionValue{
+				"claims:sub": policy.NewConditionValueString(true, "team-alpha"),
+			},
+			true, false,
+		},
+		{
+			"multiple operators all must match",
+			map[string]map[string]*policy.ConditionValue{
+				"StringEquals": {"claims:sub": policy.NewConditionValueString(true, "alice")},
+				"StringLike":   {"claims:iss": policy.NewConditionValueString(true, "https://issuer.*")},
+			},
+			map[string]*policy.ConditionValue{
+				"claims:sub": policy.NewConditionValueString(true, "alice"),
+				"claims:iss": policy.NewConditionValueString(true, "https://issuer.example"),
+			},
+			true, false,
+		},
+		{
+			"multiple operators one fails",
+			map[string]map[string]*policy.ConditionValue{
+				"StringEquals": {"claims:sub": policy.NewConditionValueString(true, "alice")},
+				"StringLike":   {"claims:iss": policy.NewConditionValueString(true, "https://other.*")},
+			},
+			map[string]*policy.ConditionValue{
+				"claims:sub": policy.NewConditionValueString(true, "alice"),
+				"claims:iss": policy.NewConditionValueString(true, "https://issuer.example"),
+			},
+			false, false,
+		},
+		{
+			"nil condition block (default rule) always matches",
+			nil,
+			map[string]*policy.ConditionValue{
+				"claims:sub": policy.NewConditionValueString(true, "anyone"),
+			},
+			true, false,
+		},
+		{
+			"empty condition block matches",
+			map[string]map[string]*policy.ConditionValue{},
+			map[string]*policy.ConditionValue{},
+			true, false,
+		},
+		{
+			"unsupported operator returns error",
+			map[string]map[string]*policy.ConditionValue{
+				"NumericEquals": {"aws:RequestedRegion": policy.NewConditionValueString(true, "eu-west-1")},
+			},
+			map[string]*policy.ConditionValue{
+				"aws:RequestedRegion": policy.NewConditionValueString(true, "eu-west-1"),
+			},
+			false, true,
+		},
+	}
+
+	for _, tc := range tests {
+		got, err := EvalConditionBlock(tc.conditionBlock, tc.context)
+		if tc.wantErr && err == nil {
+			t.Errorf("%s: expected error but got none", tc.description)
+		}
+		if !tc.wantErr && err != nil {
+			t.Errorf("%s: unexpected error: %s", tc.description, err)
+		}
+		if got != tc.want {
+			t.Errorf("%s: want %v got %v", tc.description, tc.want, got)
+		}
+	}
+}

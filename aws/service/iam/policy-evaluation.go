@@ -96,6 +96,36 @@ func evalStringLike(conditionDetails map[string]*policy.ConditionValue, context 
 	return true, nil
 }
 
+// Evaluate what a StringEquals operation does (exact match, no wildcards)
+func evalStringEquals(conditionDetails map[string]*policy.ConditionValue, context map[string]*policy.ConditionValue) (bool, error) {
+	if !areAllConditionValuesSingular(context) {
+		return false, fmt.Errorf("non-singular value got %v", context)
+	}
+	for sConditionKey, sConditionValue := range conditionDetails {
+		contextValue, exists := context[sConditionKey]
+		if !exists {
+			slog.Debug("condition key was not set in request context", "operation", "StringEquals", "conditionKey", sConditionKey)
+			return false, nil
+		}
+		if !isConditionMetForStringEquals(sConditionValue, contextValue) {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+func isConditionMetForStringEquals(statementValues, context *policy.ConditionValue) bool {
+	ctxStrValues, _, _ := context.Values()
+	ctxStrValue := ctxStrValues[0]
+	strValues, _, _ := statementValues.Values()
+	for _, sValue := range strValues {
+		if sValue == ctxStrValue {
+			return true
+		}
+	}
+	return false
+}
+
 // See whether the condition defined by the conditionOperator and conditionDetails is met
 // for the given context
 func isConditionMetForOperator(conditionOperator string, conditionDetails map[string]*policy.ConditionValue, context map[string]*policy.ConditionValue) (bool, error) {
@@ -113,9 +143,38 @@ func isConditionMetForOperator(conditionOperator string, conditionDetails map[st
 		}
 		// https://stackoverflow.com/a/71531863/2653523
 		return !result, err
+	case "StringEquals":
+		result, err := evalStringEquals(conditionDetails, context)
+		if err != nil {
+			return false, fmt.Errorf("operator StringEquals encountered %s", err)
+		}
+		return result, err
+	case "StringNotEquals":
+		result, err := evalStringEquals(conditionDetails, context)
+		if err != nil {
+			return false, fmt.Errorf("operator StringNotEquals encountered %s", err)
+		}
+		return !result, err
 	default:
 		return false, fmt.Errorf("unsupported condition: '%s'", conditionOperator)
 	}
+}
+
+// EvalConditionBlock evaluates a raw IAM Condition block against a context without
+// needing a full policy statement (no action/resource check). All condition operators
+// in the block must be satisfied for the result to be true.
+// This is used for credential rule selection where we only need predicate evaluation.
+func EvalConditionBlock(conditionBlock map[string]map[string]*policy.ConditionValue, context map[string]*policy.ConditionValue) (bool, error) {
+	for conditionOperator, conditionDetails := range conditionBlock {
+		isMet, err := isConditionMetForOperator(conditionOperator, conditionDetails, context)
+		if err != nil {
+			return false, err
+		}
+		if !isMet {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 func isConditionMetForStringLike(statementValues, context *policy.ConditionValue) bool {

@@ -88,6 +88,16 @@ type RequestCtx struct {
 
 	//SignedHeaders
 	SignedHeaders []string
+
+	// RequestAccessKeyID is the AKID the caller used to sign the incoming request.
+	// Stored here so downstream middleware (e.g. credential selection) can use it
+	// without re-parsing the Authorization header.
+	RequestAccessKeyID string
+
+	// CredentialSelectionData caches the parsed token claims and tags that are needed
+	// for credential rule selection. Populated once by the authn middleware so that
+	// neither authz nor credential selection need to re-parse the JWT.
+	CredentialSelectionData *CredentialSelectionData
 }
 
 func (c *RequestCtx) AddAccessLogInfo(groupName string, attrs ...slog.Attr) {
@@ -244,6 +254,68 @@ func GetSessionToken(r *http.Request) (string, error) {
 		return rCtx.SessionToken, nil
 	}
 	return "", errors.New("no session token stored in requestctx")
+}
+
+// CredentialSelectionData holds the token-derived values needed to evaluate
+// backend credential selection rules. It is populated once by the authn middleware.
+type CredentialSelectionData struct {
+	// ClaimsSubject is the "sub" JWT claim from the validated session token.
+	ClaimsSubject string
+	// ClaimsIssuer is the effective issuer (initial issuer when available).
+	ClaimsIssuer string
+	// PrincipalTags are the AWS session principal tags from the session token.
+	PrincipalTags map[string][]string
+}
+
+// SetRequestAccessKeyID stores the incoming request AKID in the request context.
+func SetRequestAccessKeyID(r *http.Request, akid string) {
+	if rCtx := get(r); rCtx != nil {
+		if rCtx.RequestAccessKeyID != "" && rCtx.RequestAccessKeyID != akid {
+			slog.WarnContext(r.Context(), "Overriding RequestAccessKeyID this should not happen",
+				"old", rCtx.RequestAccessKeyID, "new", akid)
+		}
+		rCtx.RequestAccessKeyID = akid
+		return
+	}
+	slog.Error( // #nosec G706 -- structured logging of diagnostic request metadata
+		"Attempting to set RequestAccessKeyID without existing request context",
+		"request", r,
+		"akid", akid,
+	)
+}
+
+// GetRequestAccessKeyID returns the incoming request AKID stored in the request context.
+func GetRequestAccessKeyID(r *http.Request) (string, error) {
+	if rCtx := get(r); rCtx != nil {
+		return rCtx.RequestAccessKeyID, nil
+	}
+	return "", errors.New("no RequestAccessKeyID stored in requestctx")
+}
+
+// SetCredentialSelectionData stores the parsed token-derived selection data in the request context.
+func SetCredentialSelectionData(r *http.Request, data *CredentialSelectionData) {
+	if rCtx := get(r); rCtx != nil {
+		if rCtx.CredentialSelectionData != nil {
+			slog.WarnContext(r.Context(), "Overriding CredentialSelectionData this should not happen")
+		}
+		rCtx.CredentialSelectionData = data
+		return
+	}
+	slog.Error( // #nosec G706 -- structured logging of diagnostic request metadata
+		"Attempting to set CredentialSelectionData without existing request context",
+		"request", r,
+	)
+}
+
+// GetCredentialSelectionData returns the cached credential selection data from the request context.
+func GetCredentialSelectionData(r *http.Request) (*CredentialSelectionData, error) {
+	if rCtx := get(r); rCtx != nil {
+		if rCtx.CredentialSelectionData == nil {
+			return nil, errors.New("no CredentialSelectionData stored in requestctx")
+		}
+		return rCtx.CredentialSelectionData, nil
+	}
+	return nil, errors.New("no requestctx available")
 }
 
 func SetOperation(r *http.Request, operation fmt.Stringer) {

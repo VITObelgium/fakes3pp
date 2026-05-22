@@ -73,12 +73,19 @@ func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request, targ
 		writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
 		return
 	}
-	creds, err := backendManager.GetBackendCredentials(targetBackendId)
+	selCtx := buildCredentialSelectionContext(r, targetBackendId)
+	creds, selectedRule, err := backendManager.SelectBackendCredentials(targetBackendId, selCtx)
 	if err != nil {
-		slog.ErrorContext(ctx, "Could not get credentials for request", "error", err, "backendId", targetBackendId)
+		if errors.Is(err, ErrNoMatchingCredentialRule) {
+			slog.InfoContext(ctx, "No matching credential rule for request", "backendId", targetBackendId)
+			writeS3ErrorResponse(ctx, w, ErrS3AccessDenied, nil)
+			return
+		}
+		slog.ErrorContext(ctx, "Could not select credentials for request", "error", err, "backendId", targetBackendId)
 		writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
 		return
 	}
+	slog.DebugContext(ctx, "Selected credential rule", "rule", selectedRule, "backendId", targetBackendId)
 	payloadHash := r.Header.Get(constants.AmzContentSHAKey)
 	if payloadHash == "STREAMING-UNSIGNED-PAYLOAD-TRAILER" {
 		if !backendManager.HasCapability(targetBackendId, interfaces.S3CapabilityStreamingUnsignedPayloadTrailer) {
@@ -186,4 +193,27 @@ func reTargetRequest(ctx context.Context, r *http.Request, backendId string, bac
 	r.URL.RawQuery = origRawQuery
 	slog.DebugContext(ctx, "RawQuery that is put in place", "raw_query", r.URL.RawQuery)
 	return nil
+}
+
+// buildCredentialSelectionContext assembles the CredentialSelectionContext for the
+// current request from data already cached in requestctx (no extra JWT parsing).
+func buildCredentialSelectionContext(r *http.Request, targetRegion string) CredentialSelectionContext {
+	akid, _ := requestctx.GetRequestAccessKeyID(r)
+
+	selData, err := requestctx.GetCredentialSelectionData(r)
+	if err != nil {
+		// Fallback: empty selection data — only AKID and region will be available
+		// for matching. This can happen for requests without a session token
+		return CredentialSelectionContext{
+			RequestAccessKeyID: akid,
+			RequestedRegion:    targetRegion,
+		}
+	}
+	return CredentialSelectionContext{
+		RequestAccessKeyID: akid,
+		RequestedRegion:    targetRegion,
+		ClaimsSubject:      selData.ClaimsSubject,
+		ClaimsIssuer:       selData.ClaimsIssuer,
+		PrincipalTags:      selData.PrincipalTags,
+	}
 }

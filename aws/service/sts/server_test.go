@@ -38,6 +38,10 @@ var testSTSFQDN = "localhost"
 var testSTSPort = 8444
 
 func NewTestSTSServer(t testing.TB, pm *iam.PolicyManager, maxDurationSeconds int, oidcConfig string, isTlsEnabled bool) *STSServer {
+	return NewTestSTSServerWithTrust(t, pm, nil, maxDurationSeconds, oidcConfig, isTlsEnabled)
+}
+
+func NewTestSTSServerWithTrust(t testing.TB, pm *iam.PolicyManager, tpm *iam.PolicyManager, maxDurationSeconds int, oidcConfig string, isTlsEnabled bool) *STSServer {
 	tlsCert := ""
 	tlsKey := ""
 	var tlsPort = 0
@@ -59,6 +63,7 @@ func NewTestSTSServer(t testing.TB, pm *iam.PolicyManager, maxDurationSeconds in
 		tlsKey,
 		testutils.TempYamlFile(t, oidcConfig),
 		pm,
+		tpm,
 		maxDurationSeconds,
 		0, //For testing we don't want minimum durations
 		httpPort,
@@ -97,17 +102,22 @@ func getWebIdentityTestingToken(t testing.TB, keyStorage utils.PrivateKeyKeeper,
 	return token
 }
 
-// Create a signed OIDC testing TOken
-func CreateSignedOIDCTestingToken(keyStorage utils.PrivateKeyKeeper, d time.Duration, tags *session.AWSSessionTags) (string, error) {
+// Create a signed OIDC testing TOken. Additional audiences may be supplied;
+// when omitted the token has no `aud` claim (matching prior behavior).
+func CreateSignedOIDCTestingToken(keyStorage utils.PrivateKeyKeeper, d time.Duration, tags *session.AWSSessionTags, audiences ...string) (string, error) {
 	if tags == nil {
 		tags = &session.AWSSessionTags{}
 	}
-	oidc_token := jwt.NewWithClaims(jwt.SigningMethodRS256, credentials.NewIDPClaims(
+	claims := credentials.NewIDPClaims(
 		testFakeIssuer,
 		"test-user",
 		d,
 		*tags,
-	))
+	)
+	if len(audiences) > 0 {
+		claims.Audience = jwt.ClaimStrings(audiences)
+	}
+	oidc_token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
 
 	return credentials.CreateSignedToken(oidc_token, keyStorage)
 }

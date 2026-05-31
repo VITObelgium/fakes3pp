@@ -67,97 +67,187 @@ func doesResourceMatch(statementResource, resource string) bool {
 	return iamStringLike(statementResource, resource)
 }
 
-// To check whether all the values in the passed context are singular depending on the
-// condition operator this might be necessary
-func areAllConditionValuesSingular(context map[string]*policy.ConditionValue) bool {
-	for _, value := range context {
-		if !value.IsSingular() {
-			return false
-		}
-	}
-	return true
-}
+// perValuePredicate returns whether any of the statement patterns matches
+// the given (singular) context value. Negation, when needed by *Not* base
+// operators, is applied per-value by the dispatcher so that quantifier
+// semantics (ForAnyValue/ForAllValues) remain strictly AWS-aligned.
+type perValuePredicate func(patterns []string, value string) bool
 
-// Evaluate what a StringLike operation does
-func evalStringLike(conditionDetails map[string]*policy.ConditionValue, context map[string]*policy.ConditionValue) (bool, error) {
-	if !areAllConditionValuesSingular(context) {
-		return false, fmt.Errorf("non-singular value got %v", context)
-	}
-	for sConditionKey, sConditionValue := range conditionDetails {
-		contextValue, exists := context[sConditionKey]
-		if !exists {
-			slog.Debug("condition key was not set in request context", "operation", "StringLike", "conditionKey", sConditionKey)
-			return false, nil
-		}
-		if !isConditionMetForStringLike(sConditionValue, contextValue) {
-			return false, nil
-		}
-	}
-	return true, nil
-}
-
-// Evaluate what a StringEquals operation does (exact match, no wildcards)
-func evalStringEquals(conditionDetails map[string]*policy.ConditionValue, context map[string]*policy.ConditionValue) (bool, error) {
-	if !areAllConditionValuesSingular(context) {
-		return false, fmt.Errorf("non-singular value got %v", context)
-	}
-	for sConditionKey, sConditionValue := range conditionDetails {
-		contextValue, exists := context[sConditionKey]
-		if !exists {
-			slog.Debug("condition key was not set in request context", "operation", "StringEquals", "conditionKey", sConditionKey)
-			return false, nil
-		}
-		if !isConditionMetForStringEquals(sConditionValue, contextValue) {
-			return false, nil
-		}
-	}
-	return true, nil
-}
-
-func isConditionMetForStringEquals(statementValues, context *policy.ConditionValue) bool {
-	ctxStrValues, _, _ := context.Values()
-	ctxStrValue := ctxStrValues[0]
-	strValues, _, _ := statementValues.Values()
-	for _, sValue := range strValues {
-		if sValue == ctxStrValue {
+func stringEqualsPredicate(patterns []string, value string) bool {
+	for _, p := range patterns {
+		if p == value {
 			return true
 		}
 	}
 	return false
 }
 
-// See whether the condition defined by the conditionOperator and conditionDetails is met
-// for the given context
-func isConditionMetForOperator(conditionOperator string, conditionDetails map[string]*policy.ConditionValue, context map[string]*policy.ConditionValue) (bool, error) {
-	switch conditionOperator {
-	case "StringLike":
-		result, err := evalStringLike(conditionDetails, context)
-		if err != nil {
-			return false, fmt.Errorf("operator StringLike encountered %s", err)
+func stringLikePredicate(patterns []string, value string) bool {
+	for _, p := range patterns {
+		if iamStringLike(p, value) {
+			return true
 		}
-		return result, err
-	case "StringNotLike":
-		result, err := evalStringLike(conditionDetails, context)
-		if err != nil {
-			return false, fmt.Errorf("operator StringLike encountered %s", err)
-		}
-		// https://stackoverflow.com/a/71531863/2653523
-		return !result, err
-	case "StringEquals":
-		result, err := evalStringEquals(conditionDetails, context)
-		if err != nil {
-			return false, fmt.Errorf("operator StringEquals encountered %s", err)
-		}
-		return result, err
-	case "StringNotEquals":
-		result, err := evalStringEquals(conditionDetails, context)
-		if err != nil {
-			return false, fmt.Errorf("operator StringNotEquals encountered %s", err)
-		}
-		return !result, err
-	default:
-		return false, fmt.Errorf("unsupported condition: '%s'", conditionOperator)
 	}
+	return false
+}
+
+// splitQualifier splits an operator like "ForAnyValue:StringEquals" into
+// ("ForAnyValue", "StringEquals"). When no qualifier is present the
+// qualifier component is "".
+func splitQualifier(operator string) (qualifier, base string) {
+	if idx := strings.Index(operator, ":"); idx >= 0 {
+		return operator[:idx], operator[idx+1:]
+	}
+	return "", operator
+}
+
+// perValuePredicateFor returns the per-value predicate to apply for a base
+// operator together with a flag indicating whether the result of the
+// predicate must be negated (for the StringNot* family).
+func perValuePredicateFor(baseOp string) (perValuePredicate, bool, error) {
+	switch baseOp {
+	case "StringEquals":
+		return stringEqualsPredicate, false, nil
+	case "StringNotEquals":
+		return stringEqualsPredicate, true, nil
+	case "StringLike":
+		return stringLikePredicate, false, nil
+	case "StringNotLike":
+		return stringLikePredicate, true, nil
+	default:
+		return nil, false, fmt.Errorf("unsupported condition: '%s'", baseOp)
+	}
+}
+
+// evalConditionKey applies the qualifier and per-value predicate to a single
+// condition-key entry. Quantifier semantics follow the AWS IAM reference:
+//
+//   - unqualified: the context value must be singular (multi-valued context
+//     keys are rejected with an error for safety so policies must explicitly
+//     opt into ForAnyValue/ForAllValues handling). Missing key => false.
+//   - ForAnyValue: at least one context value must satisfy the predicate.
+//     Missing key => false.
+//   - ForAllValues: every context value must satisfy the predicate.
+//     Missing key (or empty set) => vacuously true. Pair with Null:<key>:false
+//     when "the key must be present" is required.
+//
+// For StringNot* base operators the per-value predicate is negated before
+// the quantifier is applied (strict AWS semantics, not !ForAnyValue(positive)).
+func evalConditionKey(qualifier string, pred perValuePredicate, negate bool, stmtValues *policy.ConditionValue, ctxValues *policy.ConditionValue, key string) (bool, error) {
+	patterns, _, _ := stmtValues.Values()
+	var values []string
+	if ctxValues != nil {
+		values, _, _ = ctxValues.Values()
+	}
+
+	apply := func(v string) bool {
+		m := pred(patterns, v)
+		if negate {
+			return !m
+		}
+		return m
+	}
+
+	switch qualifier {
+	case "":
+		if len(values) > 1 {
+			return false, fmt.Errorf("non-singular value got %v", values)
+		}
+		if len(values) == 0 {
+			slog.Debug("condition key was not set in request context", "conditionKey", key)
+			// AWS docs: when the key is absent from the request context and
+			// the operator is a *Not* variant the condition is satisfied;
+			// positive variants are not.
+			// https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html
+			return negate, nil
+		}
+		return apply(values[0]), nil
+	case "ForAnyValue":
+		if len(values) == 0 {
+			return false, nil
+		}
+		for _, v := range values {
+			if apply(v) {
+				return true, nil
+			}
+		}
+		return false, nil
+	case "ForAllValues":
+		for _, v := range values {
+			if !apply(v) {
+				return false, nil
+			}
+		}
+		return true, nil
+	default:
+		return false, fmt.Errorf("unsupported qualifier: '%s'", qualifier)
+	}
+}
+
+// evalNull implements the IAM Null operator. The statement value must be a
+// single "true" or "false" literal. The condition is met when the
+// presence-state of the key in the request context matches the requested
+// state. An empty (zero-value) context entry is treated as absent.
+func evalNull(conditionDetails map[string]*policy.ConditionValue, context map[string]*policy.ConditionValue) (bool, error) {
+	for key, stmtVals := range conditionDetails {
+		wants, _, _ := stmtVals.Values()
+		if len(wants) != 1 {
+			return false, fmt.Errorf("the Null operator for key %s requires a single string value", key)
+		}
+		var wantNull bool
+		switch wants[0] {
+		case "true":
+			wantNull = true
+		case "false":
+			wantNull = false
+		default:
+			return false, fmt.Errorf("the Null operator value must be 'true' or 'false', got %q", wants[0])
+		}
+		ctxVal, present := context[key]
+		if present {
+			vals, _, _ := ctxVal.Values()
+			if len(vals) == 0 {
+				present = false
+			}
+		}
+		isNull := !present
+		if isNull != wantNull {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+// evalCondition evaluates a single (operator, conditionDetails) entry from a
+// Condition block. Operators may carry the AWS quantifier prefixes
+// "ForAnyValue:" or "ForAllValues:" (e.g. "ForAllValues:StringEquals"). The
+// "Null" operator does not accept quantifiers. All keys within
+// conditionDetails are AND-combined.
+func evalCondition(operator string, conditionDetails map[string]*policy.ConditionValue, context map[string]*policy.ConditionValue) (bool, error) {
+	qualifier, baseOp := splitQualifier(operator)
+
+	if baseOp == "Null" {
+		if qualifier != "" {
+			return false, fmt.Errorf("qualifier %s is not valid with Null operator", qualifier)
+		}
+		return evalNull(conditionDetails, context)
+	}
+
+	pred, negate, err := perValuePredicateFor(baseOp)
+	if err != nil {
+		return false, err
+	}
+
+	for key, stmtVals := range conditionDetails {
+		ok, err := evalConditionKey(qualifier, pred, negate, stmtVals, context[key], key)
+		if err != nil {
+			return false, fmt.Errorf("operator %s encountered %s", operator, err)
+		}
+		if !ok {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 // EvalConditionBlock evaluates a raw IAM Condition block against a context without
@@ -166,7 +256,7 @@ func isConditionMetForOperator(conditionOperator string, conditionDetails map[st
 // This is used for credential rule selection where we only need predicate evaluation.
 func EvalConditionBlock(conditionBlock map[string]map[string]*policy.ConditionValue, context map[string]*policy.ConditionValue) (bool, error) {
 	for conditionOperator, conditionDetails := range conditionBlock {
-		isMet, err := isConditionMetForOperator(conditionOperator, conditionDetails, context)
+		isMet, err := evalCondition(conditionOperator, conditionDetails, context)
 		if err != nil {
 			return false, err
 		}
@@ -177,12 +267,59 @@ func EvalConditionBlock(conditionBlock map[string]map[string]*policy.ConditionVa
 	return true, nil
 }
 
-func isConditionMetForStringLike(statementValues, context *policy.ConditionValue) bool {
-	ctxStrValues, _, _ := context.Values()
-	ctxStrValue := ctxStrValues[0]
-	strValues, _, _ := statementValues.Values()
-	for _, sValue := range strValues {
-		if iamStringLike(sValue, ctxStrValue) {
+// isPrincipalMatch implements a minimal AWS-style Principal check.
+//
+//   - When the statement does not declare a Principal, it is treated as
+//     unconstrained (matches). This preserves the original behavior for
+//     permission policies which never carry a Principal.
+//   - When the statement uses the string form `"Principal": "*"`, every
+//     principal matches.
+//   - When the statement uses the object form, entries are matched against
+//     the request principal by Kind: a request principal of kind Federated
+//     is matched against `statement.Federated()`, an AWS request against
+//     `statement.AWS()`, and so on. Patterns support `*`/`?` wildcards via
+//     iamStringLike.
+//   - The special case `{"AWS": "*"}` is treated as a wildcard for any
+//     principal kind (matching the AWS "anonymous" semantics).
+//   - When the action carries no Principal value (e.g. permission policies
+//     are evaluated without a request principal) only the wildcard forms
+//     above match.
+func isPrincipalMatch(p *policy.Principal, a IAMAction) bool {
+	if p == nil {
+		return true
+	}
+	// String form: "*" is the only legal value.
+	if kinds := p.Kinds(); len(kinds) == 1 && kinds[0] == policy.PrincipalKindAll {
+		return true
+	}
+	// Documented AWS wildcard for anonymous principals.
+	if aws := p.AWS(); aws != nil {
+		for _, pattern := range aws.Values() {
+			if pattern == "*" {
+				return true
+			}
+		}
+	}
+	if a.Principal == nil {
+		return false
+	}
+
+	var candidates *policy.StringOrSlice
+	switch a.Principal.Kind {
+	case policy.PrincipalKindFederated:
+		candidates = p.Federated()
+	case policy.PrincipalKindAWS:
+		candidates = p.AWS()
+	case policy.PrincipalKindCanonical:
+		candidates = p.CanonicalUser()
+	case policy.PrincipalKindService:
+		candidates = p.Service()
+	}
+	if candidates == nil {
+		return false
+	}
+	for _, pattern := range candidates.Values() {
+		if pattern == a.Principal.Value || iamStringLike(pattern, a.Principal.Value) {
 			return true
 		}
 	}
@@ -191,6 +328,10 @@ func isConditionMetForStringLike(statementValues, context *policy.ConditionValue
 
 // Check whether a policy Statement is relevent for a certain IAM action
 func isRelevantFor(statement policy.Statement, a IAMAction) (bool, error) {
+	if !isPrincipalMatch(statement.Principal, a) {
+		return false, nil
+	}
+
 	actionInScope := false
 	for _, statementAction := range statement.Action.Values() {
 		if statementAction == a.Action || iamStringLike(statementAction, a.Action) {
@@ -212,7 +353,7 @@ func isRelevantFor(statement policy.Statement, a IAMAction) (bool, error) {
 	}
 
 	for conditionOperator, conditionDetails := range statement.Condition {
-		isMet, err := isConditionMetForOperator(conditionOperator, conditionDetails, a.Context)
+		isMet, err := evalCondition(conditionOperator, conditionDetails, a.Context)
 		if err != nil {
 			return false, err
 		}

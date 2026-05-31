@@ -242,6 +242,34 @@ type PolicySessionData struct {
 	RequestedRegion string
 }
 
+// TrustPolicySessionClaims carries the OIDC claims that are exposed to a
+// trust policy template and to the trust policy evaluator. It intentionally
+// carries more detail than PolicySessionClaims because trust policies often
+// need to inspect the audience and the raw issuer URL.
+type TrustPolicySessionClaims struct {
+	Subject  string
+	Issuer   string
+	Audience []string
+}
+
+// TrustPolicySessionData is the data made available to trust policies during
+// templating and to the policy evaluator when deciding whether an
+// AssumeRoleWithWebIdentity call is permitted.
+type TrustPolicySessionData struct {
+	// Claims describes the OIDC token that was presented.
+	Claims TrustPolicySessionClaims
+	// Tags are the session tags requested via the OIDC token.
+	Tags session.AWSSessionTags
+	// RoleArn is the role the caller is trying to assume.
+	RoleArn string
+	// RoleSessionName is the requested session name (sts:RoleSessionName).
+	RoleSessionName string
+	// DurationSeconds is the requested credential lifetime in seconds.
+	DurationSeconds int
+	// RequestedRegion is optional; only populated when known.
+	RequestedRegion string
+}
+
 func GetPolicySessionDataFromClaims(claims *credentials.SessionClaims) *PolicySessionData {
 	issuer := claims.IIssuer
 	if issuer == "" {
@@ -257,6 +285,23 @@ func GetPolicySessionDataFromClaims(claims *credentials.SessionClaims) *PolicySe
 }
 
 func (m *PolicyManager) GetPolicy(arn string, data *PolicySessionData) (string, error) {
+	tmpl, err := m.getPolicyTemplate(arn)
+	if err != nil {
+		return "", err
+	}
+	buf := new(bytes.Buffer)
+	err = tmpl.Execute(buf, data)
+	if err != nil {
+		return "", err
+	}
+	return buf.String(), nil
+}
+
+// GetTrustPolicy executes the trust policy template registered for the given
+// role ARN against the supplied TrustPolicySessionData. It mirrors GetPolicy
+// but accepts the richer trust-time data struct so trust policy templates can
+// reference fields such as `.RoleSessionName` and `.Claims.Audience`.
+func (m *PolicyManager) GetTrustPolicy(arn string, data *TrustPolicySessionData) (string, error) {
 	tmpl, err := m.getPolicyTemplate(arn)
 	if err != nil {
 		return "", err

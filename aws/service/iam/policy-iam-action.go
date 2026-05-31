@@ -2,6 +2,9 @@ package iam
 
 import (
 	"fmt"
+	"net/url"
+	"strconv"
+	"strings"
 
 	"github.com/micahhausler/aws-iam-policy/policy"
 )
@@ -10,6 +13,29 @@ type IAMAction struct {
 	Action   string                            `json:"action"`
 	Resource string                            `json:"resource"`
 	Context  map[string]*policy.ConditionValue `json:"context,omitempty"`
+	// Principal, when non-nil, is the concrete identity making the request.
+	// It is used during evaluation to match against a statement's
+	// `Principal` element. A request principal is, by definition, a single
+	// value of a single kind (the asymmetric counterpart to the statement
+	// Principal which is a multi-valued pattern).
+	Principal *RequestPrincipal `json:"principal,omitempty"`
+}
+
+// RequestPrincipal identifies the caller making a request being evaluated.
+// It is intentionally a small typed value rather than the parser type
+// `policy.Principal`: the parser type models the multi-valued pattern that
+// appears in a statement, while a request principal is always one value of
+// one kind. Kind matches the constants exposed by the policy package
+// (policy.PrincipalKindAWS, policy.PrincipalKindFederated, ...).
+type RequestPrincipal struct {
+	Kind  string `json:"kind"`
+	Value string `json:"value"`
+}
+
+// NewFederatedRequestPrincipal builds a request principal representing an
+// identity federated through an OIDC issuer.
+func NewFederatedRequestPrincipal(issuer string) *RequestPrincipal {
+	return &RequestPrincipal{Kind: policy.PrincipalKindFederated, Value: issuer}
 }
 
 func NewIamAction(action, resource string, session *PolicySessionData) IAMAction {
@@ -20,6 +46,28 @@ func NewIamAction(action, resource string, session *PolicySessionData) IAMAction
 		Action:   action,
 		Resource: resource,
 		Context:  context,
+	}
+}
+
+// NewAssumeRoleWithWebIdentityIAMAction builds an IAMAction that represents a
+// request to assume the given role via AssumeRoleWithWebIdentity. The supplied
+// TrustPolicySessionData is used to populate the request context keys that are
+// available for trust policy evaluation (AWS-style `<issuer-host>:<claim>` keys,
+// `aws:PrincipalTag/*`, `sts:RoleSessionName`, `sts:DurationSeconds`, ...).
+func NewAssumeRoleWithWebIdentityIAMAction(roleArn string, d *TrustPolicySessionData) IAMAction {
+	context := map[string]*policy.ConditionValue{}
+	addTrustSessionContextKeys(context, d)
+
+	var principal *RequestPrincipal
+	if d != nil && d.Claims.Issuer != "" {
+		principal = NewFederatedRequestPrincipal(d.Claims.Issuer)
+	}
+
+	return IAMAction{
+		Action:    "sts:AssumeRoleWithWebIdentity",
+		Resource:  roleArn,
+		Context:   context,
+		Principal: principal,
 	}
 }
 
@@ -70,5 +118,70 @@ func addGenericTokenClaims(context map[string]*policy.ConditionValue, session *P
 	}
 	if session.Claims.Issuer != "" {
 		context["claims:iss"] = policy.NewConditionValueString(true, session.Claims.Issuer)
+	}
+}
+
+// IssuerHost derives the AWS-style context-key prefix from an OIDC issuer URL.
+// Given "https://accounts.google.com/" it returns "accounts.google.com". If the
+// issuer is not a parseable URL with a host the issuer string itself is
+// returned so policies can still match on it.
+func IssuerHost(issuer string) string {
+	if issuer == "" {
+		return ""
+	}
+	u, err := url.Parse(issuer)
+	if err == nil && u.Host != "" {
+		return strings.ToLower(u.Host)
+	}
+	return issuer
+}
+
+// Add context keys available during trust policy evaluation.
+// Mirrors AWS AssumeRoleWithWebIdentity context keys: each OIDC token claim
+// is exposed as `<issuer-host>:<claim>` (e.g. `accounts.google.com:sub`). In
+// addition the generic `aws:PrincipalTag/*`, `aws:RequestedRegion`,
+// `sts:RoleSessionName` and `sts:DurationSeconds` keys are populated when
+// available.
+func addTrustSessionContextKeys(context map[string]*policy.ConditionValue, d *TrustPolicySessionData) {
+	if d == nil {
+		return
+	}
+	// aws:PrincipalTag/*
+	for tagKey, tagValues := range d.Tags.PrincipalTags {
+		context[fmt.Sprintf("aws:PrincipalTag/%s", tagKey)] = policy.NewConditionValueString(true, tagValues...)
+	}
+	if d.RequestedRegion != "" {
+		context["aws:RequestedRegion"] = policy.NewConditionValueString(true, d.RequestedRegion)
+	}
+	if d.RoleSessionName != "" {
+		context["sts:RoleSessionName"] = policy.NewConditionValueString(true, d.RoleSessionName)
+	}
+	if d.DurationSeconds > 0 {
+		context["sts:DurationSeconds"] = policy.NewConditionValueString(true, strconv.Itoa(d.DurationSeconds))
+	}
+
+	// Per-claim AWS-style keys (`<issuer-host>:<claim>`)
+	prefix := IssuerHost(d.Claims.Issuer)
+	if prefix == "" {
+		return
+	}
+	if d.Claims.Subject != "" {
+		context[fmt.Sprintf("%s:sub", prefix)] = policy.NewConditionValueString(true, d.Claims.Subject)
+	}
+	if d.Claims.Issuer != "" {
+		context[fmt.Sprintf("%s:iss", prefix)] = policy.NewConditionValueString(true, d.Claims.Issuer)
+	}
+	auds := make([]string, 0, len(d.Claims.Audience))
+	for _, aud := range d.Claims.Audience {
+		if aud != "" {
+			auds = append(auds, aud)
+		}
+	}
+	if len(auds) > 0 {
+		// singular=false when the token carries multiple audiences so the
+		// underlying ConditionValue is truthfully multi-valued; policies must
+		// then use ForAnyValue:/ForAllValues: qualifiers to match.
+		key := fmt.Sprintf("%s:aud", prefix)
+		context[key] = policy.NewConditionValueString(len(auds) == 1, auds...)
 	}
 }

@@ -35,6 +35,13 @@ type STSServer struct {
 
 	pm *iam.PolicyManager
 
+	// tpm is the (optional) trust policy manager. When nil, no trust policy
+	// evaluation is performed and any caller presenting a valid OIDC token
+	// for an existing role may assume it. When non-nil, trust policy
+	// evaluation is performed per role *if* a trust policy exists for the
+	// role; roles without a trust policy file remain default-allow.
+	tpm *iam.PolicyManager
+
 	maxAllowedDuration time.Duration
 
 	//The minimum time a STS session just be
@@ -57,6 +64,7 @@ func NewSTSServer(
 	tlsKeyFilePath string,
 	oidcConfigFilePath string,
 	pm *iam.PolicyManager,
+	tpm *iam.PolicyManager,
 	maxDurationSeconds int,
 	minDurationSeconds int,
 	extraHTTPPort int,
@@ -69,6 +77,7 @@ func NewSTSServer(
 		tlsKeyFilePath,
 		oidcConfigFilePath,
 		pm,
+		tpm,
 		maxDurationSeconds,
 		minDurationSeconds,
 		extraHTTPPort,
@@ -83,6 +92,7 @@ func newSTSServer(
 	tlsKeyFilePath string,
 	oidcConfigFilePath string,
 	pm *iam.PolicyManager,
+	tpm *iam.PolicyManager,
 	maxDurationSeconds int,
 	minDurationSeconds int,
 	extraHTTPPort int,
@@ -104,6 +114,7 @@ func newSTSServer(
 		fqdns:              fqdns,
 		oidcVerifier:       oidcVerifier,
 		pm:                 pm,
+		tpm:                tpm,
 		maxAllowedDuration: time.Duration(maxDurationSeconds) * time.Second,
 		minAllowedDuration: time.Duration(minDurationSeconds) * time.Second,
 	}
@@ -238,6 +249,11 @@ func (s *STSServer) assumeRoleWithWebIdentity(ctx context.Context, w http.Respon
 		return
 	}
 
+	roleSessionName := r.Form.Get("RoleSessionName")
+	if !s.evaluateTrustPolicy(ctx, w, r, roleArn, roleSessionName, *duration, claimsMap) {
+		return
+	}
+
 	newToken := s.newProxyIssuedToken(subject, issuer, roleArn, *duration, claimsMap.Tags)
 
 	cred, err := credentials.NewAWSCredentials(newToken, *duration, s.jwtKeyMaterial)
@@ -272,6 +288,88 @@ func (s *STSServer) assumeRoleWithWebIdentity(ctx context.Context, w http.Respon
 
 func (s *STSServer) newProxyIssuedToken(subject, issuer, roleARN string, expiry time.Duration, tags session.AWSSessionTags) (token *jwt.Token) {
 	return credentials.CreateRS256PolicyToken(s.GetIssuer(), issuer, subject, roleARN, expiry, tags)
+}
+
+// evaluateTrustPolicy enforces an optional trust policy for the role being
+// assumed. It returns true when the call is permitted to proceed and false
+// when it has already written an error response and the caller must stop.
+//
+// Behaviour matrix:
+//   - tpm nil                 -> allow (no trust enforcement configured)
+//   - trust policy not found  -> allow (default-allow per role)
+//   - trust policy exists     -> parse + evaluate; deny on any error, on
+//     explicit Deny or on "no Allow statement matched".
+func (s *STSServer) evaluateTrustPolicy(
+	ctx context.Context,
+	w http.ResponseWriter,
+	r *http.Request,
+	roleArn string,
+	roleSessionName string,
+	duration time.Duration,
+	claims *credentials.SessionClaims,
+) bool {
+	if s.tpm == nil {
+		return true
+	}
+	if !s.tpm.DoesPolicyExist(roleArn) {
+		// Default-allow when no trust policy is configured for this role.
+		return true
+	}
+
+	audience := []string{}
+	if claims != nil {
+		if aud, err := claims.GetAudience(); err == nil {
+			audience = aud
+		}
+	}
+
+	tags := session.AWSSessionTags{}
+	issuer := ""
+	subject := ""
+	if claims != nil {
+		tags = claims.Tags
+		issuer = claims.Issuer
+		subject = claims.Subject
+	}
+
+	data := &iam.TrustPolicySessionData{
+		Claims: iam.TrustPolicySessionClaims{
+			Subject:  subject,
+			Issuer:   issuer,
+			Audience: audience,
+		},
+		Tags:            tags,
+		RoleArn:         roleArn,
+		RoleSessionName: roleSessionName,
+		DurationSeconds: int(duration / time.Second),
+	}
+
+	policyStr, err := s.tpm.GetTrustPolicy(roleArn, data)
+	if err != nil {
+		slog.ErrorContext(ctx, "Could not load trust policy", "role_arn", roleArn, "error", err)
+		writeSTSErrorResponse(ctx, w, ErrSTSAccessDenied, fmt.Errorf("trust policy could not be evaluated for %s", roleArn))
+		return false
+	}
+	pe, err := iam.NewPolicyEvaluatorFromStr(policyStr)
+	if err != nil {
+		slog.ErrorContext(ctx, "Could not parse trust policy", "role_arn", roleArn, "error", err)
+		writeSTSErrorResponse(ctx, w, ErrSTSAccessDenied, fmt.Errorf("trust policy is malformed for %s", roleArn))
+		return false
+	}
+
+	action := iam.NewAssumeRoleWithWebIdentityIAMAction(roleArn, data)
+	allowed, reason, err := pe.Evaluate(action)
+	if err != nil {
+		slog.ErrorContext(ctx, "Trust policy evaluation error", "role_arn", roleArn, "error", err, "reason", reason)
+		writeSTSErrorResponse(ctx, w, ErrSTSAccessDenied, fmt.Errorf("trust policy evaluation failed for %s", roleArn))
+		return false
+	}
+	if !allowed {
+		slog.InfoContext(ctx, "Trust policy denied AssumeRoleWithWebIdentity", "role_arn", roleArn, "reason", reason, "subject", subject, "issuer", issuer)
+		writeSTSErrorResponse(ctx, w, ErrSTSAccessDenied, fmt.Errorf("not authorized to assume role %s", roleArn))
+		return false
+	}
+	return true
 }
 
 func (s *STSServer) calculateFinalDurationSeconds(apiProvidedDuration int, jwtExpiry *jwt.NumericDate) (*time.Duration, error) {

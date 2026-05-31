@@ -265,3 +265,109 @@ func TestTrustPolicy_HotReload(t *testing.T) {
 	}
 	t.Fatalf("trust policy was not hot-reloaded; last status=%d", lastStatus)
 }
+
+// 9) IpAddress trust policy honours aws:SourceIp populated from RemoteAddr.
+func TestTrustPolicy_SourceIpAllow(t *testing.T) {
+	dir := t.TempDir()
+	writeTrustPolicyFile(t, dir, testPolicyArnForTestPM, fmt.Sprintf(`{
+		"Version": "2012-10-17",
+		"Statement": [{
+			"Effect": "Allow",
+			"Principal": "*",
+			"Action": "sts:AssumeRoleWithWebIdentity",
+			"Resource": "%s",
+			"Condition": {
+				"IpAddress": { "aws:SourceIp": "10.0.0.0/8" }
+			}
+		}]
+	}`, testPolicyArnForTestPM))
+
+	pm := getNewTestPM(t)
+	tpm := newTrustPM(t, dir)
+	s := NewTestSTSServerWithTrust(t, pm, tpm, 3600, testOIDCConfigFakeTesting, false)
+
+	token := getWebIdentityTestingToken(t, s.jwtKeyMaterial, 10*time.Minute, nil)
+	url := buildAssumeRoleWithIdentityTokenUrl(901, "mysession", testPolicyArnForTestPM, token)
+	req, err := http.NewRequest("POST", url, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.RemoteAddr = "10.1.2.3:54321"
+	rr := httptest.NewRecorder()
+	s.processSTSPost(rr, req)
+	if rr.Result().StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 for matching SourceIp, got %d: %s", rr.Result().StatusCode, rr.Body.String())
+	}
+}
+
+// 10) IpAddress trust policy denies when SourceIp is outside the allow-list.
+func TestTrustPolicy_SourceIpDeny(t *testing.T) {
+	dir := t.TempDir()
+	writeTrustPolicyFile(t, dir, testPolicyArnForTestPM, fmt.Sprintf(`{
+		"Version": "2012-10-17",
+		"Statement": [{
+			"Effect": "Allow",
+			"Principal": "*",
+			"Action": "sts:AssumeRoleWithWebIdentity",
+			"Resource": "%s",
+			"Condition": {
+				"IpAddress": { "aws:SourceIp": "10.0.0.0/8" }
+			}
+		}]
+	}`, testPolicyArnForTestPM))
+
+	pm := getNewTestPM(t)
+	tpm := newTrustPM(t, dir)
+	s := NewTestSTSServerWithTrust(t, pm, tpm, 3600, testOIDCConfigFakeTesting, false)
+
+	token := getWebIdentityTestingToken(t, s.jwtKeyMaterial, 10*time.Minute, nil)
+	url := buildAssumeRoleWithIdentityTokenUrl(901, "mysession", testPolicyArnForTestPM, token)
+	req, err := http.NewRequest("POST", url, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	req.RemoteAddr = "203.0.113.7:12345"
+	rr := httptest.NewRecorder()
+	s.processSTSPost(rr, req)
+	if rr.Result().StatusCode != http.StatusForbidden {
+		t.Fatalf("expected 403 for non-matching SourceIp, got %d: %s", rr.Result().StatusCode, rr.Body.String())
+	}
+}
+
+//  11. X-Forwarded-For overrides RemoteAddr for aws:SourceIp evaluation so the
+//     proxy can sit behind a load balancer.
+func TestTrustPolicy_SourceIpFromXForwardedFor(t *testing.T) {
+	dir := t.TempDir()
+	writeTrustPolicyFile(t, dir, testPolicyArnForTestPM, fmt.Sprintf(`{
+		"Version": "2012-10-17",
+		"Statement": [{
+			"Effect": "Allow",
+			"Principal": "*",
+			"Action": "sts:AssumeRoleWithWebIdentity",
+			"Resource": "%s",
+			"Condition": {
+				"IpAddress": { "aws:SourceIp": "198.51.100.0/24" }
+			}
+		}]
+	}`, testPolicyArnForTestPM))
+
+	pm := getNewTestPM(t)
+	tpm := newTrustPM(t, dir)
+	s := NewTestSTSServerWithTrust(t, pm, tpm, 3600, testOIDCConfigFakeTesting, false)
+
+	token := getWebIdentityTestingToken(t, s.jwtKeyMaterial, 10*time.Minute, nil)
+	url := buildAssumeRoleWithIdentityTokenUrl(901, "mysession", testPolicyArnForTestPM, token)
+	req, err := http.NewRequest("POST", url, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Direct connection is from the LB itself (203.0.113.1) — not in the
+	// allow-list — but XFF advertises the true client IP, which is.
+	req.RemoteAddr = "203.0.113.1:443"
+	req.Header.Set("X-Forwarded-For", "198.51.100.42, 203.0.113.1")
+	rr := httptest.NewRecorder()
+	s.processSTSPost(rr, req)
+	if rr.Result().StatusCode != http.StatusOK {
+		t.Fatalf("expected 200 with XFF client IP in allow-list, got %d: %s", rr.Result().StatusCode, rr.Body.String())
+	}
+}

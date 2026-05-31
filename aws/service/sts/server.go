@@ -358,6 +358,9 @@ func (s *STSServer) evaluateTrustPolicy(
 	}
 
 	action := iam.NewAssumeRoleWithWebIdentityIAMAction(roleArn, data)
+	if sourceIP := requestctx.GetSourceIP(r); sourceIP != "" {
+		action = iam.WithSourceIP(action, sourceIP)
+	}
 	allowed, reason, err := pe.Evaluate(action)
 	if err != nil {
 		slog.ErrorContext(ctx, "Trust policy evaluation error", "role_arn", roleArn, "error", err, "reason", reason)

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/netip"
 	"regexp"
 	"strings"
 
@@ -70,25 +71,83 @@ func doesResourceMatch(statementResource, resource string) bool {
 // perValuePredicate returns whether any of the statement patterns matches
 // the given (singular) context value. Negation, when needed by *Not* base
 // operators, is applied per-value by the dispatcher so that quantifier
-// semantics (ForAnyValue/ForAllValues) remain strictly AWS-aligned.
-type perValuePredicate func(patterns []string, value string) bool
+// semantics (ForAnyValue/ForAllValues) remain strictly AWS-aligned. The
+// error return allows operators like IpAddress to fail evaluation on
+// malformed statement patterns (matching AWS "policy syntax error"
+// behaviour).
+type perValuePredicate func(patterns []string, value string) (bool, error)
 
-func stringEqualsPredicate(patterns []string, value string) bool {
+func stringEqualsPredicate(patterns []string, value string) (bool, error) {
 	for _, p := range patterns {
 		if p == value {
-			return true
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
 }
 
-func stringLikePredicate(patterns []string, value string) bool {
+func stringLikePredicate(patterns []string, value string) (bool, error) {
 	for _, p := range patterns {
 		if iamStringLike(p, value) {
-			return true
+			return true, nil
 		}
 	}
-	return false
+	return false, nil
+}
+
+// ipAddressPredicate matches a context value (an IPv4 or IPv6 address) against
+// one or more statement patterns. Each pattern may be either a bare IP address
+// (treated as /32 for IPv4 or /128 for IPv6) or a CIDR prefix. Mixed v4/v6
+// patterns are supported. An invalid statement pattern produces an error so
+// the surrounding policy evaluation fails closed (deny), matching AWS
+// "policy syntax error" semantics; an info-level log entry is emitted so
+// operators can spot the misconfiguration in the proxy logs.
+func ipAddressPredicate(patterns []string, value string) (bool, error) {
+	addr, err := netip.ParseAddr(value)
+	if err != nil {
+		// Context value is not a parseable IP; this should not happen because
+		// aws:SourceIp is populated from the request, but be defensive.
+		return false, fmt.Errorf("invalid aws:SourceIp value %s: %w", value, err)
+	}
+	// We iterate over every pattern even if some are malformed so that a
+	// single bogus entry in the policy does not mask an otherwise valid
+	// match. AWS treats unmatched + erroring as a policy syntax error
+	// (deny), but a successful match by any sibling pattern still wins.
+	var firstErr error
+	for _, p := range patterns {
+		prefix, perr := parseIPPattern(p)
+		if perr != nil {
+			slog.Info("invalid IP pattern in policy condition", "pattern", p, "error", perr)
+			if firstErr == nil {
+				firstErr = fmt.Errorf("invalid IP pattern %q: %w", p, perr)
+			}
+			continue
+		}
+		if prefix.Contains(addr) {
+			return true, nil
+		}
+	}
+	if firstErr != nil {
+		return false, firstErr
+	}
+	return false, nil
+}
+
+// parseIPPattern accepts either a CIDR ("10.0.0.0/24", "2001:db8::/32") or a
+// bare address ("10.0.0.1", "::1") and returns the corresponding prefix.
+func parseIPPattern(pattern string) (netip.Prefix, error) {
+	if strings.Contains(pattern, "/") {
+		return netip.ParsePrefix(pattern)
+	}
+	addr, err := netip.ParseAddr(pattern)
+	if err != nil {
+		return netip.Prefix{}, err
+	}
+	bits := 32
+	if addr.Is6() && !addr.Is4In6() {
+		bits = 128
+	}
+	return addr.Prefix(bits)
 }
 
 // splitQualifier splits an operator like "ForAnyValue:StringEquals" into
@@ -114,6 +173,10 @@ func perValuePredicateFor(baseOp string) (perValuePredicate, bool, error) {
 		return stringLikePredicate, false, nil
 	case "StringNotLike":
 		return stringLikePredicate, true, nil
+	case "IpAddress":
+		return ipAddressPredicate, false, nil
+	case "NotIpAddress":
+		return ipAddressPredicate, true, nil
 	default:
 		return nil, false, fmt.Errorf("unsupported condition: '%s'", baseOp)
 	}
@@ -140,12 +203,15 @@ func evalConditionKey(qualifier string, pred perValuePredicate, negate bool, stm
 		values, _, _ = ctxValues.Values()
 	}
 
-	apply := func(v string) bool {
-		m := pred(patterns, v)
-		if negate {
-			return !m
+	apply := func(v string) (bool, error) {
+		m, err := pred(patterns, v)
+		if err != nil {
+			return false, err
 		}
-		return m
+		if negate {
+			return !m, nil
+		}
+		return m, nil
 	}
 
 	switch qualifier {
@@ -161,20 +227,40 @@ func evalConditionKey(qualifier string, pred perValuePredicate, negate bool, stm
 			// https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html
 			return negate, nil
 		}
-		return apply(values[0]), nil
+		return apply(values[0])
 	case "ForAnyValue":
 		if len(values) == 0 {
 			return false, nil
 		}
+		// A successful match by any value wins, even when other values
+		// produced evaluation errors (e.g. a malformed sibling IP pattern
+		// inside the same predicate call). Errors are only surfaced when
+		// no value matched, so the caller can deny + report the syntax
+		// problem instead of silently masking it.
+		var firstErr error
 		for _, v := range values {
-			if apply(v) {
+			ok, err := apply(v)
+			if err != nil {
+				if firstErr == nil {
+					firstErr = err
+				}
+				continue
+			}
+			if ok {
 				return true, nil
 			}
+		}
+		if firstErr != nil {
+			return false, firstErr
 		}
 		return false, nil
 	case "ForAllValues":
 		for _, v := range values {
-			if !apply(v) {
+			ok, err := apply(v)
+			if err != nil {
+				return false, err
+			}
+			if !ok {
 				return false, nil
 			}
 		}

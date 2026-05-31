@@ -93,9 +93,15 @@ The role ARN being assumed. `*` matches any role; otherwise IAM
 ### Condition
 
 The same operators supported elsewhere in the project are available:
-`StringEquals`, `StringNotEquals`, `StringLike`, `StringNotLike`, plus
-`Null` for presence checks. Numeric, date, and IP operators are not
-implemented.
+`StringEquals`, `StringNotEquals`, `StringLike`, `StringNotLike`,
+`IpAddress`, `NotIpAddress`, plus `Null` for presence checks. Numeric
+and date operators are not implemented.
+
+`IpAddress` / `NotIpAddress` accept either bare addresses (treated as
+`/32` for IPv4 and `/128` for IPv6) or CIDR prefixes. Both IPv4 and IPv6
+patterns are accepted by the same operator. An invalid pattern fails the
+entire evaluation (deny) and is logged at info level so operators can
+notice the misconfiguration.
 
 Each operator may be prefixed with one of the AWS quantifiers
 `ForAnyValue:` or `ForAllValues:` to evaluate multi-valued context keys
@@ -130,6 +136,7 @@ Context keys exposed at trust evaluation time:
 | `<issuer-host>:aud`                  | OIDC token `aud` claim (multi-valued)               |
 | `aws:PrincipalTag/<tag-key>`         | session tags carried by the token                   |
 | `aws:RequestedRegion`                | populated when the requested region is known        |
+| `aws:SourceIp`                       | apparent client IP (see "Source IP" below)          |
 | `sts:RoleSessionName`                | from the AssumeRoleWithWebIdentity request          |
 | `sts:DurationSeconds`                | requested credential lifetime (string comparison)   |
 
@@ -157,3 +164,25 @@ as the prefix.
 
 The `Null:false` clause prevents a token without any `aud` claim from
 passing through the vacuously-true `ForAllValues` check.
+
+#### Source IP
+
+`aws:SourceIp` is populated from the apparent client IP address of the
+incoming HTTP request. Resolution order:
+
+1. First non-empty entry of the `X-Forwarded-For` request header
+   (comma-separated, the left-most entry is the client).
+2. `X-Real-IP` request header.
+3. The host portion of the TCP `RemoteAddr` (port stripped).
+
+This means the proxy can sit behind a load balancer that injects
+`X-Forwarded-For`; ensure your fronting infrastructure strips any
+client-supplied header to prevent spoofing.
+
+Example: only allow assuming the role from an internal network:
+
+```json
+"Condition": {
+  "IpAddress": { "aws:SourceIp": ["10.0.0.0/8", "192.168.0.0/16"] }
+}
+```

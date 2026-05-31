@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"net/http"
 	"reflect"
 	"strings"
@@ -448,7 +449,7 @@ func NewContextFromHttpRequestWithStartTime(req *http.Request, reqStartTime time
 	rCtx := RequestCtx{
 		RequestID:      getRequestIdFromHttpRequest(req),
 		Time:           reqStartTime,
-		RemoteIP:       req.RemoteAddr,
+		RemoteIP:       extractClientIP(req),
 		RequestURI:     req.RequestURI,
 		Referer:        req.Referer(),
 		UserAgent:      req.UserAgent(),
@@ -458,6 +459,47 @@ func NewContextFromHttpRequestWithStartTime(req *http.Request, reqStartTime time
 		Error:          noError,
 	}
 	return NewContext(req.Context(), &rCtx)
+}
+
+// extractClientIP resolves the apparent client IP from the incoming HTTP
+// request, honouring common reverse-proxy headers. Precedence:
+//  1. First non-empty entry of `X-Forwarded-For` (comma-separated).
+//  2. `X-Real-IP` header.
+//  3. The host portion of `req.RemoteAddr` (port stripped when present).
+//
+// The returned value is used both for access logging and as the
+// `aws:SourceIp` request context key during IAM policy evaluation.
+func extractClientIP(req *http.Request) string {
+	if xff := req.Header.Get("X-Forwarded-For"); xff != "" {
+		for _, part := range strings.Split(xff, ",") {
+			if v := strings.TrimSpace(part); v != "" {
+				return v
+			}
+		}
+	}
+	if xr := strings.TrimSpace(req.Header.Get("X-Real-Ip")); xr != "" {
+		return xr
+	}
+	if host, _, err := net.SplitHostPort(req.RemoteAddr); err == nil {
+		return host
+	}
+	return req.RemoteAddr
+}
+
+// GetSourceIP returns the client IP address associated with the request.
+// When a RequestCtx has been initialised (the production path goes through
+// NewContextFromHttpRequestWithStartTime) the cached value is returned;
+// otherwise the IP is extracted directly from the http.Request so that
+// callers invoking handlers without the request-context middleware (for
+// example in tests) still see a meaningful value.
+func GetSourceIP(r *http.Request) string {
+	if rCtx := get(r); rCtx != nil && rCtx.RemoteIP != "" {
+		return rCtx.RemoteIP
+	}
+	if r == nil {
+		return ""
+	}
+	return extractClientIP(r)
 }
 
 func NewContext(ctx context.Context, rCtx *RequestCtx) context.Context {

@@ -38,6 +38,28 @@ func NewFederatedRequestPrincipal(issuer string) *RequestPrincipal {
 	return &RequestPrincipal{Kind: policy.PrincipalKindFederated, Value: issuer}
 }
 
+// IAMActionSourceIPKey is the AWS-style request context key for the IP
+// address the request originated from. It is populated by callers via
+// WithSourceIP so that policies authored with the `IpAddress` /
+// `NotIpAddress` condition operators can reason about the caller.
+const IAMActionSourceIPKey = "aws:SourceIp"
+
+// WithSourceIP returns the action with `aws:SourceIp` added to its
+// evaluation context when sourceIP is non-empty. The source IP is plumbed
+// separately from PolicySessionData / TrustPolicySessionData so that it
+// remains invisible to the policy template engine; only the policy
+// evaluator sees it.
+func WithSourceIP(a IAMAction, sourceIP string) IAMAction {
+	if sourceIP == "" {
+		return a
+	}
+	if a.Context == nil {
+		a.Context = map[string]*policy.ConditionValue{}
+	}
+	a.Context[IAMActionSourceIPKey] = policy.NewConditionValueString(true, sourceIP)
+	return a
+}
+
 func NewIamAction(action, resource string, session *PolicySessionData) IAMAction {
 	context := map[string]*policy.ConditionValue{}
 	addGenericSessionContextKeys(context, session)

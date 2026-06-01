@@ -325,6 +325,46 @@ func TestPermissionPolicy_NoPrincipalStillMatches(t *testing.T) {
 	}
 }
 
+// Regression: trust policy statements that omit the "Resource" field (the
+// normal form for AWS trust policies) must not panic. A nil Resource is
+// treated as "*" (matches any resource).
+func TestTrustPolicy_NoResourceFieldDoesNotPanic(t *testing.T) {
+	pol := fmt.Sprintf(`{
+		"Version": "2012-10-17",
+		"Statement": [{
+			"Effect": "Allow",
+			"Principal": { "Federated": "%s" },
+			"Action": "sts:AssumeRoleWithWebIdentity",
+			"Condition": {
+				"StringLike": { "localhost:sub": "test-*" }
+			}
+		}]
+	}`, testTrustIssuer)
+
+	allowed, _ := evalTrust(t, pol, newTestTrustData())
+	if !allowed {
+		t.Fatalf("expected allow for trust policy without Resource field")
+	}
+}
+
+// Regression: a statement with no Action field must not panic and must not
+// match any request.
+func TestTrustPolicy_NoActionFieldDoesNotPanic(t *testing.T) {
+	pol := fmt.Sprintf(`{
+		"Version": "2012-10-17",
+		"Statement": [{
+			"Effect": "Allow",
+			"Principal": { "Federated": "%s" },
+			"Resource": "%s"
+		}]
+	}`, testTrustIssuer, testTrustRoleArn)
+
+	allowed, reason := evalTrust(t, pol, newTestTrustData())
+	if allowed {
+		t.Fatalf("expected no match for statement without Action, reason=%s", reason)
+	}
+}
+
 func TestIssuerHost(t *testing.T) {
 	cases := []struct {
 		in, want string

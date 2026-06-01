@@ -419,19 +419,25 @@ func isRelevantFor(statement policy.Statement, a IAMAction) (bool, error) {
 	}
 
 	actionInScope := false
-	for _, statementAction := range statement.Action.Values() {
-		if statementAction == a.Action || iamStringLike(statementAction, a.Action) {
-			actionInScope = true
+	if statement.Action != nil {
+		for _, statementAction := range statement.Action.Values() {
+			if statementAction == a.Action || iamStringLike(statementAction, a.Action) {
+				actionInScope = true
+			}
 		}
 	}
 	if !actionInScope {
 		return false, nil
 	}
 
-	resourceInScope := false
-	for _, statementResource := range statement.Resource.Values() {
-		if doesResourceMatch(statementResource, a.Resource) {
-			resourceInScope = true
+	// A nil Resource (field absent from the JSON) is treated as "*" — the
+	// normal case for trust policy statements, which don't carry a Resource field.
+	resourceInScope := statement.Resource == nil
+	if !resourceInScope {
+		for _, statementResource := range statement.Resource.Values() {
+			if doesResourceMatch(statementResource, a.Resource) {
+				resourceInScope = true
+			}
 		}
 	}
 	if !resourceInScope {

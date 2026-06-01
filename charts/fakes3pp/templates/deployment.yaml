@@ -76,6 +76,11 @@ spec:
           - name: policies
             mountPath: "{{ .Values.shared.config.policies.dir }}"
             readOnly: true
+          {{- if .Values.sts.config.trustPolicies.dir }}
+          - name: trust-policies
+            mountPath: "{{ .Values.sts.config.trustPolicies.dir }}"
+            readOnly: true
+          {{- end }}
           - name: oidc
             mountPath: "{{ .Values.sts.config.oidc.dir }}"
             readOnly: true
@@ -103,6 +108,12 @@ spec:
           secret:
             secretName: {{ .Values.shared.config.policies.secretName }}
             optional: false
+        {{- if .Values.sts.config.trustPolicies.dir }}
+        - name: trust-policies
+          secret:
+            secretName: {{ .Values.sts.config.trustPolicies.secretName }}
+            optional: false  # If specified we must have it
+        {{- end }}
         - name: oidc
           configMap:
             name: {{ .Values.sts.config.oidc.configmapName }}

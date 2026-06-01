@@ -12,6 +12,9 @@ data:
   {{- end }}
   FAKES3PP_METRICS_PORT: "{{ .Values.shared.config.metricsPort }}"
   FAKES3PP_ROLE_POLICY_PATH: "{{ .Values.shared.config.policies.dir }}"
+  {{- if .Values.sts.config.trustPolicies.dir }}
+  FAKES3PP_ROLE_TRUST_POLICY_PATH: "{{ .Values.sts.config.trustPolicies.dir }}"
+  {{- end }}
   FAKES3PP_SIGNEDURL_GRACE_TIME_SECONDS: "{{ .Values.shared.config.signedURLGraceTimeSeconds }}"
   FORCE_LOGGING_FOR_REQUEST_ID_PREFIX: "{{ .Values.shared.config.forceLoggingRequestIdPrefix }}"
   FAKES3PP_PROXY_JWT_PRIVATE_RSA_KEY: "{{ .Values.shared.config.jwt.dir }}/{{ .Values.shared.config.jwt.privateKeyFilename }}"

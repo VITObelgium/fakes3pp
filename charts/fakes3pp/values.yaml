@@ -122,6 +122,27 @@ sts:
           # public_key is not mandatory, if not provided fakes3pp will resolve the public key via the issuer link above
           public_key: "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEArqwhdua+/zTG5SDw/dFkW+OzYMh5e7e3+neeiZy/ajKVRCHGky4jSx5WjoVxfWvqt/JpGbCQ/Vk9x19UiRQlSBNmufJtVtrBHcXSrppTjABg20TVY+mRK2WJfdwK2YUc8xtNw1rCMOQQk0CC5j2AeUgwAY02WLaU0FYKmypJgfSQEeW1Cywl8OrkkYhcnEET7EwgemuEbqDY+pcqd3kIH++kwgjymUQ8CJgIgI3/zHLVrJsCxdADDP/zFFsTOnE205nMoBMTk10EcdTGAUBj3IosTn7HirVyQgiFL2stsjmxK3TeBli0YzVqlP0iuSA9FCPC4nqzRIDynjy70z2hZwIDAQAB"  # pragma: allowlist secret
 
+    # Trust policies gate AssumeRoleWithWebIdentity per role (default-allow when dir is empty).
+    # File naming follows the same base32(arn) convention as permission policies.
+    # Hot-reloaded via fsnotify; see etc/trust-policies/README.md for details.
+    trustPolicies:
+      dir: ""                              # empty = feature disabled (default-allow)
+      secretName: fakes3pp-trust-policies  # pragma: allowlist secret
+      documents: []
+      # documents:
+      #   - arn: arn:fakes3pp:iam:::role/my-role
+      #     content:
+      #       Version: "2012-10-17"
+      #       Statement:
+      #         - Effect: Allow
+      #           Principal:
+      #             Federated: my-idp.example.com
+      #           Action: sts:AssumeRoleWithWebIdentity
+      #           Condition:
+      #             StringEquals:
+      #               my-idp.example.com:sub: allowed-user
+
+
   replicaCount: 1
 
   imagePullSecrets: []
@@ -269,6 +290,31 @@ s3:
           credentials:  # pragma: allowlist secret
             aws_access_key_id: "mykid"
             aws_secret_access_key: "mysecretkey"  # pragma: allowlist secret
+
+        # Alternative to flat credentials — rule-based routing selects backend
+        # credentials based on IAM-style conditions evaluated at request time.
+        # Supported condition keys: fakes3pp:RequestAccessKeyId, aws:RequestedRegion,
+        # claims:sub, claims:iss, aws:PrincipalTag/<key>.
+        # Supported operators: StringEquals, StringNotEquals, StringLike,
+        # StringNotLike, IpAddress, NotIpAddress, Null (+ ForAnyValue:/ForAllValues: qualifiers).
+        # Only "inline" credentials are supported in the chart; for file-based
+        # rule credentials provision the Secret manually.
+        #
+        # - region: "multi-tenant-region"
+        #   endpoint: "http://multi-tenant.localhost"
+        #   credentials:
+        #     rules:
+        #       - name: team-a
+        #         when:
+        #           StringEquals:
+        #             aws:PrincipalTag/org: [a]
+        #         inline:
+        #           aws_access_key_id: KEY_A
+        #           aws_secret_access_key: SECRET_A
+        #       - name: default    # no "when" = catch-all, evaluated last
+        #         inline:
+        #           aws_access_key_id: KEY_DEFAULT
+        #           aws_secret_access_key: SECRET_DEFAULT
 
 
     # CORS config

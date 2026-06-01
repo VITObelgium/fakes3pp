@@ -361,6 +361,7 @@ func (s *STSServer) evaluateTrustPolicy(
 	if sourceIP := requestctx.GetSourceIP(r); sourceIP != "" {
 		action = iam.WithSourceIP(action, sourceIP)
 	}
+	slog.DebugContext(ctx, "Evaluating trust policy", "policy", policyStr, "action", action)
 	allowed, reason, err := pe.Evaluate(action)
 	if err != nil {
 		slog.ErrorContext(ctx, "Trust policy evaluation error", "role_arn", roleArn, "error", err, "reason", reason)

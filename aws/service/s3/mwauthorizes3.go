@@ -88,6 +88,11 @@ func authorizeS3Action(ctx context.Context, sessionToken, targetRegion string, a
 		writeS3ErrorResponse(ctx, w, ErrS3InternalError, nil)
 		return
 	}
+	if sourceIP := requestctx.GetSourceIP(r); sourceIP != "" {
+		for i := range iamActions {
+			iamActions[i] = iam.WithSourceIP(iamActions[i], sourceIP)
+		}
+	}
 	isAllowed, reason, err := pe.EvaluateAll(iamActions)
 	if err != nil {
 		slog.ErrorContext(ctx, "Could not evaluate policy", "error", err, "policy", sessionClaims.RoleARN)

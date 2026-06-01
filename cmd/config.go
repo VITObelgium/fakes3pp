@@ -50,6 +50,7 @@ const (
 	stsProxyTlsKeyFile                               = "stsProxyKeyFile"
 	stsMinimalDurationSeconds                        = "stsMinimalDurationSeconds"
 	rolePolicyPath                                   = "rolePolicyPath"
+	roleTrustPolicyPath                              = "roleTrustPolicyPath"
 	stsOIDCConfigFile                                = "stsOIDCConfigFile"
 	s3BackendConfigFile                              = "s3BackendConfigFile"
 	s3ForceRequesterPaysFor                          = "forceRequesterPaysFor"
@@ -87,6 +88,7 @@ const (
 	FAKES3PP_STS_OIDC_CONFIG                                = "FAKES3PP_STS_OIDC_CONFIG"
 	FAKES3PP_S3_BACKEND_CONFIG                              = "FAKES3PP_S3_BACKEND_CONFIG"
 	FAKES3PP_ROLE_POLICY_PATH                               = "FAKES3PP_ROLE_POLICY_PATH"
+	FAKES3PP_ROLE_TRUST_POLICY_PATH                         = "FAKES3PP_ROLE_TRUST_POLICY_PATH"
 	FAKES3PP_STS_MAX_DURATION_SECONDS                       = "FAKES3PP_STS_MAX_DURATION_SECONDS"
 	FAKES3PP_SIGNEDURL_GRACE_TIME_SECONDS                   = "FAKES3PP_SIGNEDURL_GRACE_TIME_SECONDS"
 	ENABLE_LEGACY_BEHAVIOR_INVALID_REGION_TO_DEFAULT_REGION = "ENABLE_LEGACY_BEHAVIOR_INVALID_REGION_TO_DEFAULT_REGION"
@@ -243,6 +245,19 @@ var envVarDefs = []envVarDef{
 		true,
 		"The path in which there are files with names corresponsing to the base32 encoded role name and content the policy",
 		[]string{proxysts, proxys3},
+	},
+	{
+		roleTrustPolicyPath,
+		FAKES3PP_ROLE_TRUST_POLICY_PATH,
+		false,
+		`Optional path in which there are files with names corresponding to the base32 encoded role name and content the role trust policy.
+
+		Trust policies follow the standard AWS IAM trust-policy JSON shape (Version + Statement[]) wrapped in a Go text/template (same templating that role permission policies use). Each statement should declare a Principal (use "*" or a Federated entry matching the OIDC issuer URL) and the Action "sts:AssumeRoleWithWebIdentity".
+
+		When this variable is unset, or when no trust policy file exists for a given role, AssumeRoleWithWebIdentity is allowed (default-allow), preserving backward compatibility. When a trust policy file exists it is evaluated and the call is only allowed when the policy resolves to Allow with no explicit Deny.
+
+		The directory is watched with the same fsnotify-based hot-reload mechanism used for permission policies. It is kept separate from FAKES3PP_ROLE_POLICY_PATH so trust policies can be provisioned via a different mechanism.`,
+		[]string{proxysts},
 	},
 	{
 		stsMaxDurationSeconds,

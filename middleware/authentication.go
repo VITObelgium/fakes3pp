@@ -25,6 +25,32 @@ import (
 
 const L_AKID = "AKID" // Access Key ID
 
+// storeCredentialSelectionData parses the session token (without signature verification,
+// which was already done) and caches the token-derived selection attributes into requestctx
+// so that downstream middleware (credential selection, authz) can reuse them without
+// re-parsing the JWT.
+func storeCredentialSelectionData(r *http.Request, sessionToken string) {
+	// keyFunc=nil because the token was already validated; we only need the claims.
+	claims, err := credentials.ExtractTokenClaims(sessionToken, nil)
+	if err != nil {
+		// Non-fatal: credential selection will fall back gracefully.
+		return
+	}
+	issuer := claims.IIssuer
+	if issuer == "" {
+		issuer = claims.Issuer
+	}
+	var tags map[string][]string
+	if claims.Tags.PrincipalTags != nil {
+		tags = claims.Tags.PrincipalTags
+	}
+	requestctx.SetCredentialSelectionData(r, &requestctx.CredentialSelectionData{
+		ClaimsSubject: claims.Subject,
+		ClaimsIssuer:  issuer,
+		PrincipalTags: tags,
+	})
+}
+
 // Authentication middleware is responsible for the following:
 // Add the authentication type to the access log
 // Verify signature and its expiry as part of authentication
@@ -103,6 +129,7 @@ func handleAuthNPresigned(w http.ResponseWriter, r *http.Request, keyStorage uti
 	}
 	requestctx.AddAccessLogInfo(r, "s3", slog.String(L_AKID, creds.AccessKeyID))
 	requestctx.SetSessionToken(r, creds.SessionToken)
+	requestctx.SetRequestAccessKeyID(r, creds.AccessKeyID)
 
 	err = makeSureSessionTokenIsForAccessKey(creds.SessionToken, creds.AccessKeyID, keyStorage.GetJwtKeyFunc(), presignAuthOptions)
 	if err != nil {
@@ -110,6 +137,8 @@ func handleAuthNPresigned(w http.ResponseWriter, r *http.Request, keyStorage uti
 		e.WriteErrorResponse(r.Context(), w, service.ErrAuthorizationHeaderMalformed, err)
 		return false
 	}
+
+	storeCredentialSelectionData(r, creds.SessionToken)
 
 	addRegionToSession(r, backendManager)
 
@@ -164,6 +193,7 @@ func handleAuthNNormal(w http.ResponseWriter, r *http.Request, keyStorage utils.
 	}
 	requestctx.AddAccessLogInfo(r, "s3", slog.String(L_AKID, accessKeyId))
 	requestctx.SetSessionToken(r, sessionToken)
+	requestctx.SetRequestAccessKeyID(r, accessKeyId)
 
 	err = makeSureSessionTokenIsForAccessKey(sessionToken, accessKeyId, keyStorage.GetJwtKeyFunc(), nil)
 	if err != nil {
@@ -171,6 +201,8 @@ func handleAuthNNormal(w http.ResponseWriter, r *http.Request, keyStorage utils.
 		e.WriteErrorResponse(r.Context(), w, service.ErrAuthorizationHeaderMalformed, err)
 		return false
 	}
+
+	storeCredentialSelectionData(r, sessionToken)
 
 	addRegionToSession(r, backendManager)
 

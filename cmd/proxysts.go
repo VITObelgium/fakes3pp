@@ -38,12 +38,30 @@ func initializePolicyManager() (pm *iam.PolicyManager, err error) {
 	return iam.NewPolicyManagerForLocalPolicies(viper.GetString(rolePolicyPath))
 }
 
+// initializeTrustPolicyManager builds the optional PolicyManager that backs
+// trust policy evaluation. When FAKES3PP_ROLE_TRUST_POLICY_PATH is empty we
+// return (nil, nil) so the STS server skips trust evaluation entirely
+// (default-allow, preserving backward compatibility).
+func initializeTrustPolicyManager() (*iam.PolicyManager, error) {
+	path := viper.GetString(roleTrustPolicyPath)
+	if path == "" {
+		return nil, nil
+	}
+	return iam.NewPolicyManagerForLocalPolicies(path)
+}
+
 func buildSTSServer() server.Serverable {
 	BindEnvVariables(proxysts)
 	pm, err := initializePolicyManager()
 	if err != nil {
 		slog.Error("Could not initialize PolicyManager", "error", err)
 		panic(fmt.Sprintf("Clould not initialize PolicyManager %s", err))
+	}
+
+	tpm, err := initializeTrustPolicyManager()
+	if err != nil {
+		slog.Error("Could not initialize Trust PolicyManager", "error", err)
+		panic(fmt.Sprintf("Could not initialize Trust PolicyManager %s", err))
 	}
 
 	fqdns, err := getStsProxyFQDNs()
@@ -60,6 +78,7 @@ func buildSTSServer() server.Serverable {
 		viper.GetString(stsProxyTlsKeyFile),
 		viper.GetString(stsOIDCConfigFile),
 		pm,
+		tpm,
 		getMaxStsDurationSeconds(),
 		getMinStsDurationSeconds(),
 		getStsProxyHTTPPort(),

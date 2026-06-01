@@ -3,6 +3,7 @@
 ## Setup
 - Local proxy commands expect `etc.private` to exist. Bootstrap from `etc/` and update `etc.private/.env.docker` plus the referenced config files.
 - `make build-container` builds the single image used by both proxy entrypoints.
+- Optional: set `FAKES3PP_ROLE_TRUST_POLICY_PATH` to enable trust-policy enforcement for `AssumeRoleWithWebIdentity`. Files live in a separate directory from `FAKES3PP_ROLE_POLICY_PATH`, use the same `<base32(arn)>.json.tmpl` naming, and are hot-reloaded via fsnotify. When unset (or when no file exists for a given role) the call is allowed (default-allow). See `etc/trust-policies/README.md`.
 
 ## Entrypoints
 - The CLI binary is `fakes3pp` from `main.go`; the main server subcommands are `proxys3` and `proxysts` in `cmd/`.

@@ -86,6 +86,9 @@ func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request, targ
 		return
 	}
 	slog.DebugContext(ctx, "Selected credential rule", "rule", selectedRule, "backendId", targetBackendId)
+	if selectedRule != "_legacy_default" && selectedRule != "default" {
+		requestctx.AddAccessLogInfo(r, "s3", slog.String("CredRule", selectedRule))
+	}
 	payloadHash := r.Header.Get(constants.AmzContentSHAKey)
 	if payloadHash == "STREAMING-UNSIGNED-PAYLOAD-TRAILER" {
 		if !backendManager.HasCapability(targetBackendId, interfaces.S3CapabilityStreamingUnsignedPayloadTrailer) {

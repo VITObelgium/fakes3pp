@@ -19,11 +19,12 @@ func _() {
 	_ = x[CompleteMultipartUpload-8]
 	_ = x[AbortMultipartUpload-9]
 	_ = x[UploadPart-10]
+	_ = x[ListObjects-11]
 }
 
-const _S3Operation_name = "UnknownOperationListObjectsV2GetObjectListBucketsHeadBucketHeadObjectPutObjectCreateMultipartUploadCompleteMultipartUploadAbortMultipartUploadUploadPart"
+const _S3Operation_name = "UnknownOperationListObjectsV2GetObjectListBucketsHeadBucketHeadObjectPutObjectCreateMultipartUploadCompleteMultipartUploadAbortMultipartUploadUploadPartListObjects"
 
-var _S3Operation_index = [...]uint8{0, 16, 29, 38, 49, 59, 69, 78, 99, 122, 142, 152}
+var _S3Operation_index = [...]uint8{0, 16, 29, 38, 49, 59, 69, 78, 99, 122, 142, 152, 163}
 
 func (i S3Operation) String() string {
 	if i < 0 || i >= S3Operation(len(_S3Operation_index)-1) {

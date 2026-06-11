@@ -81,7 +81,7 @@ func newIamActionsFromS3Request(api_action api.S3Operation, req *http.Request, s
 			session,
 		)
 		actions = append(actions, a)
-	case api.ListObjectsV2:
+	case api.ListObjectsV2, api.ListObjects:
 		bucket, _, err = getS3ObjectFromRequest(req, vhi)
 		if err != nil {
 			return nil, err

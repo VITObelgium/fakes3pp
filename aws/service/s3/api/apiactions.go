@@ -15,4 +15,5 @@ const (
 	CompleteMultipartUpload
 	AbortMultipartUpload
 	UploadPart
+	ListObjects
 )

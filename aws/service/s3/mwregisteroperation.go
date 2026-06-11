@@ -24,6 +24,11 @@ func RegisterOperation() middleware.Middleware {
 	s3Router.Methods(http.MethodGet).Queries("list-type", "2").HandlerFunc(registerOperation(api.ListObjectsV2))
 	s3Router.Methods(http.MethodGet).Path("/").HandlerFunc(
 		registerOperation(api.ListBuckets))
+	// https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListObjects.html
+	s3Router.Methods(http.MethodGet).Path("/{bucket}").HandlerFunc(
+		registerOperation(api.ListObjects))
+	s3Router.Methods(http.MethodGet).Path("/{bucket}/").HandlerFunc(
+		registerOperation(api.ListObjects))
 	s3Router.Methods(http.MethodGet).HandlerFunc(
 		registerOperation(api.GetObject))
 	s3Router.Methods(http.MethodHead).Path("/").HandlerFunc(

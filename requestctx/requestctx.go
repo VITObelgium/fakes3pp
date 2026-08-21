@@ -461,29 +461,151 @@ func NewContextFromHttpRequestWithStartTime(req *http.Request, reqStartTime time
 	return NewContext(req.Context(), &rCtx)
 }
 
+// trustedProxyNets holds the networks from which X-Forwarded-For and
+// X-Real-Ip headers are trusted for client-IP resolution.
+// Set once at startup via SetTrustedProxies before serving requests.
+var trustedProxyNets []*net.IPNet
+
+// SetTrustedProxies configures the networks whose forwarding headers are
+// trusted. Call once at startup, before serving requests. Accepts CIDR
+// notation ("10.0.0.0/8") or bare IP addresses ("10.1.2.3").
+func SetTrustedProxies(cidrs []string) error {
+	nets, err := parseTrustedProxyCIDRs(cidrs)
+	if err != nil {
+		return err
+	}
+	trustedProxyNets = nets
+	return nil
+}
+
+// parseTrustedProxyCIDRs converts a slice of CIDR strings or bare IP
+// addresses into a slice of *net.IPNet values.
+func parseTrustedProxyCIDRs(cidrs []string) ([]*net.IPNet, error) {
+	result := make([]*net.IPNet, 0, len(cidrs))
+	for _, raw := range cidrs {
+		raw = strings.TrimSpace(raw)
+		if raw == "" {
+			continue
+		}
+		// Try CIDR notation first.
+		_, ipNet, err := net.ParseCIDR(raw)
+		if err == nil {
+			result = append(result, ipNet)
+			continue
+		}
+		// Fall back to bare IP → /32 (IPv4) or /128 (IPv6).
+		ip := net.ParseIP(raw)
+		if ip == nil {
+			return nil, fmt.Errorf("invalid trusted proxy CIDR or IP address %q", raw)
+		}
+		bits := 32
+		if ip.To4() == nil {
+			bits = 128
+		}
+		_, ipNet, _ = net.ParseCIDR(fmt.Sprintf("%s/%d", ip.String(), bits))
+		result = append(result, ipNet)
+	}
+	return result, nil
+}
+
+// isTrustedProxy reports whether the given IP string is contained in any of
+// the configured trusted proxy networks.
+func isTrustedProxy(ip string) bool {
+	parsed := net.ParseIP(ip)
+	if parsed == nil {
+		return false
+	}
+	for _, network := range trustedProxyNets {
+		if network.Contains(parsed) {
+			return true
+		}
+	}
+	return false
+}
+
+// peerIPFromRemoteAddr extracts the host portion of a "host:port" string.
+// Returns the raw string when net.SplitHostPort fails (e.g. bare IP).
+func peerIPFromRemoteAddr(remoteAddr string) string {
+	host, _, err := net.SplitHostPort(remoteAddr)
+	if err != nil {
+		return remoteAddr
+	}
+	return host
+}
+
 // extractClientIP resolves the apparent client IP from the incoming HTTP
-// request, honouring common reverse-proxy headers. Precedence:
-//  1. First non-empty entry of `X-Forwarded-For` (comma-separated).
-//  2. `X-Real-IP` header.
-//  3. The host portion of `req.RemoteAddr` (port stripped when present).
+// request.
 //
-// The returned value is used both for access logging and as the
-// `aws:SourceIp` request context key during IAM policy evaluation.
+// X-Forwarded-For and X-Real-Ip are only honoured when the direct TCP peer
+// (RemoteAddr) is listed in the trusted proxy networks configured via
+// SetTrustedProxies. When a forwarding header is present from an untrusted
+// peer, a WARN is logged and the raw RemoteAddr is used instead. This
+// prevents a client from spoofing its IP by injecting forwarding headers.
+//
+// When no trusted proxies are configured (the default), forwarding headers
+// are never trusted and RemoteAddr is always used.
+//
+// X-Forwarded-For is walked right-to-left when the peer is trusted. Each
+// entry was appended by a successive hop; starting from the right allows us
+// to skip over hops that are themselves trusted proxies and arrive at the
+// first IP that is not — i.e. the real client. This defeats a common
+// spoofing technique where a client prepends a fake IP to the header before
+// the request reaches the first trusted proxy.
+//
+// Example with trusted set {10.0.0.0/8}:
+//
+//	XFF: spoofed, 203.0.113.5, 10.0.0.2   RemoteAddr: 10.0.0.1 (trusted)
+//	  → skip 10.0.0.2 (trusted)
+//	  → return 203.0.113.5 (first untrusted from the right)
+//	  → "spoofed" is never reached
+//
+// If every entry in the XFF header is a trusted proxy the leftmost entry is
+// returned (fully-trusted chain, the leftmost is the originating client).
+//
+// Precedence when the peer is trusted:
+//  1. X-Forwarded-For, evaluated right-to-left as described above.
+//  2. X-Real-Ip (single value set by the trusted peer, no chain to walk).
+//  3. The host portion of req.RemoteAddr.
 func extractClientIP(req *http.Request) string {
+	peerIP := peerIPFromRemoteAddr(req.RemoteAddr)
+
+	hasForwardingHeader := req.Header.Get("X-Forwarded-For") != "" ||
+		req.Header.Get("X-Real-Ip") != ""
+
+	if hasForwardingHeader && !isTrustedProxy(peerIP) {
+		slog.WarnContext(req.Context(),
+			"Forwarding header ignored: peer is not a configured trusted proxy",
+			"peerIP", peerIP,
+			"hint", "set FAKES3PP_FORWARDED_HEADERS_TRUSTED_IPS to trust this peer",
+		)
+		return peerIP
+	}
+
 	if xff := req.Header.Get("X-Forwarded-For"); xff != "" {
-		for _, part := range strings.Split(xff, ",") {
-			if v := strings.TrimSpace(part); v != "" {
-				return v
+		parts := strings.Split(xff, ",")
+		// Walk right-to-left: skip trusted-proxy entries, return the first
+		// untrusted one. That is the rightmost IP outside our trusted network,
+		// i.e. the real client (or the last hop we cannot vouch for).
+		for i := len(parts) - 1; i >= 0; i-- {
+			ip := strings.TrimSpace(parts[i])
+			if ip == "" {
+				continue
+			}
+			if !isTrustedProxy(ip) {
+				return ip
+			}
+		}
+		// Every entry was a trusted proxy — the leftmost is the true origin.
+		for _, part := range parts {
+			if ip := strings.TrimSpace(part); ip != "" {
+				return ip
 			}
 		}
 	}
 	if xr := strings.TrimSpace(req.Header.Get("X-Real-Ip")); xr != "" {
 		return xr
 	}
-	if host, _, err := net.SplitHostPort(req.RemoteAddr); err == nil {
-		return host
-	}
-	return req.RemoteAddr
+	return peerIP
 }
 
 // GetSourceIP returns the client IP address associated with the request.

@@ -8,6 +8,7 @@ import (
 
 	"github.com/VITObelgium/fakes3pp/aws/service/s3"
 	"github.com/VITObelgium/fakes3pp/aws/service/s3/interfaces"
+	"github.com/VITObelgium/fakes3pp/requestctx"
 	"github.com/VITObelgium/fakes3pp/server"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -17,6 +18,11 @@ const proxys3 = "proxys3"
 
 func buildS3Server() server.Serverable {
 	BindEnvVariables(proxys3)
+
+	if err := requestctx.SetTrustedProxies(viper.GetStringSlice(forwardedHeadersTrustedIPs)); err != nil {
+		slog.Error("Could not configure trusted proxy CIDRs", "error", err)
+		panic(fmt.Sprintf("Could not configure trusted proxy CIDRs: %s", err))
+	}
 
 	pm, err := initializePolicyManager()
 	if err != nil {
@@ -52,6 +58,8 @@ func buildS3Server() server.Serverable {
 		getS3CORSHandler(),
 		getS3ProxyHTTPPort(),
 		viper.GetStringSlice(s3LoggedResponseHeaders),
+		viper.GetInt(s3MaxConcurrentRequestsPerIP),
+		viper.GetInt(s3MaxConcurrentRequests),
 	)
 	if err != nil {
 		slog.Error("Could not create S3 server", "error", err)

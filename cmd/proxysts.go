@@ -27,6 +27,7 @@ import (
 
 	"github.com/VITObelgium/fakes3pp/aws/service/iam"
 	"github.com/VITObelgium/fakes3pp/aws/service/sts"
+	"github.com/VITObelgium/fakes3pp/requestctx"
 	"github.com/VITObelgium/fakes3pp/server"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -52,6 +53,12 @@ func initializeTrustPolicyManager() (*iam.PolicyManager, error) {
 
 func buildSTSServer() server.Serverable {
 	BindEnvVariables(proxysts)
+
+	if err := requestctx.SetTrustedProxies(viper.GetStringSlice(forwardedHeadersTrustedIPs)); err != nil {
+		slog.Error("Could not configure trusted proxy CIDRs", "error", err)
+		panic(fmt.Sprintf("Could not configure trusted proxy CIDRs: %s", err))
+	}
+
 	pm, err := initializePolicyManager()
 	if err != nil {
 		slog.Error("Could not initialize PolicyManager", "error", err)

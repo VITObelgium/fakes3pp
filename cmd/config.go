@@ -61,21 +61,27 @@ const (
 	metricsPort                                      = "metricsPort"
 	s3CorsStrategy                                   = "corsStrategy"
 	s3LoggedResponseHeaders                          = "s3LoggedResponseHeaders"
+	s3MaxConcurrentRequestsPerIP                     = "s3MaxConcurrentRequestsPerIP"
+	s3MaxConcurrentRequests                          = "s3MaxConcurrentRequests"
+	forwardedHeadersTrustedIPs                       = "forwardedHeadersTrustedIPs"
 
 	//Environment variables are upper cased
 	//Unless they are wellknown environment variables they should be prefixed
-	FAKES3PP_S3_PROXY_FQDN                   = "FAKES3PP_S3_PROXY_FQDN"
-	FAKES3PP_S3_PROXY_TLS_PORT               = "FAKES3PP_S3_PROXY_TLS_PORT"
-	FAKES3PP_S3_PROXY_TLS_KEY_FILE           = "FAKES3PP_S3_PROXY_TLS_KEY_FILE"
-	FAKES3PP_S3_PROXY_TLS_CERT_FILE          = "FAKES3PP_S3_PROXY_TLS_CERT_FILE"
-	FAKES3PP_S3_PROXY_HTTP_PORT              = "FAKES3PP_S3_PROXY_HTTP_PORT"
-	FAKES3PP_PROXY_JWT_PUBLIC_RSA_KEY        = "FAKES3PP_PROXY_JWT_PUBLIC_RSA_KEY"
-	FAKES3PP_PROXY_JWT_PRIVATE_RSA_KEY       = "FAKES3PP_PROXY_JWT_PRIVATE_RSA_KEY"
-	FAKES3PP_S3_PROXY_REMOVABLE_QUERY_PARAMS = "FAKES3PP_S3_PROXY_REMOVABLE_QUERY_PARAMS"
-	FAKES3PP_S3_CORS_STRATEGY                = "FAKES3PP_S3_CORS_STRATEGY"
-	FAKES3PP_S3_CORS_STATIC_ALLOWED_ORIGIN   = "FAKES3PP_S3_CORS_STATIC_ALLOWED_ORIGIN"
-	FAKES3PP_S3_FORCE_REQUESTER_PAYS_FOR     = "FAKES3PP_S3_FORCE_REQUESTER_PAYS_FOR"
-	FAKES3PP_S3_LOGGED_RESPONSE_HEADERS      = "FAKES3PP_S3_LOGGED_RESPONSE_HEADERS"
+	FAKES3PP_S3_PROXY_FQDN                     = "FAKES3PP_S3_PROXY_FQDN"
+	FAKES3PP_S3_PROXY_TLS_PORT                 = "FAKES3PP_S3_PROXY_TLS_PORT"
+	FAKES3PP_S3_PROXY_TLS_KEY_FILE             = "FAKES3PP_S3_PROXY_TLS_KEY_FILE"
+	FAKES3PP_S3_PROXY_TLS_CERT_FILE            = "FAKES3PP_S3_PROXY_TLS_CERT_FILE"
+	FAKES3PP_S3_PROXY_HTTP_PORT                = "FAKES3PP_S3_PROXY_HTTP_PORT"
+	FAKES3PP_PROXY_JWT_PUBLIC_RSA_KEY          = "FAKES3PP_PROXY_JWT_PUBLIC_RSA_KEY"
+	FAKES3PP_PROXY_JWT_PRIVATE_RSA_KEY         = "FAKES3PP_PROXY_JWT_PRIVATE_RSA_KEY"
+	FAKES3PP_S3_PROXY_REMOVABLE_QUERY_PARAMS   = "FAKES3PP_S3_PROXY_REMOVABLE_QUERY_PARAMS"
+	FAKES3PP_S3_CORS_STRATEGY                  = "FAKES3PP_S3_CORS_STRATEGY"
+	FAKES3PP_S3_CORS_STATIC_ALLOWED_ORIGIN     = "FAKES3PP_S3_CORS_STATIC_ALLOWED_ORIGIN"
+	FAKES3PP_S3_FORCE_REQUESTER_PAYS_FOR       = "FAKES3PP_S3_FORCE_REQUESTER_PAYS_FOR"
+	FAKES3PP_S3_LOGGED_RESPONSE_HEADERS        = "FAKES3PP_S3_LOGGED_RESPONSE_HEADERS"
+	FAKES3PP_S3_MAX_CONCURRENT_REQUESTS_PER_IP = "FAKES3PP_S3_MAX_CONCURRENT_REQUESTS_PER_IP"
+	FAKES3PP_S3_MAX_CONCURRENT_REQUESTS        = "FAKES3PP_S3_MAX_CONCURRENT_REQUESTS"
+	FAKES3PP_FORWARDED_HEADERS_TRUSTED_IPS     = "FAKES3PP_FORWARDED_HEADERS_TRUSTED_IPS"
 
 	FAKES3PP_STS_PROXY_FQDN          = "FAKES3PP_STS_PROXY_FQDN"
 	FAKES3PP_STS_PROXY_TLS_PORT      = "FAKES3PP_STS_PROXY_TLS_PORT"
@@ -238,6 +244,27 @@ var envVarDefs = []envVarDef{
 		false,
 		"Comma-separated list of upstream response header names to include in the S3 access log under the s3 group (e.g. x-ratelimit-remaining,x-ratelimit-limit)",
 		[]string{proxys3},
+	},
+	{
+		s3MaxConcurrentRequestsPerIP,
+		FAKES3PP_S3_MAX_CONCURRENT_REQUESTS_PER_IP,
+		false,
+		"Maximum number of simultaneous in-flight S3 requests allowed from a single client IP. Requests that exceed this limit are rejected immediately with HTTP 503 SlowDown. 0 (default) disables the per-IP limit.",
+		[]string{proxys3},
+	},
+	{
+		s3MaxConcurrentRequests,
+		FAKES3PP_S3_MAX_CONCURRENT_REQUESTS,
+		false,
+		"Maximum total number of simultaneous in-flight S3 requests regardless of client IP. Requests that exceed this limit are rejected immediately with HTTP 503 SlowDown. 0 (default) disables the global limit.",
+		[]string{proxys3},
+	},
+	{
+		forwardedHeadersTrustedIPs,
+		FAKES3PP_FORWARDED_HEADERS_TRUSTED_IPS,
+		false,
+		`Space-separated list of trusted proxy IP addresses or CIDR ranges (e.g. "10.0.0.0/8 172.16.0.1") whose X-Forwarded-For and X-Real-Ip headers are trusted for client-IP resolution. When a request carries a forwarding header but its direct peer (RemoteAddr) is not in this list, a warning is logged and the header is ignored. If unset, forwarding headers are never trusted.`,
+		[]string{proxys3, proxysts},
 	},
 	{
 		rolePolicyPath,

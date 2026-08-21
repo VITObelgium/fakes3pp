@@ -125,6 +125,7 @@ const (
 	ErrS3InvalidSecurity
 	ErrS3InvalidRegion
 	ErrS3AuthorizationHeaderMalformed
+	ErrS3SlowDown
 )
 
 type s3ErrorCodeMap map[S3ErrorCode]S3Error
@@ -178,5 +179,16 @@ var s3ErrCodes = s3ErrorCodeMap{
 		Code:           "AuthorizationHeaderMalformed",
 		Description:    "The authorization header that you provided is not valid.",
 		HTTPStatusCode: http.StatusBadRequest,
+	},
+	// AWS S3 returns SlowDown with HTTP 503 when the request rate for a bucket
+	// or account is too high. Using 503 (rather than 429) matches the real S3
+	// behaviour, which means aws-sdk-go and boto3 both handle it automatically
+	// via their built-in retry-with-exponential-backoff logic — no application-
+	// level changes are required on the client side.
+	// See: https://docs.aws.amazon.com/AmazonS3/latest/API/ErrorResponses.html
+	ErrS3SlowDown: {
+		Code:           "SlowDown",
+		Description:    "Please reduce your request rate.",
+		HTTPStatusCode: http.StatusServiceUnavailable,
 	},
 }

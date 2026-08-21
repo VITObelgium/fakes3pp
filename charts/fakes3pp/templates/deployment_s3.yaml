@@ -147,6 +147,7 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      priority: {{ .Values.s3.priority }}
-      preemptionPolicy: {{ .Values.s3.preemptionPolicy }}
+      {{- with .Values.s3.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
 {{- end }}

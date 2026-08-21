@@ -267,8 +267,7 @@ sts:
 
   affinity: {}
 
-  priority: 0
-  preemptionPolicy: PreemptLowerPriority
+  priorityClassName: ""
 
   envFrom: []
     # - configMapRef:
@@ -491,8 +490,7 @@ s3:
 
   affinity: {}
 
-  priority: 0
-  preemptionPolicy: PreemptLowerPriority
+  priorityClassName: ""
 
   envFrom: []
     # - configMapRef:

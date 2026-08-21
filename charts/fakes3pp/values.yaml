@@ -32,6 +32,13 @@ shared:
     # for 19 days because presigning happens client-side.
     signedURLGraceTimeSeconds: 0
 
+    # Trusted proxy IPs or CIDRs for forwarding-header resolution.
+    # X-Forwarded-For and X-Real-Ip are only trusted for client-IP resolution
+    # when the direct TCP peer (RemoteAddr) is in this list.  Applies to both
+    # the S3 and STS proxies.  Leave empty to always use RemoteAddr (default).
+    # Example: ["10.0.0.0/8", "172.16.0.1"]
+    forwardedHeadersTrustedIPs: []
+
     # If a request Id header starts with this prefix we force logging at all levels
     # This allows to increase log verbosity for particular request for troubleshooting purposes.
     forceLoggingRequestIdPrefix: "00000000"
@@ -342,6 +349,16 @@ s3:
   # logged under the "s3" access-log group.  Header names are used as
   # configured (casing is preserved).
   loggedResponseHeaders: []
+
+  # Concurrency limiting for the S3 proxy.
+  # maxConcurrentRequestsPerIP caps simultaneous in-flight requests from a
+  # single client IP.  maxConcurrentRequests is a hard global ceiling across
+  # all IPs.  Both default to 0 (disabled).  When either limit is exceeded the
+  # proxy returns HTTP 503 SlowDown, matching real AWS S3 throttle behaviour;
+  # aws-sdk-go and boto3 will automatically retry with exponential back-off.
+  concurrencyLimiting:
+    maxConcurrentRequestsPerIP: 0
+    maxConcurrentRequests: 0
 
   # The S3 proxy can be deployed in multiple ways:
   # - deployment: This is the default way where the most common use case is to expose an S3 endpoint

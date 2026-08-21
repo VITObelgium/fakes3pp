@@ -260,6 +260,9 @@ sts:
 
   affinity: {}
 
+  priority: 0
+  preemptionPolicy: PreemptLowerPriority
+
   envFrom: []
     # - configMapRef:
     #     name: your-config-map
@@ -470,6 +473,9 @@ s3:
   tolerations: []
 
   affinity: {}
+
+  priority: 0
+  preemptionPolicy: PreemptLowerPriority
 
   envFrom: []
     # - configMapRef:

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/VITObelgium/fakes3pp/aws/service/iam"
+	"github.com/VITObelgium/fakes3pp/requestctx"
 	"github.com/VITObelgium/fakes3pp/utils"
 )
 
@@ -337,6 +338,10 @@ func TestTrustPolicy_SourceIpDeny(t *testing.T) {
 //  11. X-Forwarded-For overrides RemoteAddr for aws:SourceIp evaluation so the
 //     proxy can sit behind a load balancer.
 func TestTrustPolicy_SourceIpFromXForwardedFor(t *testing.T) {
+	if err := requestctx.SetTrustedProxies([]string{"203.0.113.1"}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = requestctx.SetTrustedProxies(nil) })
 	dir := t.TempDir()
 	writeTrustPolicyFile(t, dir, testPolicyArnForTestPM, fmt.Sprintf(`{
 		"Version": "2012-10-17",

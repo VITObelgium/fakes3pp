@@ -58,6 +58,8 @@ func NewS3Server(
 	corsHandler interfaces.CORSHandler,
 	extraHTTPPort int,
 	loggedResponseHeaders []string,
+	perIPConcurrencyLimit int,
+	globalConcurrencyLimit int,
 ) (s server.Serverable, err error) {
 	s3BackendCfg, err := getBackendsConfig(s3BackendConfigFilePath, backendLegacyBehaviorDefaultRegion)
 	if err != nil {
@@ -72,6 +74,13 @@ func NewS3Server(
 	}
 	if proxyHB == nil {
 		proxyHB = handlerBuilderToJustProxy
+	}
+	var concurrencyLimiter *ConcurrencyLimitMiddleware
+	if perIPConcurrencyLimit > 0 || globalConcurrencyLimit > 0 {
+		concurrencyLimiter, err = NewConcurrencyLimitMiddleware(perIPConcurrencyLimit, globalConcurrencyLimit)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return newS3Server(
 		jwtPrivateRSAKeyFilePath,
@@ -89,6 +98,7 @@ func NewS3Server(
 		corsHandler,
 		extraHTTPPort,
 		loggedResponseHeaders,
+		concurrencyLimiter,
 	)
 }
 func newS3Server(
@@ -107,6 +117,7 @@ func newS3Server(
 	corsHandler interfaces.CORSHandler,
 	extraHTTPPort int,
 	loggedResponseHeaders []string,
+	concurrencyLimiter *ConcurrencyLimitMiddleware,
 ) (s *S3Server, err error) {
 	key, err := utils.NewKeyStorage(jwtPrivateRSAKeyFilePath)
 	if err != nil {
@@ -148,6 +159,11 @@ func newS3Server(
 		}
 		if len(loggedResponseHeaders) > 0 {
 			mws = append(mws, LogResponseHeaders(loggedResponseHeaders))
+		}
+		// Concurrency limiter runs first — before auth — so that the auth
+		// path is also protected from being overwhelmed.
+		if concurrencyLimiter != nil {
+			mws = append([]middleware.Middleware{concurrencyLimiter.Middleware()}, mws...)
 		}
 	}
 	s.mws = mws

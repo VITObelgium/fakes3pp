@@ -467,7 +467,7 @@ func TestWithValidCredsWhereNoSpacesInAuthorizationHeader(t *testing.T) {
 
 func getTestUUID4WithPrefix(prefix string) string {
 	fully_random := uuid.New().String()
-	if prefix > fully_random {
+	if len(prefix) > len(fully_random) {
 		panic("Impossible to use a prefix longer than the actual uuid4")
 	}
 	return strings.Join([]string{prefix, fully_random[len(prefix):]}, "")

@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"net"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/VITObelgium/fakes3pp/aws/service/s3/api"
 	"github.com/VITObelgium/fakes3pp/aws/service/s3/interfaces"
@@ -56,9 +58,35 @@ func (hb handlerBuilder) Build(backendManager interfaces.BackendManager, corsHan
 	}
 }
 
+// proxyHTTPClient is a package-level shared client reused for all upstream
+// requests. A single client avoids per-request allocation and GC pressure at
+// high concurrency, and allows the connection pool to be shared across all
+// concurrent proxy goroutines.
+//
+// MaxIdleConnsPerHost is raised to 100 (default: 2) because a proxy sends many
+// concurrent requests to a small set of backend hosts and needs a warm pool to
+// avoid constant TCP/TLS handshake overhead.
+//
+// A dedicated Transport is used instead of http.DefaultTransport to avoid
+// interference with the TLS config mutation in the health-check path.
+var proxyHTTPClient = &http.Client{
+	Transport: &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          100,
+		MaxIdleConnsPerHost:   100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	},
+}
+
 func defaultRequester(r *http.Request) (*http.Response, error) {
-	client := &http.Client{}
-	return client.Do(r) // #nosec G704 -- proxy forwards only after reTargetRequest points to configured backend endpoints
+	return proxyHTTPClient.Do(r) // #nosec G704 -- proxy forwards only after reTargetRequest points to configured backend endpoints
 }
 
 func justProxy(ctx context.Context, w http.ResponseWriter, r *http.Request, targetBackendId string, backendManager interfaces.BackendManager,

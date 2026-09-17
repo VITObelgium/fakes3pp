@@ -22,10 +22,7 @@ spec:
     type: {{ .Values.s3.rollout.strategy }}
   template:
     metadata:
-      {{- with .Values.s3.podAnnotations }}
-      annotations:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+      {{- include "fakes3pp.s3PodAnnotations" . | nindent 6 }}
       labels:
         {{- include "fakes3pp.labelsS3" . | nindent 8 }}
         {{- with .Values.s3.podLabels }}

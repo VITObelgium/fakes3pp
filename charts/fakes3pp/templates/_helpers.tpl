@@ -97,3 +97,45 @@ Create the name of the service account to use
 {{- default "default" .Values.s3.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+{{/*
+Baseline annotations shared by both S3 and STS pods: a standard
+"managed-by" annotation (always present) plus an optional checksum derived
+from shared.config.jwt.configHash. Setting configHash forces a rollout when
+the jwt Secret is provisioned outside of Helm and its content changes.
+*/}}
+{{- define "fakes3pp.sharedPodAnnotations" -}}
+app.kubernetes.io/managed-by: {{ .Release.Service }}
+{{- if .Values.shared.config.jwt.configHash }}
+checksum/config-jwt: {{ .Values.shared.config.jwt.configHash | quote }}
+{{- end }}
+{{- end -}}
+
+{{/*
+Pod annotations for the S3 Deployment/DaemonSet: shared baseline annotations,
+s3.podAnnotations, and an optional checksum derived from
+s3.config.backends.configHash (forces a rollout when the backend-config
+Secret is provisioned outside of Helm and its content changes).
+*/}}
+{{- define "fakes3pp.s3PodAnnotations" -}}
+annotations:
+  {{- include "fakes3pp.sharedPodAnnotations" . | nindent 2 }}
+  {{- with .Values.s3.podAnnotations }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
+  {{- if .Values.s3.config.backends.configHash }}
+  checksum/config-backends: {{ .Values.s3.config.backends.configHash | quote }}
+  {{- end }}
+{{- end -}}
+
+{{/*
+Pod annotations for the STS Deployment: shared baseline annotations plus
+sts.podAnnotations.
+*/}}
+{{- define "fakes3pp.stsPodAnnotations" -}}
+annotations:
+  {{- include "fakes3pp.sharedPodAnnotations" . | nindent 2 }}
+  {{- with .Values.sts.podAnnotations }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
+{{- end -}}

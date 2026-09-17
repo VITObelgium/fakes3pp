@@ -13,10 +13,7 @@ spec:
       {{- include "fakes3pp.selectorLabelsSTS" . | nindent 6 }}
   template:
     metadata:
-      {{- with .Values.sts.podAnnotations }}
-      annotations:
-        {{- toYaml . | nindent 8 }}
-      {{- end }}
+      {{- include "fakes3pp.stsPodAnnotations" . | nindent 6 }}
       labels:
         {{- include "fakes3pp.labelsSTS" . | nindent 8 }}
         {{- with .Values.sts.podLabels }}

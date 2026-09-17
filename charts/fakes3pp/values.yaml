@@ -66,6 +66,18 @@ shared:
 
       secretName: fakes3pp-jwt  # pragma: allowlist secret
 
+      # Optional externally-supplied hash used to force a rollout when this Secret's
+      # real content changes outside of Helm (e.g. when `data` above is left unset
+      # and the Secret is provisioned by another process/pipeline).
+      # When non-empty this value is rendered as a pod-template annotation so a
+      # change in value triggers a new rollout, similar to the well known
+      # "checksum/config" annotation pattern.
+      # Preferred practice: set this to the sha256sum of the actual secret content,
+      # e.g. `sha256sum jwt_rsa jwt_rsa.pub | sha256sum | cut -d' ' -f1`, since a
+      # hex sha256 digest is always a valid annotation value and changes
+      # deterministically whenever the underlying secret changes.
+      configHash: ""
+
       # The below is just for illustrationg purposes to show how values could be used
       # these keys should never be used for production see `etc/README.md`
       # Most often you want to --set shared.config.jwt.data=null and provision the
@@ -289,6 +301,18 @@ s3:
       dir: /etc/regions    # pragma: allowlist secret
       filename: backend-config.yaml
       secretName: fakes3pp-backend-config  # pragma: allowlist secret
+
+      # Optional externally-supplied hash used to force a rollout when this Secret's
+      # real content changes outside of Helm (e.g. when `config` below is left
+      # unset and the Secret is provisioned by another process/pipeline).
+      # When non-empty this value is rendered as a pod-template annotation so a
+      # change in value triggers a new rollout, similar to the well known
+      # "checksum/config" annotation pattern.
+      # Preferred practice: set this to the sha256sum of the actual secret content,
+      # e.g. `sha256sum backend-config.yaml | cut -d' ' -f1`, since a hex sha256
+      # digest is always a valid annotation value and changes deterministically
+      # whenever the underlying secret changes.
+      configHash: ""
 
       default: "test-region"
       config:

@@ -168,6 +168,80 @@ func TestTLSReloaderReloadOnFileChange(t *testing.T) {
 	t.Fatal("timed out waiting for certificate reload after file change")
 }
 
+// writeK8sSecretVersion mimics the layout kubelet's AtomicWriter uses for a
+// Secret volume: files live in a timestamped dir, `..data` is a symlink to
+// that dir and the top-level file names are symlinks into `..data`.
+//
+//	dir/tls.crt -> ..data/tls.crt
+//	dir/..data  -> ..<ts>
+//	dir/..<ts>/{tls.crt,tls.key}
+//
+// On rotation a new timestamped dir is written, the `..data` symlink is
+// atomically replaced (symlink + rename) and the old dir is removed.
+func writeK8sSecretVersion(t testing.TB, dir, ts string, certPEM, keyPEM []byte) {
+	t.Helper()
+	versionDir := filepath.Join(dir, ".."+ts)
+	if err := os.Mkdir(versionDir, 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(versionDir, "tls.crt"), certPEM, 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(versionDir, "tls.key"), keyPEM, 0600); err != nil {
+		t.Fatal(err)
+	}
+	tmpLink := filepath.Join(dir, "..data_tmp")
+	if err := os.Symlink(".."+ts, tmpLink); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(tmpLink, filepath.Join(dir, "..data")); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestTLSReloaderReloadOnKubernetesSecretRotation verifies that a rotation
+// performed the way kubelet does it (symlink swap + removal of the old
+// directory, no in-place write) results in the new certificate being served.
+func TestTLSReloaderReloadOnKubernetesSecretRotation(t *testing.T) {
+	dir := t.TempDir()
+	certPEM1, keyPEM1 := generateSelfSignedCert(t)
+	writeK8sSecretVersion(t, dir, "ts1", certPEM1, keyPEM1)
+	certFile := filepath.Join(dir, "tls.crt")
+	keyFile := filepath.Join(dir, "tls.key")
+	if err := os.Symlink("..data/tls.crt", certFile); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink("..data/tls.key", keyFile); err != nil {
+		t.Fatal(err)
+	}
+
+	r, err := newTLSCertificateReloader(certFile, keyFile)
+	if err != nil {
+		t.Fatalf("newTLSCertificateReloader: %v", err)
+	}
+	defer r.Close()
+
+	cert1, _ := r.GetCertificate(nil)
+	serial1 := certSerial(t, cert1)
+
+	// Rotate like kubelet: new version dir, swap ..data, remove old dir.
+	certPEM2, keyPEM2 := generateSelfSignedCert(t)
+	writeK8sSecretVersion(t, dir, "ts2", certPEM2, keyPEM2)
+	if err := os.RemoveAll(filepath.Join(dir, "..ts1")); err != nil {
+		t.Fatal(err)
+	}
+
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		cert2, _ := r.GetCertificate(nil)
+		if certSerial(t, cert2).Cmp(serial1) != 0 {
+			return // success
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatal("timed out waiting for certificate reload after kubernetes-style secret rotation")
+}
+
 // TestTLSReloaderKeepsLastGoodCertOnInvalidReplacement writes garbage bytes
 // over the cert file and verifies that the reloader keeps the previous valid
 // certificate rather than replacing it with nil.

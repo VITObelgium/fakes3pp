@@ -53,6 +53,7 @@ func newTLSCertificateReloader(certFile, keyFile string) (*tlsCertificateReloade
 
 	//Then we load them so if they change we should not have a race condition between loading and watching.
 	if err := r.loadLocked(); err != nil {
+		_ = watcher.Close()
 		return nil, err
 	}
 
@@ -83,20 +84,18 @@ func (r *tlsCertificateReloader) watchLoop() {
 			}
 			slog.Debug("TLS certificate watcher event", "event", event)
 			if event.Has(fsnotify.Write) || event.Has(fsnotify.Create) {
-				slog.Info("TLS certificate file changed, reloading", "file", event.Name)
-				if err := r.loadLocked(); err != nil {
-					slog.Warn("Failed to reload TLS certificate, keeping previous cert",
-						"file", event.Name, "error", err)
-				} else {
-					slog.Info("TLS certificate reloaded successfully")
-				}
+				r.reload(event.Name)
 			}
 			if event.Has(fsnotify.Remove) {
-				slog.Warn("TLS certificate file removed, waiting for it to reappear",
-					"file", event.Name)
-				// Kubernetes secret rotation replaces via remove+create; re-arm
-				// the watch so we catch the new file when it arrives.
-				r.rearmWatch(event.Name)
+				// Kubernetes secret rotation swaps the ..data symlink and then
+				// deletes the old directory, so the watched inode only ever
+				// emits Remove; the path already points at the new file. Re-arm
+				// the watch and reload from the path if it exists.
+				if r.rearmWatch(event.Name) {
+					r.reload(event.Name)
+				} else {
+					slog.Error("TLS certificate file removed not replaced", "file", event.Name)
+				}
 			}
 		case err, ok := <-r.watcher.Errors:
 			if !ok {
@@ -107,16 +106,31 @@ func (r *tlsCertificateReloader) watchLoop() {
 	}
 }
 
-// rearmWatch removes a stale watch entry (ignoring errors) and adds it back
-// only if the file already exists again.
-func (r *tlsCertificateReloader) rearmWatch(fileName string) {
-	_ = r.watcher.Remove(fileName)
-	if _, err := os.Stat(fileName); err == nil {
-		if addErr := r.watcher.Add(fileName); addErr != nil {
-			slog.Error("Could not re-arm TLS certificate watcher", "file", fileName,
-				"error", addErr)
-		}
+// reload attempts to load the cert/key pair from disk, keeping the previous
+// certificate on failure.
+func (r *tlsCertificateReloader) reload(fileName string) {
+	slog.Info("TLS certificate file changed, reloading", "file", fileName)
+	if err := r.loadLocked(); err != nil {
+		slog.Warn("Failed to reload TLS certificate, keeping previous cert",
+			"file", fileName, "error", err)
+	} else {
+		slog.Info("TLS certificate reloaded successfully")
 	}
+}
+
+// rearmWatch removes a stale watch entry (ignoring errors) and adds it back
+// if the file already exists again. It reports whether the watch is active.
+func (r *tlsCertificateReloader) rearmWatch(fileName string) bool {
+	_ = r.watcher.Remove(fileName)
+	if _, err := os.Stat(fileName); err != nil {
+		return false
+	}
+	if addErr := r.watcher.Add(fileName); addErr != nil {
+		slog.Error("Could not re-arm TLS certificate watcher", "file", fileName,
+			"error", addErr)
+		return false
+	}
+	return true
 }
 
 // GetCertificate implements tls.Config.GetCertificate.  It returns the

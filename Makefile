@@ -14,9 +14,23 @@ setup-test-dependencies:
 	[ ! -f testing/venv/moto ] && python3 -m venv testing/venv/moto
 	./testing/venv/moto/bin/pip3 install -r testing/requirements.txt
 
+# Usage: $(call wait_for_moto,<port>)
+define wait_for_moto
+	for i in $$(seq 1 60); do \
+	  curl -s -o /dev/null http://localhost:$(1)/ && exit 0; \
+	  sleep 0.5; \
+	done; \
+	echo "moto on port $(1) not ready after 30s" >&2; \
+	echo "--- testing/server_$(1).err ---" >&2; cat testing/server_$(1).err >&2; \
+	echo "--- testing/server_$(1).log ---" >&2; cat testing/server_$(1).log >&2; \
+	exit 1
+endef
+
 start-test-s3-servers:
 	./testing/venv/moto/bin/moto_server -p 5000 >testing/server_5000.log 2>testing/server_5000.err &
 	./testing/venv/moto/bin/moto_server -p 5001 >testing/server_5001.log 2>testing/server_5001.err &
+	$(call wait_for_moto,5000)
+	$(call wait_for_moto,5001)
 	./testing/venv/moto/bin/python3 testing/bootstrap_backend.py testing/backends/tst-1 http://localhost:5000
 	./testing/venv/moto/bin/python3 testing/bootstrap_backend.py testing/backends/eu-test-2 http://localhost:5001
 
